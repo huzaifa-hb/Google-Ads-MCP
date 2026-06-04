@@ -18,6 +18,7 @@ application_default_credentials.json
 client_secret*.json
 oauth*.json
 *refresh*token*
+!scripts/generate_refresh_token.py
 *.pem
 *.key
 
