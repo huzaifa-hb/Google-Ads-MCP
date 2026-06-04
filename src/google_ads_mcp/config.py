@@ -1,0 +1,104 @@
+"""Runtime configuration loaded from environment variables."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from functools import lru_cache
+
+
+class ConfigError(ValueError):
+    """Raised when required runtime configuration is missing or invalid."""
+
+
+def _env(name: str, default: str | None = None) -> str | None:
+    value = os.environ.get(name, default)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Application settings.
+
+    Secrets are intentionally read only from the environment so the repository can be
+    public-safe and Cloud Run can inject values from Secret Manager.
+    """
+
+    mcp_bearer_token: str | None
+    developer_token: str | None
+    oauth_client_id: str | None
+    oauth_client_secret: str | None
+    refresh_token: str | None
+    login_customer_id: str | None
+    google_project_id: str | None
+    api_version: str
+    host: str
+    port: int
+    allow_unauthenticated_mcp: bool
+    max_retries: int
+    retry_base_seconds: float
+
+    @classmethod
+    def from_env(cls) -> "Settings":
+        port = int(_env("PORT", "8080") or "8080")
+        max_retries = int(_env("GOOGLE_ADS_MAX_RETRIES", "3") or "3")
+        retry_base_seconds = float(_env("GOOGLE_ADS_RETRY_BASE_SECONDS", "0.5") or "0.5")
+        allow_unauthenticated = (_env("ALLOW_UNAUTHENTICATED_MCP", "false") or "").lower()
+        return cls(
+            mcp_bearer_token=_env("MCP_BEARER_TOKEN"),
+            developer_token=_env("GOOGLE_ADS_DEVELOPER_TOKEN"),
+            oauth_client_id=_env("GOOGLE_ADS_CLIENT_ID"),
+            oauth_client_secret=_env("GOOGLE_ADS_CLIENT_SECRET"),
+            refresh_token=_env("GOOGLE_ADS_REFRESH_TOKEN"),
+            login_customer_id=_env("GOOGLE_ADS_LOGIN_CUSTOMER_ID"),
+            google_project_id=_env("GOOGLE_PROJECT_ID") or _env("GOOGLE_CLOUD_PROJECT"),
+            api_version=_env("GOOGLE_ADS_API_VERSION", "v24") or "v24",
+            host=_env("HOST", "0.0.0.0") or "0.0.0.0",
+            port=port,
+            allow_unauthenticated_mcp=allow_unauthenticated in {"1", "true", "yes"},
+            max_retries=max_retries,
+            retry_base_seconds=retry_base_seconds,
+        )
+
+    def require_mcp_auth(self) -> None:
+        if not self.mcp_bearer_token and not self.allow_unauthenticated_mcp:
+            raise ConfigError(
+                "MCP_BEARER_TOKEN is required. Set ALLOW_UNAUTHENTICATED_MCP=true only "
+                "for local development."
+            )
+
+    def require_google_ads(self) -> None:
+        missing = [
+            name
+            for name, value in {
+                "GOOGLE_ADS_DEVELOPER_TOKEN": self.developer_token,
+                "GOOGLE_ADS_CLIENT_ID": self.oauth_client_id,
+                "GOOGLE_ADS_CLIENT_SECRET": self.oauth_client_secret,
+                "GOOGLE_ADS_REFRESH_TOKEN": self.refresh_token,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise ConfigError(f"Missing required Google Ads environment values: {', '.join(missing)}")
+
+    def google_ads_client_config(self) -> dict[str, object]:
+        self.require_google_ads()
+        config: dict[str, object] = {
+            "developer_token": self.developer_token,
+            "client_id": self.oauth_client_id,
+            "client_secret": self.oauth_client_secret,
+            "refresh_token": self.refresh_token,
+            "use_proto_plus": True,
+        }
+        if self.login_customer_id:
+            config["login_customer_id"] = self.login_customer_id
+        return config
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings.from_env()
+

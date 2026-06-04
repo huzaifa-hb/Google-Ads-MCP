@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+google-ads.yaml
+application_default_credentials.json
+client_secret*.json
+oauth*.json
+*refresh*token*
+*.pem
+*.key
+
+# User/customer data
+invoices/
+*.pdf
+audience_uploads/
+customer_match_*.csv
+*.log
+

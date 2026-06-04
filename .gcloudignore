@@ -1,0 +1,15 @@
+.git/
+.gitignore
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+tests/
+docs/
+outputs/
+work/
+.env
+.env.*
+*.pdf
+audience_uploads/
+
