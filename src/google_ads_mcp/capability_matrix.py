@@ -63,6 +63,14 @@ DIRECT_MUTATION_TOOLS = {
     "remove_ad_label",
     "apply_keyword_label",
     "remove_keyword_label",
+    "apply_label_to_campaign",
+    "apply_label_to_ad_group",
+    "apply_label_to_ad",
+    "apply_label_to_keyword",
+    "remove_label_from_campaign",
+    "remove_label_from_ad_group",
+    "remove_label_from_ad",
+    "remove_label_from_keyword",
 }
 
 DIRECT_NEGATIVE_KEYWORD_TOOLS = {
