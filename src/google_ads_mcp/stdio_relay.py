@@ -19,6 +19,10 @@ def _extract_json_response(body: bytes, content_type: str) -> str:
     return text
 
 
+def _json_rpc_error(code: int, message: str) -> str:
+    return json.dumps({"jsonrpc": "2.0", "error": {"code": code, "message": message}})
+
+
 def main() -> None:
     mcp_url = os.environ.get("MCP_URL")
     token = os.environ.get("MCP_BEARER_TOKEN")
@@ -61,15 +65,12 @@ def main() -> None:
                     response.headers.get("content-type", ""),
                 )
         except urllib.error.HTTPError as exc:
-            payload = json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": exc.code,
-                        "message": exc.read().decode("utf-8", errors="replace"),
-                    },
-                }
+            payload = _json_rpc_error(
+                exc.code,
+                exc.read().decode("utf-8", errors="replace"),
             )
+        except (urllib.error.URLError, OSError) as exc:
+            payload = _json_rpc_error(-32000, str(exc))
         print(payload)
         sys.stdout.flush()
 

@@ -26,6 +26,27 @@ class ResourcePayloadTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "reference-index")
         self.assertIn("/v24", payload["field_reference"])
 
+    def test_alias_resources_identify_canonical_uri(self) -> None:
+        discovery_alias = json.loads(
+            discovery_document_resource(
+                "v24",
+                alias_of="resource://google-ads/reference-index",
+            )
+        )
+        release_alias = json.loads(
+            release_notes_resource(
+                "v24",
+                alias_of="resource://google-ads/release-notes-index",
+            )
+        )
+
+        self.assertEqual(discovery_alias["alias_of"], "resource://google-ads/reference-index")
+        self.assertEqual(release_alias["alias_of"], "resource://google-ads/release-notes-index")
+        self.assertEqual(discovery_alias["kind"], "compatibility-alias")
+        self.assertEqual(release_alias["kind"], "compatibility-alias")
+        self.assertEqual(discovery_alias["canonical_kind"], "reference-index")
+        self.assertEqual(release_alias["canonical_kind"], "release-notes-index")
+
     def test_metrics_and_segments_resources_are_versioned(self) -> None:
         metrics = json.loads(metrics_resource("v24"))
         segments = json.loads(segments_resource("v24"))

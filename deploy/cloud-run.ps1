@@ -7,11 +7,15 @@ param(
     [string]$ArtifactRepo = "mcp-servers",
     [string]$McpMode = "safe_read_only",
     [string]$McpAuthMode = "bearer",
-    [string]$ToolsConfigPath = "",
+    [string]$McpBaseUrl = "",
     [switch]$EnableGenericServiceBridge
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($McpAuthMode -eq "oauth_proxy" -and -not $McpBaseUrl) {
+    throw "-McpBaseUrl is required when -McpAuthMode oauth_proxy."
+}
 
 gcloud config set project $ProjectId
 
@@ -49,8 +53,8 @@ $envMappings = @(
     "GOOGLE_ADS_MCP_AUTH_MODE=$McpAuthMode",
     "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=$genericServiceBridge"
 )
-if ($ToolsConfigPath) {
-    $envMappings += "GOOGLE_ADS_MCP_TOOLS_CONFIG=$ToolsConfigPath"
+if ($McpAuthMode -eq "oauth_proxy") {
+    $envMappings += "GOOGLE_ADS_MCP_BASE_URL=$McpBaseUrl"
 }
 
 $secretMappings = @(
@@ -60,6 +64,10 @@ $secretMappings = @(
     "GOOGLE_ADS_CLIENT_SECRET=GOOGLE_ADS_CLIENT_SECRET:latest",
     "GOOGLE_ADS_REFRESH_TOKEN=GOOGLE_ADS_REFRESH_TOKEN:latest"
 )
+if ($McpAuthMode -eq "oauth_proxy") {
+    $secretMappings += "GOOGLE_ADS_MCP_OAUTH_CLIENT_ID=GOOGLE_ADS_MCP_OAUTH_CLIENT_ID:latest"
+    $secretMappings += "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET=GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET:latest"
+}
 
 gcloud secrets describe GOOGLE_ADS_LOGIN_CUSTOMER_ID 1>$null 2>$null
 if ($LASTEXITCODE -eq 0) {

@@ -59,9 +59,9 @@ PRIMARY_FIELDS = {
     "geographic_view": "campaign.id",
     "age_range_view": "ad_group_criterion.criterion_id",
     "gender_view": "ad_group_criterion.criterion_id",
-    "household_income_view": "ad_group_criterion.criterion_id",
+    "income_range_view": "ad_group_criterion.criterion_id",
     "parental_status_view": "ad_group_criterion.criterion_id",
-    "audience_view": "user_list.id",
+    "ad_group_audience_view": "user_list.id",
     "group_placement_view": "group_placement_view.placement",
     "asset_group_asset": "asset.id",
     "video": "video.id",
@@ -198,20 +198,19 @@ ENTRIES: tuple[KBEntry, ...] = (
         id="pagination-patterns",
         category="pagination",
         question="How does GAQL pagination work?",
-        keywords=("pagination", "page_size", "page_token", "offset", "limit", "next"),
+        keywords=("pagination", "page_size", "page_token", "limit", "next"),
         answer=(
-            "Google Ads search supports page_size and page_token for API paging. LIMIT/OFFSET can "
-            "also be used for small deterministic result sets. This MCP returns has_more, next_offset, "
-            "and next_page_token when available."
+            "Google Ads search supports page_size and page_token for API paging. GAQL has LIMIT "
+            "but no OFFSET clause. This MCP returns has_more and next_page_token when available."
         ),
         queries=(
             q(
-                "Small offset page",
-                "SELECT campaign.id, campaign.name FROM campaign WHERE segments.date DURING LAST_30_DAYS ORDER BY campaign.id LIMIT 100 OFFSET 200",
+                "Small first page",
+                "SELECT campaign.id, campaign.name FROM campaign WHERE segments.date DURING LAST_30_DAYS ORDER BY campaign.id LIMIT 100",
                 "campaign.id",
             ),
         ),
-        notes=("For large reports, prefer page_token over deep OFFSET traversal.",),
+        notes=("For large reports, use page_token rather than trying to emulate OFFSET.",),
     ),
     KBEntry(
         id="available-resources",
@@ -221,7 +220,7 @@ ENTRIES: tuple[KBEntry, ...] = (
         answer=(
             "Core reporting: campaign, ad_group, ad_group_ad, keyword_view, ad_group_criterion, "
             "search_term_view. Segment views: geographic_view, age_range_view, gender_view, "
-            "household_income_view, parental_status_view, audience_view, group_placement_view. "
+            "income_range_view, parental_status_view, ad_group_audience_view, group_placement_view. "
             "Entities: campaign_budget, bidding_strategy, label, asset, asset_group, asset_group_asset, "
             "user_list, conversion_action, recommendation. Other/special: shopping_performance_view, "
             "video, landing_page_view, call_view, change_event, product_link, account_budget, billing_setup."
@@ -424,10 +423,10 @@ ENTRIES: tuple[KBEntry, ...] = (
         category="reporting",
         question="How do I get household income performance?",
         keywords=("household", "income", "hhi", "demographic", "top", "lower"),
-        answer="Use household_income_view and ad_group_criterion.income_range.type.",
+        answer="Use income_range_view and ad_group_criterion.income_range.type.",
         queries=(
-            q("Household income performance", "SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, ad_group.id, campaign.id, metrics.impressions, metrics.clicks FROM household_income_view WHERE segments.date DURING LAST_30_DAYS", "ad_group_criterion.criterion_id"),
-            q("Household income cost", "SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, campaign.id, metrics.cost_micros, metrics.conversions FROM household_income_view WHERE segments.date DURING LAST_30_DAYS", "ad_group_criterion.criterion_id"),
+            q("Household income performance", "SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, ad_group.id, campaign.id, metrics.impressions, metrics.clicks FROM income_range_view WHERE segments.date DURING LAST_30_DAYS", "ad_group_criterion.criterion_id"),
+            q("Household income cost", "SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, campaign.id, metrics.cost_micros, metrics.conversions FROM income_range_view WHERE segments.date DURING LAST_30_DAYS", "ad_group_criterion.criterion_id"),
         ),
         notes=("Values include INCOME_RANGE_0_50 through INCOME_RANGE_90_UP and UNDETERMINED.",),
     ),
@@ -435,11 +434,11 @@ ENTRIES: tuple[KBEntry, ...] = (
         id="audience-performance",
         category="audiences",
         question="How do I get audience performance?",
-        keywords=("audience", "audience_view", "user_list", "remarketing", "in-market"),
-        answer="Use audience_view and include user_list.id in SELECT.",
+        keywords=("audience", "ad_group_audience_view", "user_list", "remarketing", "in-market"),
+        answer="Use ad_group_audience_view and include user_list.id in SELECT.",
         queries=(
-            q("Audience performance", "SELECT user_list.id, user_list.name, campaign.id, ad_group.id, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM audience_view WHERE segments.date DURING LAST_30_DAYS", "user_list.id"),
-            q("Audience conversions", "SELECT user_list.id, user_list.name, campaign.id, metrics.conversions, metrics.conversions_value FROM audience_view WHERE segments.date DURING LAST_30_DAYS", "user_list.id"),
+            q("Audience performance", "SELECT user_list.id, user_list.name, campaign.id, ad_group.id, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM ad_group_audience_view WHERE segments.date DURING LAST_30_DAYS", "user_list.id"),
+            q("Audience conversions", "SELECT user_list.id, user_list.name, campaign.id, metrics.conversions, metrics.conversions_value FROM ad_group_audience_view WHERE segments.date DURING LAST_30_DAYS", "user_list.id"),
         ),
         see_also=("manager-account-limits",),
     ),
@@ -473,8 +472,8 @@ ENTRIES: tuple[KBEntry, ...] = (
         keywords=("video", "youtube", "views", "view_rate", "quartile", "watch"),
         answer="Use the video resource with video.id and YouTube video fields. Duration is exposed as video.duration_millis.",
         queries=(
-            q("Video performance", "SELECT video.id, video.title, video.channel_id, video.duration_millis, metrics.video_views, metrics.view_rate, metrics.video_quartile_p25_rate, metrics.video_quartile_p50_rate, metrics.video_quartile_p100_rate FROM video WHERE segments.date DURING LAST_30_DAYS", "video.id"),
-            q("Video cost and conversions", "SELECT video.id, video.title, metrics.impressions, metrics.video_views, metrics.cost_micros, metrics.conversions FROM video WHERE segments.date DURING LAST_30_DAYS", "video.id"),
+            q("Video performance", "SELECT video.id, video.title, video.channel_id, video.duration_millis, metrics.video_trueview_views, metrics.video_trueview_view_rate, metrics.video_quartile_p25_rate, metrics.video_quartile_p50_rate, metrics.video_quartile_p100_rate FROM video WHERE segments.date DURING LAST_30_DAYS", "video.id"),
+            q("Video cost and conversions", "SELECT video.id, video.title, metrics.impressions, metrics.video_trueview_views, metrics.cost_micros, metrics.conversions FROM video WHERE segments.date DURING LAST_30_DAYS", "video.id"),
         ),
         notes=("The current Google Ads field is video.duration_millis, not video.duration_seconds.",),
     ),
@@ -496,7 +495,7 @@ ENTRIES: tuple[KBEntry, ...] = (
         keywords=("call", "details", "duration", "phone", "call_view"),
         answer="Use call_view. Date filter is required.",
         queries=(
-            q("Call details", "SELECT call_view.resource_name, call_view.call_duration_seconds, call_view.call_status, call_view.call_tracking_display_type, campaign.id FROM call_view WHERE segments.date DURING LAST_30_DAYS", "call_view.resource_name"),
+            q("Call details", "SELECT call_view.resource_name, call_view.call_duration_seconds, call_view.call_status, call_view.call_tracking_display_location, campaign.id FROM call_view WHERE segments.date DURING LAST_30_DAYS", "call_view.resource_name"),
             q("Long calls", "SELECT call_view.resource_name, call_view.call_duration_seconds, campaign.id FROM call_view WHERE call_view.call_duration_seconds > 60 AND segments.date DURING LAST_30_DAYS", "call_view.resource_name"),
         ),
     ),
@@ -520,8 +519,8 @@ ENTRIES: tuple[KBEntry, ...] = (
         keywords=("asset", "performance", "pmax", "rsa", "label", "best", "good", "low"),
         answer="Use asset_group_asset for PMax asset group assets. performance_label values include BEST, GOOD, LOW, PENDING, and UNRATED.",
         queries=(
-            q("Asset group asset performance", "SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.performance_label, metrics.impressions, metrics.clicks, metrics.conversions FROM asset_group_asset WHERE segments.date DURING LAST_30_DAYS", "asset.id"),
-            q("Low assets", "SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.performance_label FROM asset_group_asset WHERE asset_group_asset.performance_label = LOW AND segments.date DURING LAST_30_DAYS", "asset.id"),
+            q("Asset group asset performance", "SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.primary_status, metrics.impressions, metrics.clicks, metrics.conversions FROM asset_group_asset WHERE segments.date DURING LAST_30_DAYS", "asset.id"),
+            q("Limited assets", "SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.primary_status FROM asset_group_asset WHERE asset_group_asset.primary_status = LIMITED AND segments.date DURING LAST_30_DAYS", "asset.id"),
         ),
     ),
     KBEntry(
@@ -534,7 +533,7 @@ ENTRIES: tuple[KBEntry, ...] = (
             q("Bidding strategy by campaign", "SELECT campaign.id, campaign.name, campaign.bidding_strategy_type, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date DURING LAST_30_DAYS", "campaign.id"),
             q("Target CPA campaigns", "SELECT campaign.id, campaign.name, campaign.bidding_strategy_type, metrics.cost_per_conversion, metrics.conversions FROM campaign WHERE campaign.bidding_strategy_type = TARGET_CPA AND segments.date DURING LAST_30_DAYS", "campaign.id"),
         ),
-        notes=("Common values include TARGET_CPA, TARGET_ROAS, MAXIMIZE_CONVERSIONS, MAXIMIZE_CONVERSION_VALUE, MANUAL_CPC, and TARGET_IMPRESSION_SHARE.",),
+        notes=("Common values include TARGET_CPA, TARGET_ROAS, MAXIMIZE_CONVERSIONS, MAXIMIZE_CONVERSION_VALUE, MANUAL_CPC, and TARGET_IMPRESSION_SHARE. target_roas is a ratio, so 4.0 means 400%.",),
     ),
     KBEntry(
         id="no-metrics-resources",

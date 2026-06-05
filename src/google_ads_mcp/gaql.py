@@ -125,14 +125,7 @@ def ensure_primary_field(query: str, primary_field: str) -> None:
 def apply_pagination(query: str, pagination: Pagination) -> str:
     if pagination.offset is None:
         return query
-    if " limit " in query.lower():
-        return query
-    # Fetch one extra row in offset mode so callers get a reliable has_more value.
-    limit_clause = f"LIMIT {pagination.page_size + 1} OFFSET {pagination.offset}"
-    parameters_index = query.lower().find(" parameters ")
-    if parameters_index >= 0:
-        return f"{query[:parameters_index]} {limit_clause}{query[parameters_index:]}"
-    return f"{query} {limit_clause}"
+    raise ValidationError("GAQL does not support OFFSET. Use page_token pagination instead.")
 
 
 def apply_default_parameters(query: str) -> str:

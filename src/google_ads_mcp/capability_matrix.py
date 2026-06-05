@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .tool_catalog import FriendlyToolSpec, REPORT_RESOURCES, SERVICE_TOOLS, UNSUPPORTED_TOOLS
+from .tool_catalog import FriendlyToolSpec, SERVICE_TOOLS, UNSUPPORTED_TOOLS
 from .tool_config import CORE_TOOL_DEFS, ToolExposure, ToolRegistry, classify_friendly_read_write
 
 
@@ -277,8 +277,6 @@ def _friendly_status(spec: FriendlyToolSpec) -> str:
     if spec.mode == "service" or spec.name in SERVICE_TOOLS:
         return "generic_routed"
     if spec.mode in {"query", "report"}:
-        if spec.mode == "report" and spec.name not in REPORT_RESOURCES:
-            return "unmapped_report"
         return "hand_implemented"
     if spec.mode == "negative_keyword":
         if spec.name.startswith("list_") or spec.name in DIRECT_NEGATIVE_KEYWORD_TOOLS:

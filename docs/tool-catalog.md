@@ -255,7 +255,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `remove_keywords_from_shared_list` | `negative_keyword` | `` | Remove keywords from a shared negative list. |
 | `apply_shared_list_to_campaign` | `negative_keyword` | `` | Attach a shared negative list to a campaign. |
 | `remove_shared_list_from_campaign` | `negative_keyword` | `` | Detach a shared negative list from a campaign. |
-| `get_keyword_bid_estimates` | `service` | `` | Get keyword CPC and traffic estimates when supported. |
+| `get_keyword_bid_estimates` | `unsupported` | `` | Get keyword CPC and traffic estimates when supported. |
 | `get_keyword_ideas` | `service` | `` | Get Keyword Planner ideas. |
 
 ## Labels
@@ -280,8 +280,8 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | Tool | Mode | Resource | Description |
 |---|---|---|---|
 | `get_reach_forecast` | `service` | `` | Get Reach Planner forecast where available. |
-| `get_ad_preview` | `service` | `` | Get ad preview or serving simulation data when available. |
-| `get_ad_diagnosis` | `service` | `` | Diagnose why an ad is not serving when API surface allows. |
+| `get_ad_preview` | `unsupported` | `` | Get ad preview or serving simulation data when available. |
+| `get_ad_diagnosis` | `unsupported` | `` | Diagnose why an ad is not serving when API surface allows. |
 
 ## Recommendations
 
@@ -301,7 +301,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_ad_metrics` | `report` | `ad_group_ad` | Ad metrics with preset or custom date ranges. |
 | `get_keyword_metrics` | `report` | `keyword_view` | Keyword metrics plus quality score fields. |
 | `get_search_terms_report` | `report` | `search_term_view` | Search query performance report. |
-| `get_auction_insights` | `report` | `campaign` | Auction insight metrics. |
+| `get_auction_insights` | `unsupported` | `` | Auction insight metrics. |
 | `get_device_performance` | `report` | `campaign` | Performance by device. |
 | `get_geo_performance` | `report` | `geographic_view` | Performance by geographic target id and readable name. |
 | `get_hour_of_day_performance` | `report` | `campaign` | Performance by hour of day. |
@@ -309,8 +309,8 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_age_range_report` | `report` | `age_range_view` | Performance by age range. |
 | `get_gender_report` | `report` | `gender_view` | Performance by gender. |
 | `get_parental_status_report` | `report` | `parental_status_view` | Performance by parental status. |
-| `get_household_income_report` | `report` | `household_income_view` | Performance by household income. |
-| `get_audience_performance_report` | `report` | `audience_view` | Performance by audience segment. |
+| `get_household_income_report` | `report` | `income_range_view` | Performance by household income. |
+| `get_audience_performance_report` | `report` | `ad_group_audience_view` | Performance by audience segment. |
 | `get_placement_report` | `report` | `group_placement_view` | Display placement performance. |
 | `get_topic_report` | `unsupported` | `` | GDN topic performance. |
 | `get_ad_schedule_report` | `report` | `campaign` | Performance by scheduled time block. |

@@ -6,6 +6,10 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+from dotenv import load_dotenv
+
+load_dotenv(override=False)
+
 
 class ConfigError(ValueError):
     """Raised when required runtime configuration is missing or invalid."""
@@ -17,6 +21,29 @@ def _env(name: str, default: str | None = None) -> str | None:
         return None
     value = value.strip()
     return value or None
+
+
+def _env_int(name: str, default: str) -> int:
+    raw = _env(name, default) or default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be an integer, got: {raw!r}.") from exc
+
+
+def _env_float(name: str, default: str) -> float:
+    raw = _env(name, default) or default
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be a number, got: {raw!r}.") from exc
+
+
+def _env_csv(name: str) -> tuple[str, ...]:
+    raw = _env(name)
+    if not raw:
+        return ()
+    return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
 
 
 @dataclass(frozen=True)
@@ -46,14 +73,16 @@ class Settings:
     mcp_oauth_client_id: str | None
     mcp_oauth_client_secret: str | None
     mcp_base_url: str | None
+    mcp_allowed_emails: tuple[str, ...]
+    mcp_allowed_domains: tuple[str, ...]
     max_retries: int
     retry_base_seconds: float
 
     @classmethod
     def from_env(cls) -> "Settings":
-        port = int(_env("PORT", "8080") or "8080")
-        max_retries = int(_env("GOOGLE_ADS_MAX_RETRIES", "3") or "3")
-        retry_base_seconds = float(_env("GOOGLE_ADS_RETRY_BASE_SECONDS", "0.5") or "0.5")
+        port = _env_int("PORT", "8080")
+        max_retries = _env_int("GOOGLE_ADS_MAX_RETRIES", "3")
+        retry_base_seconds = _env_float("GOOGLE_ADS_RETRY_BASE_SECONDS", "0.5")
         allow_unauthenticated = (_env("ALLOW_UNAUTHENTICATED_MCP", "false") or "").lower()
         allow_legacy_write_defaults = (
             _env("GOOGLE_ADS_MCP_ALLOW_LEGACY_WRITE_DEFAULTS", "false") or ""
@@ -82,17 +111,19 @@ class Settings:
             mcp_oauth_client_id=_env("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID"),
             mcp_oauth_client_secret=_env("GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"),
             mcp_base_url=_env("GOOGLE_ADS_MCP_BASE_URL"),
+            mcp_allowed_emails=_env_csv("GOOGLE_ADS_MCP_ALLOWED_EMAILS"),
+            mcp_allowed_domains=_env_csv("GOOGLE_ADS_MCP_ALLOWED_DOMAINS"),
             max_retries=max_retries,
             retry_base_seconds=retry_base_seconds,
         )
 
     def require_mcp_auth(self) -> None:
-        if self.allow_unauthenticated_mcp:
-            return
         if self.auth_mode not in {"bearer", "oauth_proxy"}:
             raise ConfigError(
                 "GOOGLE_ADS_MCP_AUTH_MODE must be 'bearer' or 'oauth_proxy'."
             )
+        if self.allow_unauthenticated_mcp:
+            return
         if self.auth_mode == "bearer" and not self.mcp_bearer_token:
             raise ConfigError(
                 "MCP_BEARER_TOKEN is required. Set ALLOW_UNAUTHENTICATED_MCP=true only "
@@ -142,4 +173,8 @@ class Settings:
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings.from_env()
+
+
+def reset_settings_cache() -> None:
+    get_settings.cache_clear()
 

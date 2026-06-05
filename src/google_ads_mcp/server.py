@@ -44,6 +44,11 @@ def build_mcp() -> Any:
     async def healthz(request: Any) -> Any:  # noqa: ARG001
         return JSONResponse(_server_status_payload(settings, registry))
 
+    @mcp.custom_route("/readyz", methods=["GET"])
+    async def readyz(request: Any) -> Any:  # noqa: ARG001
+        payload = _google_ads_readiness_payload(settings)
+        return JSONResponse(payload, status_code=200 if payload["google_ads_configured"] else 503)
+
     async def get_server_status() -> dict[str, Any]:
         """Return server mode, auth mode, config source, and exposed tool count."""
 
@@ -209,6 +214,7 @@ def build_mcp() -> Any:
         customer_id: str,
         query: str,
         primary_field: str | None = None,
+        max_rows: int = 10_000,
     ) -> dict[str, Any]:
         """Run a GAQL SearchStream query."""
 
@@ -216,6 +222,7 @@ def build_mcp() -> Any:
             customer_id=customer_id,
             query=query,
             primary_field=primary_field,
+            max_rows=max_rows,
         )
 
     async def google_ads_mutate(
@@ -315,7 +322,7 @@ def _build_auth(settings: Any) -> Any:
             from fastmcp.server.auth.providers.google import GoogleProvider
         except ImportError as exc:  # pragma: no cover
             raise ConfigError("fastmcp GoogleProvider is required for OAuth proxy auth.") from exc
-        return GoogleProvider(
+        provider = GoogleProvider(
             client_id=settings.mcp_oauth_client_id,
             client_secret=settings.mcp_oauth_client_secret,
             base_url=settings.mcp_base_url,
@@ -323,9 +330,11 @@ def _build_auth(settings: Any) -> Any:
                 "openid",
                 "https://www.googleapis.com/auth/userinfo.email",
                 "https://www.googleapis.com/auth/userinfo.profile",
-                "https://www.googleapis.com/auth/adwords",
             ],
         )
+        if settings.mcp_allowed_emails or settings.mcp_allowed_domains:
+            return _OAuthAllowlistProvider(provider, settings)
+        return provider
     try:
         from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
     except ImportError as exc:  # pragma: no cover
@@ -338,6 +347,49 @@ def _build_auth(settings: Any) -> Any:
             }
         },
         required_scopes=["google_ads:read"],
+    )
+
+
+class _OAuthAllowlistProvider:
+    def __init__(self, provider: Any, settings: Any) -> None:
+        self.provider = provider
+        self.allowed_emails = set(settings.mcp_allowed_emails)
+        self.allowed_domains = set(settings.mcp_allowed_domains)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.provider, name)
+
+    async def verify_token(self, token: str) -> Any:
+        access_token = await self.provider.verify_token(token)
+        if access_token is None:
+            return None
+        if not _oauth_token_allowed(
+            access_token,
+            allowed_emails=self.allowed_emails,
+            allowed_domains=self.allowed_domains,
+        ):
+            return None
+        return access_token
+
+
+def _oauth_token_allowed(
+    access_token: Any,
+    *,
+    allowed_emails: set[str],
+    allowed_domains: set[str],
+) -> bool:
+    if not allowed_emails and not allowed_domains:
+        return True
+    claims = getattr(access_token, "claims", {}) or {}
+    email = str(claims.get("email") or "").strip().lower()
+    subject = str(getattr(access_token, "subject", "") or claims.get("sub") or "").strip().lower()
+    hosted_domain = str(claims.get("hd") or "").strip().lower()
+    email_domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+    return (
+        bool(email and email in allowed_emails)
+        or bool(subject and subject in allowed_emails)
+        or bool(hosted_domain and hosted_domain in allowed_domains)
+        or bool(email_domain and email_domain in allowed_domains)
     )
 
 
@@ -416,16 +468,37 @@ def _tool_response(func: Any) -> Any:
 
 
 def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, Any]:
+    readiness = _google_ads_readiness_payload(settings)
     return {
         "status": "ok",
         "service": "google-ads-mcp",
         "api_version": settings.api_version,
         "auth": "disabled-local-dev" if settings.allow_unauthenticated_mcp else settings.auth_mode,
         "mode": registry.mode,
+        "google_ads_configured": readiness["google_ads_configured"],
         "tools_config_source": registry.config_source,
         "exposed_tool_count": len(registry.exposures),
         "legacy_aliases_enabled": registry.legacy_aliases_enabled,
         "generic_service_bridge_enabled": bool(settings.enable_generic_service_bridge),
+        "oauth_allowlist_configured": bool(
+            settings.mcp_allowed_emails or settings.mcp_allowed_domains
+        ),
+    }
+
+
+def _google_ads_readiness_payload(settings: Any) -> dict[str, Any]:
+    required = {
+        "GOOGLE_ADS_DEVELOPER_TOKEN": settings.developer_token,
+        "GOOGLE_ADS_CLIENT_ID": settings.oauth_client_id,
+        "GOOGLE_ADS_CLIENT_SECRET": settings.oauth_client_secret,
+        "GOOGLE_ADS_REFRESH_TOKEN": settings.refresh_token,
+    }
+    missing = [name for name, value in required.items() if not value]
+    return {
+        "status": "ready" if not missing else "not_ready",
+        "service": "google-ads-mcp",
+        "google_ads_configured": not missing,
+        "missing": missing,
     }
 
 
@@ -436,7 +509,10 @@ def _register_resources(mcp: Any, settings: Any, registry: ToolRegistry) -> None
         mime_type="application/json",
     )
     def discovery_document() -> str:
-        return discovery_document_resource(settings.api_version)
+        return discovery_document_resource(
+            settings.api_version,
+            alias_of="resource://google-ads/reference-index",
+        )
 
     @mcp.resource(
         "resource://google-ads/reference-index",
@@ -468,7 +544,10 @@ def _register_resources(mcp: Any, settings: Any, registry: ToolRegistry) -> None
         mime_type="application/json",
     )
     def release_notes() -> str:
-        return release_notes_resource(settings.api_version)
+        return release_notes_resource(
+            settings.api_version,
+            alias_of="resource://google-ads/release-notes-index",
+        )
 
     @mcp.resource(
         "resource://google-ads/release-notes-index",

@@ -468,10 +468,7 @@ SERVICE_TOOLS = {
     "download_invoice_pdf",
     "get_billing_setup",
     "get_keyword_ideas",
-    "get_keyword_bid_estimates",
     "get_reach_forecast",
-    "get_ad_preview",
-    "get_ad_diagnosis",
     "get_recommendation_types",
 }
 
@@ -491,6 +488,22 @@ UNSUPPORTED_TOOLS: dict[str, str] = {
     "get_paid_organic_report": (
         "Paid and organic reporting depends on Search Console linkage and version-specific fields. "
         "Use live metadata before building this report."
+    ),
+    "get_auction_insights": (
+        "Auction insight fields are version and account sensitive. Use live metadata and "
+        "planning_plan_gaql_query before implementing this report."
+    ),
+    "get_keyword_bid_estimates": (
+        "Keyword bid estimates are not mapped to a stable high-level helper. Use Keyword Planner "
+        "idea and forecast services directly only after checking live service metadata."
+    ),
+    "get_ad_preview": (
+        "Ad preview is not mapped to a stable Google Ads API service method in this MCP. Use "
+        "Google Ads UI preview tools or live metadata before adding an API helper."
+    ),
+    "get_ad_diagnosis": (
+        "Ad diagnosis is not mapped to a stable Google Ads API service method in this MCP. Use "
+        "policy and approval report tools plus live metadata for account-specific diagnosis."
     ),
     "upload_store_visit_conversions": (
         "Store visit conversion uploads are eligibility-gated and not available for most API users. "
@@ -548,26 +561,46 @@ REPORT_RESOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "get_age_range_report": (
         "age_range_view",
-        ("campaign.id", "ad_group.id", "ad_group_criterion.age_range.type"),
+        (
+            "ad_group_criterion.criterion_id",
+            "campaign.id",
+            "ad_group.id",
+            "ad_group_criterion.age_range.type",
+        ),
         "ad_group_criterion.criterion_id",
     ),
     "get_gender_report": (
         "gender_view",
-        ("campaign.id", "ad_group.id", "ad_group_criterion.gender.type"),
+        (
+            "ad_group_criterion.criterion_id",
+            "campaign.id",
+            "ad_group.id",
+            "ad_group_criterion.gender.type",
+        ),
         "ad_group_criterion.criterion_id",
     ),
     "get_parental_status_report": (
         "parental_status_view",
-        ("campaign.id", "ad_group.id", "ad_group_criterion.parental_status.type"),
+        (
+            "ad_group_criterion.criterion_id",
+            "campaign.id",
+            "ad_group.id",
+            "ad_group_criterion.parental_status.type",
+        ),
         "ad_group_criterion.criterion_id",
     ),
     "get_household_income_report": (
-        "household_income_view",
-        ("campaign.id", "ad_group.id", "ad_group_criterion.income_range.type"),
+        "income_range_view",
+        (
+            "ad_group_criterion.criterion_id",
+            "campaign.id",
+            "ad_group.id",
+            "ad_group_criterion.income_range.type",
+        ),
         "ad_group_criterion.criterion_id",
     ),
     "get_audience_performance_report": (
-        "audience_view",
+        "ad_group_audience_view",
         ("campaign.id", "ad_group.id", "user_list.id", "user_list.name"),
         "user_list.id",
     ),
@@ -578,7 +611,7 @@ REPORT_RESOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "get_asset_performance_report": (
         "asset_group_asset",
-        ("asset.id", "asset_group.id", "asset_group_asset.performance_label"),
+        ("asset.id", "asset_group.id", "asset_group_asset.primary_status"),
         "asset.id",
     ),
     "get_ad_asset_performance": (
@@ -599,7 +632,7 @@ REPORT_RESOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
             "asset.id",
             "asset_group.id",
             "asset_group_asset.field_type",
-            "asset_group_asset.performance_label",
+            "asset_group_asset.primary_status",
             "campaign.id",
         ),
         "asset.id",
@@ -632,7 +665,7 @@ REPORT_RESOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "get_ad_schedule_report": (
         "campaign",
-        ("campaign.id", "campaign.name", "segments.day_of_week", "segments.hour"),
+        ("campaign.id", "campaign.name", "segments.day_of_week"),
         "campaign.id",
     ),
     "get_display_performance_report": (
@@ -660,20 +693,49 @@ DEFAULT_METRICS = (
     "metrics.conversions",
     "metrics.conversions_value",
     "metrics.cost_per_conversion",
-    "metrics.conversion_rate",
+    "metrics.conversions_from_interactions_rate",
     "metrics.all_conversions",
     "metrics.all_conversions_value",
     "metrics.ctr",
     "metrics.average_cpc",
     "metrics.engagements",
-    "metrics.video_views",
-    "metrics.view_rate",
+    "metrics.video_trueview_views",
+    "metrics.video_trueview_view_rate",
     "metrics.search_impression_share",
     "metrics.search_budget_lost_impression_share",
     "metrics.search_rank_lost_impression_share",
     "metrics.search_top_impression_share",
     "metrics.search_absolute_top_impression_share",
 )
+
+BASIC_REPORT_METRICS = (
+    "metrics.impressions",
+    "metrics.clicks",
+    "metrics.cost_micros",
+    "metrics.conversions",
+)
+
+VIDEO_REPORT_METRICS = (
+    "metrics.impressions",
+    "metrics.cost_micros",
+    "metrics.conversions",
+    "metrics.video_trueview_views",
+    "metrics.video_trueview_view_rate",
+)
+
+VALUE_REPORT_METRICS = BASIC_REPORT_METRICS + ("metrics.conversions_value",)
+
+REPORT_METRICS_BY_TOOL = {
+    "get_change_history_report": (),
+    "get_ad_schedule_report": BASIC_REPORT_METRICS,
+    "get_hour_of_day_performance": BASIC_REPORT_METRICS,
+    "get_asset_performance_report": VALUE_REPORT_METRICS,
+    "get_asset_performance": VALUE_REPORT_METRICS,
+    "get_video_performance_report": VIDEO_REPORT_METRICS,
+    "get_shopping_performance_report": VALUE_REPORT_METRICS,
+    "get_bidding_strategy_report": VALUE_REPORT_METRICS,
+    "get_pmax_asset_group_performance": VALUE_REPORT_METRICS,
+}
 
 
 def _infer_mode(name: str) -> ToolMode:
@@ -704,7 +766,7 @@ def build_tool_specs() -> tuple[FriendlyToolSpec, ...]:
     for category, entries in TOOL_GROUPS.items():
         for name, description in entries:
             if name in seen:
-                continue
+                raise ValueError(f"Duplicate friendly tool name: {name}")
             seen.add(name)
             mode = _infer_mode(name)
             resource: str | None = None
@@ -725,7 +787,7 @@ def build_tool_specs() -> tuple[FriendlyToolSpec, ...]:
                     resource, fields, primary_field = None, (), None
                 else:
                     resource, base_fields, primary_field = REPORT_RESOURCES[name]
-                    fields = base_fields + DEFAULT_METRICS
+                    fields = base_fields + REPORT_METRICS_BY_TOOL.get(name, DEFAULT_METRICS)
             specs.append(
                 FriendlyToolSpec(
                     name=name,

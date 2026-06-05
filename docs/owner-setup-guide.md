@@ -217,14 +217,15 @@ Health check:
 
 ```powershell
 Invoke-WebRequest http://localhost:8080/healthz
+Invoke-WebRequest http://localhost:8080/readyz
 ```
 
 Then connect with any local MCP-capable client and call:
 
 1. `get_tool_catalog`
-2. `list_customers`
-3. `get_account_info` with a leaf `customer_id`
-4. `get_campaign_metrics` with a custom `start_date` and `end_date`
+2. `account_list_customers`
+3. `account_get_account_info` with a leaf `customer_id`
+4. `reporting_get_campaign_metrics` with a custom `start_date` and `end_date`
 
 Do not test real writes first. Use validation mode:
 
@@ -319,6 +320,7 @@ Defaults:
 | Port | `8080` |
 | MCP path | `/mcp` |
 | Health path | `/healthz` |
+| Readiness path | `/readyz` |
 
 The service uses public ingress because most external AI clients cannot mint
 Google IAM tokens. The app still requires `Authorization: Bearer
@@ -349,6 +351,7 @@ Health check:
 
 ```powershell
 Invoke-WebRequest "$url/healthz"
+Invoke-WebRequest "$url/readyz"
 ```
 
 MCP initialize check:
@@ -437,8 +440,8 @@ bearer_token_env_var = "MCP_BEARER_TOKEN"
 Then ask Codex:
 
 ```text
-Use google-ads-mcp. First call get_tool_catalog, then list_customers. Do not run
-real writes unless I provide CONFIRM_GOOGLE_ADS_WRITE.
+Use google-ads-mcp. First call get_tool_catalog, then account_list_customers.
+Do not run real writes unless I provide CONFIRM_GOOGLE_ADS_WRITE.
 ```
 
 ### Claude Code Or Claude Agent SDK
@@ -550,23 +553,25 @@ The relay forwards stdio JSON-RPC to the hosted Streamable HTTP endpoint.
 Read-only account discovery:
 
 ```text
-Use google-ads-mcp. Call list_customers, then get_mcc_hierarchy if a manager
-account is available. Summarize only account names, IDs, currency, and time zone.
+Use google-ads-mcp. Call account_list_customers, then account_get_mcc_hierarchy
+if a manager account is available. Summarize only account names, IDs, currency,
+and time zone.
 ```
 
 Custom-date report:
 
 ```text
-Use google-ads-mcp. For customer_id 1234567890, run get_campaign_metrics from
-2026-05-01 to 2026-05-31. Include impressions, clicks, cost, conversions, CPA,
-and ROAS. Do not mutate anything.
+Use google-ads-mcp. For customer_id 1234567890, run
+reporting_get_campaign_metrics from 2026-05-01 to 2026-05-31. Include
+impressions, clicks, cost, conversions, CPA, and ROAS. Do not mutate anything.
 ```
 
 GAQL planning:
 
 ```text
-Before writing GAQL, call query_google_ads_docs for "quality score keyword
-metrics", then use execute_gaql_query only after checking the primary field rule.
+Before writing GAQL, call metadata_query_google_ads_docs for "quality score
+keyword metrics", then use reporting_execute_gaql_query only after checking the
+primary field rule.
 ```
 
 Validation-only write:
@@ -604,8 +609,8 @@ change.
 If the OAuth user has access to a manager account:
 
 1. Set `GOOGLE_ADS_LOGIN_CUSTOMER_ID` to the manager ID, digits only.
-2. Use `list_customers` to discover accessible accounts.
-3. Use `get_mcc_hierarchy` to map parent and child accounts.
+2. Use `account_list_customers` to discover accessible accounts.
+3. Use `account_get_mcc_hierarchy` to map parent and child accounts.
 4. Use a leaf customer ID for reports and writes.
 
 Manager accounts are for hierarchy traversal. Most reporting and mutate calls
@@ -665,7 +670,7 @@ gcloud run services update google-ads-mcp `
 | Refresh token works locally but expires after a week | OAuth app is in Testing mode | Move to durable OAuth path or regenerate token |
 | Client times out on first request after idle | Cloud Run cold start | Retry once after 15 seconds, or configure minimum instances if you need instant first calls |
 | Metrics fail on MCC ID | Manager account used for leaf-only call | Use a child leaf customer ID |
-| `EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE` | GAQL missing primary field | Call `query_google_ads_docs` and include the primary field |
+| `EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE` | GAQL missing primary field | Call `metadata_query_google_ads_docs` and include the primary field |
 | Cloud Run is healthy but client cannot connect | Client cannot send headers or cannot reach public URL | Use a header-capable config, OAuth gateway, or stdio relay |
 | Google Ads linked accounts missing | API surface or account linking not available | Use generic service tools or `unsupported_capability` output to confirm |
 

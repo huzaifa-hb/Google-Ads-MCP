@@ -11,6 +11,7 @@ import asyncio
 from collections.abc import Callable
 from copy import deepcopy
 import inspect
+import logging
 import pkgutil
 import random
 from typing import Any
@@ -35,6 +36,8 @@ from .gaql import (
 from .safety import ValidationError, guard_google_ads_write, normalize_customer_id, redact_sensitive
 
 
+LOGGER = logging.getLogger(__name__)
+
 TRANSIENT_ERROR_MARKERS = (
     "RESOURCE_EXHAUSTED",
     "UNAVAILABLE",
@@ -51,7 +54,13 @@ MUTATING_METHOD_PREFIXES = (
     "dismiss_",
     "upload_",
     "create_",
+    "delete_",
     "remove_",
+    "promote_",
+    "graduate_",
+    "end_",
+    "cancel_",
+    "set_",
     "run_",
     "add_",
     "update_",
@@ -159,7 +168,8 @@ class GoogleAdsGateway:
             return service.search(request=request)
 
         response = await self._retry(call)
-        raw_rows = [self._message_to_dict(row) for row in response]
+        page_results = getattr(response, "results", response)
+        raw_rows = [self._message_to_dict(row) for row in page_results]
         rows = trim_offset_page(raw_rows, page_size, offset)
         next_token = getattr(response, "next_page_token", None)
         return {
@@ -181,8 +191,11 @@ class GoogleAdsGateway:
         customer_id: str,
         query: str,
         primary_field: str | None = None,
+        max_rows: int = 10_000,
     ) -> dict[str, Any]:
         cid = normalize_customer_id(customer_id)
+        if max_rows < 1:
+            raise ValidationError("max_rows must be at least 1.")
         if primary_field:
             ensure_primary_field(query, primary_field)
         query = apply_default_parameters(query)
@@ -196,10 +209,23 @@ class GoogleAdsGateway:
 
         stream = await self._retry(call)
         rows: list[dict[str, Any]] = []
+        truncated = False
         for batch in stream:
             for row in getattr(batch, "results", []):
+                if len(rows) >= max_rows:
+                    truncated = True
+                    break
                 rows.append(self._message_to_dict(row))
-        return {"customer_id": cid, "query": query, "rows": rows, "row_count": len(rows)}
+            if truncated:
+                break
+        return {
+            "customer_id": cid,
+            "query": query,
+            "rows": rows,
+            "row_count": len(rows),
+            "max_rows": max_rows,
+            "truncated": truncated,
+        }
 
     async def mutate(
         self,
@@ -243,7 +269,7 @@ class GoogleAdsGateway:
                 request.mutate_operations.append(operation)
             return service.mutate(request=request)
 
-        response = await self._retry(call)
+        response = await self._retry(call, retryable=write_decision.validate_only)
         return {
             "customer_id": cid,
             "mode": self.mode,
@@ -274,13 +300,16 @@ class GoogleAdsGateway:
         generic_bridge_enabled = (
             self.mode == "admin_debug" and self.settings.enable_generic_service_bridge
         )
-        if not effective_is_write and not read_allowed and not generic_bridge_enabled:
-            raise ValidationError(
-                f"{service_name}.{method_name} is not on the read-only service allowlist. "
-                "Set is_write=true to route it through the write guard, or enable "
-                "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true in admin_debug mode for "
-                "explicit generic bridge debugging."
-            )
+        if not effective_is_write and not read_allowed:
+            if generic_bridge_enabled:
+                effective_is_write = True
+            else:
+                raise ValidationError(
+                    f"{service_name}.{method_name} is not on the read-only service allowlist. "
+                    "Set is_write=true to route it through the write guard, or enable "
+                    "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true in admin_debug mode for "
+                    "explicit generic bridge debugging."
+                )
         write_decision = None
         if effective_is_write:
             customer_id = payload.get("customer_id") or payload.get("customerId")
@@ -311,7 +340,10 @@ class GoogleAdsGateway:
             self._parse_dict(payload, request)
             return method(request=request)
 
-        response = await self._retry(call)
+        response = await self._retry(
+            call,
+            retryable=not write_decision or write_decision.validate_only,
+        )
         return {
             "service": service_name,
             "method": method_name,
@@ -329,15 +361,19 @@ class GoogleAdsGateway:
                 fromlist=["__path__"],
             )
             modules = [module.name for module in pkgutil.iter_modules(services_pkg.__path__)]
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning("Unable to list Google Ads services: %s", exc)
             modules = []
         service_names = sorted({snake_to_pascal(name).replace("Service", "") + "Service" for name in modules})
-        return {
+        payload: dict[str, Any] = {
             "api_version": self.settings.api_version,
             "service_count": len(service_names),
             "services": service_names,
             "note": "Service list is generated from the installed google-ads client package.",
         }
+        if not service_names:
+            payload["warning"] = "Unable to inspect installed Google Ads service modules."
+        return payload
 
     def describe_service(self, service_name: str) -> dict[str, Any]:
         service = self.get_service(service_name)
@@ -834,15 +870,15 @@ class GoogleAdsGateway:
         else:
             setattr(request, name, value)
 
-    async def _retry(self, fn: Callable[[], Any]) -> Any:
+    async def _retry(self, fn: Callable[[], Any], *, retryable: bool = True) -> Any:
         attempt = 0
         while True:
             try:
                 return fn()
             except Exception as exc:  # pragma: no cover - exact Google exception classes vary by version.
                 attempt += 1
-                if attempt > self.settings.max_retries or not self._is_transient(exc):
-                    raise self._format_exception(exc)
+                if not retryable or attempt > self.settings.max_retries or not self._is_transient(exc):
+                    raise self._format_exception(exc) from exc
                 delay = self.settings.retry_base_seconds * (2 ** (attempt - 1))
                 delay += random.uniform(0, self.settings.retry_base_seconds)
                 await asyncio.sleep(delay)
@@ -891,5 +927,6 @@ class GoogleAdsGateway:
         target = getattr(message, "_pb", message)
         try:
             return MessageToDict(target, preserving_proto_field_name=True)
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning("Unable to convert protobuf message to dict: %s", exc)
             return {"value": str(message)}

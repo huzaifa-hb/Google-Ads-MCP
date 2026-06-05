@@ -21,6 +21,12 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             normalize_customer_id("act_123")
 
+    def test_customer_id_rejects_short_or_long_values(self) -> None:
+        for value in ("123456789", "12345678901"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    normalize_customer_id(value)
+
     def test_validate_only_allowed_without_confirmation(self) -> None:
         self.assertTrue(ensure_write_allowed(validate_only=True, execute=False))
 

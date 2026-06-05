@@ -56,6 +56,7 @@ deploy manually, grant the same role before deploying.
 - Port: `8080`
 - MCP path: `/mcp`
 - Health path: `/healthz`
+- Readiness path: `/readyz`
 - MCP mode: `safe_read_only`
 - MCP auth mode: `bearer`
 - Generic service bridge escape hatch: disabled
@@ -64,6 +65,9 @@ Cloud Run is configured with public ingress because most external AI agents cann
 
 Cloud Run may scale to zero after idle time. The first request after idle can
 take 5 to 15 seconds; later requests are normally faster.
+
+`GOOGLE_ADS_MAX_RETRIES` counts retries after the first attempt, so a value of
+`3` allows one initial call plus up to three retries.
 
 Override safety settings deliberately:
 
@@ -80,6 +84,7 @@ Only use `-EnableGenericServiceBridge` for private `admin_debug` deployments.
 ```powershell
 $url = gcloud run services describe google-ads-mcp --region us-central1 --format "value(status.url)"
 Invoke-WebRequest "$url/healthz"
+Invoke-WebRequest "$url/readyz"
 ```
 
 Then attach an MCP client to:

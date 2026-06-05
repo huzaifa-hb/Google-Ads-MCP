@@ -8,7 +8,7 @@ from typing import Any
 from .gaql import GAQL_FIELD_RE, TIME_SEGMENTS, date_where_clause, select_clause
 from .gateway import GoogleAdsGateway
 from .geo_targets import resolve_geo_target
-from .safety import CONFIRMATION_PHRASE, ValidationError, normalize_customer_id
+from .safety import CONFIRMATION_PHRASE, ValidationError, normalize_customer_id, validate_date
 from .tool_catalog import FriendlyToolSpec, FRIENDLY_TOOL_BY_NAME
 
 
@@ -188,11 +188,17 @@ class FriendlyDispatcher:
             if segment_field not in fields:
                 fields.append(segment_field)
 
+        if "segments.hour" in fields and "segments.date" not in fields:
+            fields.append("segments.date")
+
         clauses = self._filter_clauses(filters)
+        if spec.resource == "change_event":
+            self._validate_change_event_range(date_range, start_date, end_date)
         date_clause = date_where_clause(
             date_range=date_range,
             start_date=start_date,
             end_date=end_date,
+            field="change_event.change_date_time" if spec.resource == "change_event" else "segments.date",
         )
         if date_clause:
             clauses.append(date_clause)
@@ -839,7 +845,10 @@ class FriendlyDispatcher:
             ]
         if name in {"bulk_pause_campaigns", "bulk_enable_campaigns"}:
             status = "PAUSED" if name == "bulk_pause_campaigns" else "ENABLED"
-            return [self._status_operation("campaign", customer_id, item, status) for item in self._ids(payload)]
+            return [
+                self._status_operation("campaign", customer_id, item, status)
+                for item in self._campaign_ids(payload)
+            ]
         if name in {"pause_campaign", "enable_campaign"}:
             status = "PAUSED" if name == "pause_campaign" else "ENABLED"
             return [self._status_operation("campaign", customer_id, self._required(payload, "campaign_id"), status)]
@@ -985,23 +994,39 @@ class FriendlyDispatcher:
                 "target_content_network": payload.get("target_content_network", False),
                 "target_partner_search_network": payload.get("target_partner_search_network", False),
             }
-        if name == "create_pmax_campaign":
-            campaign["url_expansion_opt_out"] = payload.get("url_expansion_opt_out", False)
         merchant_id = payload.get("merchant_id")
         if name in {"create_shopping_campaign", "create_pmax_campaign"} and merchant_id:
             campaign["shopping_setting"] = {
                 "merchant_id": int(str(merchant_id).replace("-", "")),
-                "sales_country": payload.get("sales_country", "US"),
-                "campaign_priority": int(payload.get("campaign_priority", 0)),
             }
-        campaign.update(self._bidding_payload(payload))
+            if payload.get("feed_label"):
+                campaign["shopping_setting"]["feed_label"] = payload["feed_label"]
+            if name == "create_shopping_campaign":
+                campaign["shopping_setting"]["campaign_priority"] = int(
+                    payload.get("campaign_priority", 0)
+                )
+        campaign.update(self._bidding_payload(payload, channel_type=channel_map[name]))
         operations.append({"campaign_operation": {"create": campaign}})
         return operations
 
-    def _bidding_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
-        strategy = payload.get("bidding_strategy_type", "MANUAL_CPC")
+    def _bidding_payload(
+        self,
+        payload: dict[str, Any],
+        *,
+        channel_type: str | None = None,
+    ) -> dict[str, Any]:
         if payload.get("bidding_strategy"):
             return {"bidding_strategy": payload["bidding_strategy"]}
+        default_by_channel = {
+            "PERFORMANCE_MAX": "MAXIMIZE_CONVERSION_VALUE",
+            "VIDEO": "MANUAL_CPV",
+            "SMART": "MAXIMIZE_CONVERSIONS",
+            "DEMAND_GEN": "MAXIMIZE_CONVERSIONS",
+        }
+        strategy = payload.get("bidding_strategy_type") or default_by_channel.get(
+            channel_type or "",
+            "MANUAL_CPC",
+        )
         if strategy == "MAXIMIZE_CONVERSIONS":
             return {"maximize_conversions": {}}
         if strategy == "MAXIMIZE_CONVERSION_VALUE":
@@ -1009,7 +1034,12 @@ class FriendlyDispatcher:
         if strategy == "TARGET_CPA":
             return {"target_cpa": {"target_cpa_micros": int(payload["target_cpa_micros"])}}
         if strategy == "TARGET_ROAS":
-            return {"target_roas": {"target_roas": float(payload["target_roas"])}}
+            target_roas = float(payload["target_roas"])
+            if not 0.01 <= target_roas <= 1000:
+                raise ValidationError(
+                    "target_roas must be a ratio, not a percent. Use 4.0 for 400%."
+                )
+            return {"target_roas": {"target_roas": target_roas}}
         if strategy == "MANUAL_CPM":
             return {"manual_cpm": {}}
         if strategy == "MANUAL_CPV":
@@ -1104,6 +1134,10 @@ class FriendlyDispatcher:
         ]
         if not headlines or not descriptions:
             raise ValidationError("Responsive search ads require payload.headlines and payload.descriptions.")
+        if len(headlines) < 3:
+            raise ValidationError("create_responsive_search_ad requires at least 3 headlines.")
+        if len(descriptions) < 2:
+            raise ValidationError("create_responsive_search_ad requires at least 2 descriptions.")
         ad = {
             "responsive_search_ad": {"headlines": headlines, "descriptions": descriptions},
             "final_urls": payload.get("final_urls", []),
@@ -1401,11 +1435,36 @@ class FriendlyDispatcher:
         ids = payload.get(field)
         if ids is None and field != "ids":
             ids = payload.get("ids")
-        if ids is None:
-            ids = payload.get("campaign_ids")
         if not ids:
             raise ValidationError(f"payload.{field} is required.")
         return [str(item).replace("-", "") for item in ids]
+
+    def _campaign_ids(self, payload: dict[str, Any]) -> list[str]:
+        ids = payload.get("campaign_ids")
+        if ids is None:
+            ids = payload.get("ids")
+        if not ids:
+            raise ValidationError("payload.campaign_ids is required.")
+        return [str(item).replace("-", "") for item in ids]
+
+    def _validate_change_event_range(
+        self,
+        date_range: str | None,
+        start_date: str | None,
+        end_date: str | None,
+    ) -> None:
+        if start_date or end_date:
+            if not start_date or not end_date:
+                return
+            start = date.fromisoformat(validate_date(start_date, "start_date"))
+            end = date.fromisoformat(validate_date(end_date, "end_date"))
+            if (end - start).days > 30:
+                raise ValidationError("change_event supports a maximum 30-day lookback.")
+            return
+        allowed = {"TODAY", "YESTERDAY", "LAST_7_DAYS", "LAST_14_DAYS", "LAST_30_DAYS"}
+        selected = (date_range or "LAST_30_DAYS").upper()
+        if selected not in allowed:
+            raise ValidationError("change_event supports only up to LAST_30_DAYS.")
 
     def _required(self, payload: dict[str, Any], field: str) -> str:
         value = payload.get(field)

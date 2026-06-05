@@ -29,21 +29,24 @@ COMMON_SEGMENTS = (
 )
 
 
-def discovery_document_resource(api_version: str) -> str:
-    return _json(
-        {
-            "api_version": api_version,
-            "name": "Google Ads API reference",
-            "kind": "reference-index",
-            "field_reference": f"https://developers.google.com/google-ads/api/fields/{api_version}",
-            "rest_reference": f"https://developers.google.com/google-ads/api/rest/reference/rest/{api_version}",
-            "client_library_reference": "https://developers.google.com/google-ads/api/docs/client-libs",
-            "note": (
-                "Google Ads API is primarily documented through versioned field and "
-                "service references rather than a single committed discovery JSON file."
-            ),
-        }
-    )
+def discovery_document_resource(api_version: str, alias_of: str | None = None) -> str:
+    payload = {
+        "api_version": api_version,
+        "name": "Google Ads API reference",
+        "kind": "reference-index",
+        "field_reference": f"https://developers.google.com/google-ads/api/fields/{api_version}",
+        "rest_reference": f"https://developers.google.com/google-ads/api/rest/reference/rest/{api_version}",
+        "client_library_reference": "https://developers.google.com/google-ads/api/docs/client-libs",
+        "note": (
+            "Google Ads API is primarily documented through versioned field and "
+            "service references rather than a single committed discovery JSON file."
+        ),
+    }
+    if alias_of:
+        payload["alias_of"] = alias_of
+        payload["canonical_kind"] = payload["kind"]
+        payload["kind"] = "compatibility-alias"
+    return _json(payload)
 
 
 def metrics_resource(api_version: str) -> str:
@@ -70,16 +73,19 @@ def segments_resource(api_version: str) -> str:
     )
 
 
-def release_notes_resource(api_version: str) -> str:
-    return _json(
-        {
-            "api_version": api_version,
-            "kind": "release-notes-index",
-            "latest_release_notes": "https://developers.google.com/google-ads/api/docs/release-notes",
-            "version_diffs": "https://developers.google.com/google-ads/api/docs/release-notes#versions",
-            "note": "Release notes are linked instead of fetched at runtime to avoid a network dependency.",
-        }
-    )
+def release_notes_resource(api_version: str, alias_of: str | None = None) -> str:
+    payload = {
+        "api_version": api_version,
+        "kind": "release-notes-index",
+        "latest_release_notes": "https://developers.google.com/google-ads/api/docs/release-notes",
+        "version_diffs": "https://developers.google.com/google-ads/api/docs/release-notes#versions",
+        "note": "Release notes are linked instead of fetched at runtime to avoid a network dependency.",
+    }
+    if alias_of:
+        payload["alias_of"] = alias_of
+        payload["canonical_kind"] = payload["kind"]
+        payload["kind"] = "compatibility-alias"
+    return _json(payload)
 
 
 def tool_catalog_resource() -> str:

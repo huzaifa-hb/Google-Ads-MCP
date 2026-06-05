@@ -217,6 +217,10 @@ def load_tool_registry(settings: Settings, cwd: Path | None = None) -> ToolRegis
     elif settings.allow_legacy_write_defaults and not explicit_config:
         raw_config = _legacy_config()
         source = "legacy-env-defaults"
+    if settings.enable_generic_service_bridge and raw_config.get("mode") == "admin_debug":
+        raw_tools = dict(raw_config.get("tools", {}))
+        raw_tools["google_ads_call_service"] = {"enabled": True}
+        raw_config = {**raw_config, "tools": raw_tools}
     return build_tool_registry(raw_config, source=source)
 
 
@@ -355,7 +359,14 @@ def _tool_is_enabled(
     if canonical_name in tool_overrides and tool_overrides[canonical_name]:
         requested = True
     else:
-        requested = namespace_config.enabled or canonical_name == "get_tool_catalog"
+        requested = (
+            namespace_config.enabled
+            or canonical_name in {"get_tool_catalog", "get_capability_matrix", "get_server_status"}
+            or (
+                read_write == "write"
+                and bool(namespaces.get("mutations") and namespaces["mutations"].enabled)
+            )
+        )
     if not requested:
         return False
     if mode == "safe_read_only":

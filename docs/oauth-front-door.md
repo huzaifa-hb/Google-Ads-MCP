@@ -27,12 +27,23 @@ Required scopes:
 - `openid`
 - `https://www.googleapis.com/auth/userinfo.email`
 - `https://www.googleapis.com/auth/userinfo.profile`
-- `https://www.googleapis.com/auth/adwords`
+
+Optional access allowlists:
+
+```powershell
+$env:GOOGLE_ADS_MCP_ALLOWED_EMAILS = "owner@example.com,ops@example.com"
+$env:GOOGLE_ADS_MCP_ALLOWED_DOMAINS = "example.com"
+```
+
+When either allowlist is configured, OAuth users must match an allowed email,
+subject, hosted domain, or email domain before the MCP accepts the token.
 
 ## Production Notes
 
 - Do not set `ALLOW_UNAUTHENTICATED_MCP=true` on a production endpoint.
 - Store OAuth client secrets in Secret Manager.
+- Configure email or domain allowlists before exposing OAuth proxy mode beyond a
+  single private tester.
 - Keep `safe_read_only` as the first deployment mode.
 - Keep `GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=false` unless you are doing
   private `admin_debug` work.

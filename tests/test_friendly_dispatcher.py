@@ -45,59 +45,59 @@ class FakeGateway:
 class BranchingGateway(FakeGateway):
     async def search(self, **kwargs):
         customer_id = kwargs["customer_id"]
-        if customer_id == "100":
+        if customer_id == "1000000000":
             return {
                 "rows": [
                     {
                         "customer_client": {
-                            "id": "200",
+                            "id": "2000000000",
                             "descriptive_name": "Manager A",
                             "manager": True,
                             "level": "1",
                             "status": "ENABLED",
-                            "client_customer": "customers/200",
+                            "client_customer": "customers/2000000000",
                         }
                     },
                     {
                         "customer_client": {
-                            "id": "300",
+                            "id": "3000000000",
                             "descriptive_name": "Manager B",
                             "manager": True,
                             "level": "1",
                             "status": "ENABLED",
-                            "client_customer": "customers/300",
+                            "client_customer": "customers/3000000000",
                         }
                     },
                 ],
                 "query": kwargs["query"],
             }
-        if customer_id == "200":
+        if customer_id == "2000000000":
             return {
                 "rows": [
                     {
                         "customer_client": {
-                            "id": "201",
+                            "id": "2010000000",
                             "descriptive_name": "Leaf A",
                             "manager": False,
                             "level": "1",
                             "status": "ENABLED",
-                            "client_customer": "customers/201",
+                            "client_customer": "customers/2010000000",
                         }
                     }
                 ],
                 "query": kwargs["query"],
             }
-        if customer_id == "300":
+        if customer_id == "3000000000":
             return {
                 "rows": [
                     {
                         "customer_client": {
-                            "id": "301",
+                            "id": "3010000000",
                             "descriptive_name": "Leaf B",
                             "manager": False,
                             "level": "1",
                             "status": "ENABLED",
-                            "client_customer": "customers/301",
+                            "client_customer": "customers/3010000000",
                         }
                     }
                 ],
@@ -229,10 +229,10 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
     async def test_get_mcc_hierarchy_preserves_branches(self) -> None:
         gateway = BranchingGateway()
         dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
-        result = await dispatcher.dispatch("get_mcc_hierarchy", customer_id="100")
+        result = await dispatcher.dispatch("get_mcc_hierarchy", customer_id="1000000000")
         managers = {child["id"]: child for child in result["tree"]["children"]}
-        self.assertEqual(managers["200"]["children"][0]["id"], "201")
-        self.assertEqual(managers["300"]["children"][0]["id"], "301")
+        self.assertEqual(managers["2000000000"]["children"][0]["id"], "2010000000")
+        self.assertEqual(managers["3000000000"]["children"][0]["id"], "3010000000")
 
     async def test_list_invoices_defaults_to_current_year(self) -> None:
         gateway = FakeGateway()
@@ -258,11 +258,162 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         result = await dispatcher.dispatch(
             "create_pmax_campaign",
             customer_id="1234567890",
-            payload={"name": "PMax", "merchant_id": "555", "sales_country": "US"},
+            payload={
+                "name": "PMax",
+                "merchant_id": "555",
+                "feed_label": "US",
+                "campaign_priority": 2,
+                "url_expansion_opt_out": True,
+            },
         )
         campaign = result["operations"][1]["campaign_operation"]["create"]
         self.assertEqual(campaign["advertising_channel_type"], "PERFORMANCE_MAX")
         self.assertEqual(campaign["shopping_setting"]["merchant_id"], 555)
+        self.assertEqual(campaign["shopping_setting"]["feed_label"], "US")
+        self.assertNotIn("campaign_priority", campaign["shopping_setting"])
+        self.assertNotIn("sales_country", campaign["shopping_setting"])
+        self.assertNotIn("url_expansion_opt_out", campaign)
+        self.assertIn("maximize_conversion_value", campaign)
+
+    async def test_shopping_campaign_keeps_priority_and_feed_label(self) -> None:
+        gateway = FakeGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+        result = await dispatcher.dispatch(
+            "create_shopping_campaign",
+            customer_id="1234567890",
+            payload={"name": "Shopping", "merchant_id": "555", "feed_label": "US", "campaign_priority": 2},
+        )
+        campaign = result["operations"][1]["campaign_operation"]["create"]
+
+        self.assertEqual(campaign["advertising_channel_type"], "SHOPPING")
+        self.assertEqual(campaign["shopping_setting"]["feed_label"], "US")
+        self.assertEqual(campaign["shopping_setting"]["campaign_priority"], 2)
+        self.assertNotIn("sales_country", campaign["shopping_setting"])
+
+    async def test_non_search_campaign_defaults_to_compatible_bidding(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+        cases = {
+            "create_video_campaign": "manual_cpv",
+            "create_demand_gen_campaign": "maximize_conversions",
+            "create_smart_campaign": "maximize_conversions",
+        }
+
+        for tool_name, expected_key in cases.items():
+            with self.subTest(tool_name=tool_name):
+                result = await dispatcher.dispatch(
+                    tool_name,
+                    customer_id="1234567890",
+                    payload={"name": tool_name},
+                )
+                campaign = result["operations"][1]["campaign_operation"]["create"]
+                self.assertIn(expected_key, campaign)
+
+    async def test_target_roas_is_validated_as_ratio(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        valid = await dispatcher.dispatch(
+            "create_search_campaign",
+            customer_id="1234567890",
+            payload={
+                "name": "Search",
+                "bidding_strategy_type": "TARGET_ROAS",
+                "target_roas": 4.0,
+            },
+        )
+        campaign = valid["operations"][1]["campaign_operation"]["create"]
+        self.assertEqual(campaign["target_roas"]["target_roas"], 4.0)
+
+        with self.assertRaises(ValidationError):
+            await dispatcher.dispatch(
+                "create_search_campaign",
+                customer_id="1234567890",
+                payload={
+                    "name": "Search",
+                    "bidding_strategy_type": "TARGET_ROAS",
+                    "target_roas": 0.001,
+                },
+            )
+
+    async def test_demographic_and_audience_reports_use_valid_resources_and_primary_fields(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+        expectations = {
+            "get_age_range_report": ("FROM age_range_view", "ad_group_criterion.criterion_id"),
+            "get_gender_report": ("FROM gender_view", "ad_group_criterion.criterion_id"),
+            "get_parental_status_report": (
+                "FROM parental_status_view",
+                "ad_group_criterion.criterion_id",
+            ),
+            "get_household_income_report": (
+                "FROM income_range_view",
+                "ad_group_criterion.criterion_id",
+            ),
+            "get_audience_performance_report": ("FROM ad_group_audience_view", "user_list.id"),
+        }
+
+        for tool_name, (resource_clause, primary_field) in expectations.items():
+            with self.subTest(tool_name=tool_name):
+                result = await dispatcher.dispatch(tool_name, customer_id="1234567890")
+                self.assertIn(resource_clause, result["query"])
+                self.assertIn(primary_field, result["query"])
+
+    async def test_hour_segment_adds_required_date_segment(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "get_campaign_metrics",
+            customer_id="1234567890",
+            time_segment="hour",
+        )
+
+        self.assertIn("segments.hour", result["query"])
+        self.assertIn("segments.date", result["query"])
+
+    async def test_baked_hour_report_adds_required_date_segment(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch("get_hour_of_day_performance", customer_id="1234567890")
+
+        self.assertIn("segments.hour", result["query"])
+        self.assertIn("segments.date", result["query"])
+
+    async def test_change_history_uses_change_event_date_field_without_metrics(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch("get_change_history_report", customer_id="1234567890")
+
+        self.assertIn("FROM change_event", result["query"])
+        self.assertIn("change_event.change_date_time DURING LAST_30_DAYS", result["query"])
+        self.assertNotIn("metrics.", result["query"])
+
+    async def test_ad_schedule_report_uses_single_segment_and_curated_metrics(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch("get_ad_schedule_report", customer_id="1234567890")
+
+        self.assertIn("segments.day_of_week", result["query"])
+        self.assertNotIn("segments.hour", result["query"])
+        self.assertNotIn("metrics.search_impression_share", result["query"])
+
+    async def test_keyword_ids_do_not_fall_back_to_campaign_ids(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        with self.assertRaises(ValidationError):
+            await dispatcher.dispatch(
+                "update_keyword_bid",
+                customer_id="1234567890",
+                payload={"ad_group_id": "321", "campaign_ids": ["999"], "cpc_bid_micros": 2_000_000},
+            )
+
+    async def test_bulk_campaigns_accept_campaign_ids(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "bulk_enable_campaigns",
+            customer_id="1234567890",
+            payload={"campaign_ids": ["1", "2"]},
+        )
+
+        self.assertEqual(result["operation_count"], 2)
 
     async def test_label_apply_direct_ad_payload(self) -> None:
         gateway = FakeGateway()
@@ -298,6 +449,32 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
                     "ad_group_id": "123",
                     "headlines": ["One"],
                     "descriptions": ["Desc"],
+                },
+            )
+
+    async def test_rsa_requires_minimum_asset_counts(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        with self.assertRaises(ValidationError):
+            await dispatcher.dispatch(
+                "create_responsive_search_ad",
+                customer_id="1234567890",
+                payload={
+                    "ad_group_id": "123",
+                    "final_urls": ["https://example.com"],
+                    "headlines": ["One", "Two"],
+                    "descriptions": ["Desc one", "Desc two"],
+                },
+            )
+        with self.assertRaises(ValidationError):
+            await dispatcher.dispatch(
+                "create_responsive_search_ad",
+                customer_id="1234567890",
+                payload={
+                    "ad_group_id": "123",
+                    "final_urls": ["https://example.com"],
+                    "headlines": ["One", "Two", "Three"],
+                    "descriptions": ["Desc one"],
                 },
             )
 

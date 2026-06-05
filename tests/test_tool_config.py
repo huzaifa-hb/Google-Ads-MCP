@@ -5,8 +5,12 @@ import tempfile
 import unittest
 
 import _bootstrap  # noqa: F401
+import yaml
 from google_ads_mcp.config import ConfigError, Settings
-from google_ads_mcp.tool_config import build_tool_registry, load_tool_registry
+from google_ads_mcp.tool_config import DEFAULT_NAMESPACES, build_tool_registry, load_tool_registry
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -30,6 +34,8 @@ def make_settings(**overrides: object) -> Settings:
         "mcp_oauth_client_id": None,
         "mcp_oauth_client_secret": None,
         "mcp_base_url": None,
+        "mcp_allowed_emails": (),
+        "mcp_allowed_domains": (),
         "max_retries": 0,
         "retry_base_seconds": 0.0,
     }
@@ -165,6 +171,63 @@ namespaces:
             }
         )
         self.assertIn("generic_google_ads_call_service", registry.registered_names)
+
+    def test_generic_bridge_env_exposes_call_service_only_in_admin_debug(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            safe_registry = load_tool_registry(
+                make_settings(enable_generic_service_bridge=True, mcp_mode="safe_read_only"),
+                cwd=Path(temp_dir),
+            )
+            admin_registry = load_tool_registry(
+                make_settings(enable_generic_service_bridge=True, mcp_mode="admin_debug"),
+                cwd=Path(temp_dir),
+            )
+
+        self.assertNotIn("generic_google_ads_call_service", safe_registry.registered_names)
+        self.assertIn("generic_google_ads_call_service", admin_registry.registered_names)
+        self.assertNotIn("generic_google_ads_mutate", admin_registry.registered_names)
+
+    def test_mutations_namespace_enables_friendly_writes_with_category_prefixes(self) -> None:
+        registry = build_tool_registry(
+            {
+                "mode": "validation_only",
+                "namespaces": {
+                    "campaigns": {"enabled": False, "prefix": "campaigns"},
+                    "mutations": {"enabled": True, "prefix": "mutate"},
+                },
+            }
+        )
+
+        self.assertIn("campaigns_pause_campaign", registry.registered_names)
+        self.assertNotIn("mutate_pause_campaign", registry.registered_names)
+
+    def test_introspection_tools_remain_registered_when_metadata_namespace_disabled(self) -> None:
+        registry = build_tool_registry(
+            {
+                "mode": "safe_read_only",
+                "namespaces": {"metadata": {"enabled": False, "prefix": "metadata"}},
+            }
+        )
+
+        self.assertIn("get_tool_catalog", registry.registered_names)
+        self.assertIn("get_capability_matrix", registry.registered_names)
+        self.assertIn("get_server_status", registry.registered_names)
+        self.assertNotIn("metadata_get_google_ads_resource_metadata", registry.registered_names)
+
+    def test_default_tool_config_files_match_python_namespace_defaults(self) -> None:
+        root_config = yaml.safe_load((ROOT / "tools_config.yaml").read_text(encoding="utf-8"))
+        bundled_config = yaml.safe_load(
+            (ROOT / "src" / "google_ads_mcp" / "default_tools_config.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(root_config, bundled_config)
+        for name, namespace in DEFAULT_NAMESPACES.items():
+            with self.subTest(namespace=name):
+                raw = root_config["namespaces"][name]
+                self.assertEqual(raw["enabled"], namespace.enabled)
+                self.assertEqual(raw["prefix"], namespace.prefix)
 
     def test_legacy_defaults_require_explicit_env_escape_hatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

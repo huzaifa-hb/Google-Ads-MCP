@@ -12,8 +12,8 @@ Use asset_group_asset for PMax asset group assets. performance_label values incl
 
 | Example | Primary Field | GAQL |
 |---|---|---|
-| Asset group asset performance | `asset.id` | `SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.performance_label, metrics.impressions, metrics.clicks, metrics.conversions FROM asset_group_asset WHERE segments.date DURING LAST_30_DAYS` |
-| Low assets | `asset.id` | `SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.performance_label FROM asset_group_asset WHERE asset_group_asset.performance_label = LOW AND segments.date DURING LAST_30_DAYS` |
+| Asset group asset performance | `asset.id` | `SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.primary_status, metrics.impressions, metrics.clicks, metrics.conversions FROM asset_group_asset WHERE segments.date DURING LAST_30_DAYS` |
+| Limited assets | `asset.id` | `SELECT asset.id, asset_group.id, asset_group_asset.field_type, asset_group_asset.primary_status FROM asset_group_asset WHERE asset_group_asset.primary_status = LIMITED AND segments.date DURING LAST_30_DAYS` |
 
 ## Audiences
 
@@ -21,12 +21,12 @@ Use asset_group_asset for PMax asset group assets. performance_label values incl
 
 **Question:** How do I get audience performance?
 
-Use audience_view and include user_list.id in SELECT.
+Use ad_group_audience_view and include user_list.id in SELECT.
 
 | Example | Primary Field | GAQL |
 |---|---|---|
-| Audience performance | `user_list.id` | `SELECT user_list.id, user_list.name, campaign.id, ad_group.id, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM audience_view WHERE segments.date DURING LAST_30_DAYS` |
-| Audience conversions | `user_list.id` | `SELECT user_list.id, user_list.name, campaign.id, metrics.conversions, metrics.conversions_value FROM audience_view WHERE segments.date DURING LAST_30_DAYS` |
+| Audience performance | `user_list.id` | `SELECT user_list.id, user_list.name, campaign.id, ad_group.id, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM ad_group_audience_view WHERE segments.date DURING LAST_30_DAYS` |
+| Audience conversions | `user_list.id` | `SELECT user_list.id, user_list.name, campaign.id, metrics.conversions, metrics.conversions_value FROM ad_group_audience_view WHERE segments.date DURING LAST_30_DAYS` |
 
 **See also:** `manager-account-limits`
 
@@ -69,7 +69,7 @@ metrics.conversions counts only conversion actions with include_in_conversions_m
 
 **Question:** Why do I get EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE?
 
-Include the primary field for the resource you query or reference. Common primaries: campaign -> campaign.id; ad_group -> ad_group.id; ad_group_ad -> ad_group_ad.ad.id; keyword_view -> ad_group_criterion.criterion_id; ad_group_criterion -> ad_group_criterion.criterion_id; search_term_view -> search_term_view.search_term; geographic_view -> campaign.id; age_range_view -> ad_group_criterion.criterion_id; gender_view -> ad_group_criterion.criterion_id; household_income_view -> ad_group_criterion.criterion_id; parental_status_view -> ad_group_criterion.criterion_id; audience_view -> user_list.id; group_placement_view -> group_placement_view.placement; asset_group_asset -> asset.id; video -> video.id; shopping_performance_view -> campaign.id; landing_page_view -> landing_page_view.unexpanded_final_url; call_view -> call_view.resource_name; change_event -> change_event.resource_name; bidding_strategy -> bidding_strategy.id; campaign_budget -> campaign_budget.id; label -> label.id; user_list -> user_list.id; conversion_action -> conversion_action.id; asset -> asset.id; asset_group -> asset_group.id; recommendation -> recommendation.resource_name.
+Include the primary field for the resource you query or reference. Common primaries: campaign -> campaign.id; ad_group -> ad_group.id; ad_group_ad -> ad_group_ad.ad.id; keyword_view -> ad_group_criterion.criterion_id; ad_group_criterion -> ad_group_criterion.criterion_id; search_term_view -> search_term_view.search_term; geographic_view -> campaign.id; age_range_view -> ad_group_criterion.criterion_id; gender_view -> ad_group_criterion.criterion_id; income_range_view -> ad_group_criterion.criterion_id; parental_status_view -> ad_group_criterion.criterion_id; ad_group_audience_view -> user_list.id; group_placement_view -> group_placement_view.placement; asset_group_asset -> asset.id; video -> video.id; shopping_performance_view -> campaign.id; landing_page_view -> landing_page_view.unexpanded_final_url; call_view -> call_view.resource_name; change_event -> change_event.resource_name; bidding_strategy -> bidding_strategy.id; campaign_budget -> campaign_budget.id; label -> label.id; user_list -> user_list.id; conversion_action -> conversion_action.id; asset -> asset.id; asset_group -> asset_group.id; recommendation -> recommendation.resource_name.
 
 | Example | Primary Field | GAQL |
 |---|---|---|
@@ -197,15 +197,15 @@ Common fields: metrics.impressions, clicks, cost_micros, average_cpc, average_co
 
 **Question:** How does GAQL pagination work?
 
-Google Ads search supports page_size and page_token for API paging. LIMIT/OFFSET can also be used for small deterministic result sets. This MCP returns has_more, next_offset, and next_page_token when available.
+Google Ads search supports page_size and page_token for API paging. GAQL has LIMIT but no OFFSET clause. This MCP returns has_more and next_page_token when available.
 
 | Example | Primary Field | GAQL |
 |---|---|---|
-| Small offset page | `campaign.id` | `SELECT campaign.id, campaign.name FROM campaign WHERE segments.date DURING LAST_30_DAYS ORDER BY campaign.id LIMIT 100 OFFSET 200` |
+| Small first page | `campaign.id` | `SELECT campaign.id, campaign.name FROM campaign WHERE segments.date DURING LAST_30_DAYS ORDER BY campaign.id LIMIT 100` |
 
 **Notes**
 
-- For large reports, prefer page_token over deep OFFSET traversal.
+- For large reports, use page_token rather than trying to emulate OFFSET.
 
 ## Reporting
 
@@ -401,12 +401,12 @@ Use parental_status_view and ad_group_criterion.parental_status.type.
 
 **Question:** How do I get household income performance?
 
-Use household_income_view and ad_group_criterion.income_range.type.
+Use income_range_view and ad_group_criterion.income_range.type.
 
 | Example | Primary Field | GAQL |
 |---|---|---|
-| Household income performance | `ad_group_criterion.criterion_id` | `SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, ad_group.id, campaign.id, metrics.impressions, metrics.clicks FROM household_income_view WHERE segments.date DURING LAST_30_DAYS` |
-| Household income cost | `ad_group_criterion.criterion_id` | `SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, campaign.id, metrics.cost_micros, metrics.conversions FROM household_income_view WHERE segments.date DURING LAST_30_DAYS` |
+| Household income performance | `ad_group_criterion.criterion_id` | `SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, ad_group.id, campaign.id, metrics.impressions, metrics.clicks FROM income_range_view WHERE segments.date DURING LAST_30_DAYS` |
+| Household income cost | `ad_group_criterion.criterion_id` | `SELECT ad_group_criterion.criterion_id, ad_group_criterion.income_range.type, campaign.id, metrics.cost_micros, metrics.conversions FROM income_range_view WHERE segments.date DURING LAST_30_DAYS` |
 
 **Notes**
 
@@ -442,7 +442,7 @@ Use call_view. Date filter is required.
 
 | Example | Primary Field | GAQL |
 |---|---|---|
-| Call details | `call_view.resource_name` | `SELECT call_view.resource_name, call_view.call_duration_seconds, call_view.call_status, call_view.call_tracking_display_type, campaign.id FROM call_view WHERE segments.date DURING LAST_30_DAYS` |
+| Call details | `call_view.resource_name` | `SELECT call_view.resource_name, call_view.call_duration_seconds, call_view.call_status, call_view.call_tracking_display_location, campaign.id FROM call_view WHERE segments.date DURING LAST_30_DAYS` |
 | Long calls | `call_view.resource_name` | `SELECT call_view.resource_name, call_view.call_duration_seconds, campaign.id FROM call_view WHERE call_view.call_duration_seconds > 60 AND segments.date DURING LAST_30_DAYS` |
 
 ### `bidding-strategy-report`
@@ -458,7 +458,7 @@ Use campaign.bidding_strategy_type as the campaign-level segment/dimension.
 
 **Notes**
 
-- Common values include TARGET_CPA, TARGET_ROAS, MAXIMIZE_CONVERSIONS, MAXIMIZE_CONVERSION_VALUE, MANUAL_CPC, and TARGET_IMPRESSION_SHARE.
+- Common values include TARGET_CPA, TARGET_ROAS, MAXIMIZE_CONVERSIONS, MAXIMIZE_CONVERSION_VALUE, MANUAL_CPC, and TARGET_IMPRESSION_SHARE. target_roas is a ratio, so 4.0 means 400%.
 
 ## Resources
 
@@ -466,7 +466,7 @@ Use campaign.bidding_strategy_type as the campaign-level segment/dimension.
 
 **Question:** What resources are available in GAQL?
 
-Core reporting: campaign, ad_group, ad_group_ad, keyword_view, ad_group_criterion, search_term_view. Segment views: geographic_view, age_range_view, gender_view, household_income_view, parental_status_view, audience_view, group_placement_view. Entities: campaign_budget, bidding_strategy, label, asset, asset_group, asset_group_asset, user_list, conversion_action, recommendation. Other/special: shopping_performance_view, video, landing_page_view, call_view, change_event, product_link, account_budget, billing_setup.
+Core reporting: campaign, ad_group, ad_group_ad, keyword_view, ad_group_criterion, search_term_view. Segment views: geographic_view, age_range_view, gender_view, income_range_view, parental_status_view, ad_group_audience_view, group_placement_view. Entities: campaign_budget, bidding_strategy, label, asset, asset_group, asset_group_asset, user_list, conversion_action, recommendation. Other/special: shopping_performance_view, video, landing_page_view, call_view, change_event, product_link, account_budget, billing_setup.
 
 **Notes**
 
@@ -547,8 +547,8 @@ Use the video resource with video.id and YouTube video fields. Duration is expos
 
 | Example | Primary Field | GAQL |
 |---|---|---|
-| Video performance | `video.id` | `SELECT video.id, video.title, video.channel_id, video.duration_millis, metrics.video_views, metrics.view_rate, metrics.video_quartile_p25_rate, metrics.video_quartile_p50_rate, metrics.video_quartile_p100_rate FROM video WHERE segments.date DURING LAST_30_DAYS` |
-| Video cost and conversions | `video.id` | `SELECT video.id, video.title, metrics.impressions, metrics.video_views, metrics.cost_micros, metrics.conversions FROM video WHERE segments.date DURING LAST_30_DAYS` |
+| Video performance | `video.id` | `SELECT video.id, video.title, video.channel_id, video.duration_millis, metrics.video_trueview_views, metrics.video_trueview_view_rate, metrics.video_quartile_p25_rate, metrics.video_quartile_p50_rate, metrics.video_quartile_p100_rate FROM video WHERE segments.date DURING LAST_30_DAYS` |
+| Video cost and conversions | `video.id` | `SELECT video.id, video.title, metrics.impressions, metrics.video_trueview_views, metrics.cost_micros, metrics.conversions FROM video WHERE segments.date DURING LAST_30_DAYS` |
 
 **Notes**
 

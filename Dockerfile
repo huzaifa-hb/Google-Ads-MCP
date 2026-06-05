@@ -7,8 +7,7 @@ ENV PORT=8080
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY docs ./docs
+COPY pyproject.toml README.md tools_config.yaml ./
 COPY src ./src
 
 RUN pip install --no-cache-dir .

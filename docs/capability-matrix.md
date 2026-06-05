@@ -163,7 +163,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 | `create_shared_negative_keyword_list` | `keywords` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Create a shared negative keyword list. |
 | `enable_keyword` | `keywords` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Enable a keyword. |
 | `get_keyword` | `keywords` | `query` | `hand_implemented` | GoogleAdsService.Search FROM keyword_view | `read` | no | Get one keyword with bid and quality score fields. |
-| `get_keyword_bid_estimates` | `keywords` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Get keyword CPC and traffic estimates when supported. |
+| `get_keyword_bid_estimates` | `keywords` | `unsupported` | `unsupported_by_design` | n/a | `read` | no | Keyword bid estimates are not mapped to a stable high-level helper. Use Keyword Planner idea and forecast services directly only after checking live service metadata. |
 | `get_keyword_ideas` | `keywords` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Get Keyword Planner ideas. |
 | `list_keywords` | `keywords` | `query` | `hand_implemented` | GoogleAdsService.Search FROM keyword_view | `read` | no | List keywords by campaign, ad group, match type, or status. |
 | `list_negative_keywords_ad_group` | `keywords` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `read` | no | List ad group-level negative keywords. |
@@ -201,8 +201,8 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 | `validate_gaql_fields` | `metadata` | `validation` | `hand_implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Validate GAQL SELECT fields against live resource metadata. |
 | `validate_google_ads_payload` | `metadata` | `validation` | `hand_implemented` | Protobuf JSON parser | `read` | no | Validate a protobuf JSON payload against a Google Ads message type. |
 | `explain_gaql_error` | `planning` | `query_planning` | `hand_implemented` | Static GAQL error helper | `read` | no | Explain common GAQL errors and suggest safe next steps. |
-| `get_ad_diagnosis` | `planning` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Diagnose why an ad is not serving when API surface allows. |
-| `get_ad_preview` | `planning` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Get ad preview or serving simulation data when available. |
+| `get_ad_diagnosis` | `planning` | `unsupported` | `unsupported_by_design` | n/a | `read` | no | Ad diagnosis is not mapped to a stable Google Ads API service method in this MCP. Use policy and approval report tools plus live metadata for account-specific diagnosis. |
+| `get_ad_preview` | `planning` | `unsupported` | `unsupported_by_design` | n/a | `read` | no | Ad preview is not mapped to a stable Google Ads API service method in this MCP. Use Google Ads UI preview tools or live metadata before adding an API helper. |
 | `get_reach_forecast` | `planning` | `service` | `generic_routed` | Google Ads service bridge | `read` | yes | Get Reach Planner forecast where available. |
 | `plan_gaql_query` | `planning` | `query_planning` | `hand_implemented` | Metadata-backed GAQL planner | `read` | no | Build a validated GAQL query plan without executing it. |
 | `apply_recommendation` | `recommendations` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Apply a recommendation. |
@@ -215,8 +215,8 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 | `get_ad_schedule_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by scheduled time block. |
 | `get_age_range_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM age_range_view | `read` | no | Performance by age range. |
 | `get_asset_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM asset_group_asset | `read` | no | Asset performance for RSA and PMax. |
-| `get_auction_insights` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Auction insight metrics. |
-| `get_audience_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM audience_view | `read` | no | Performance by audience segment. |
+| `get_auction_insights` | `reporting` | `unsupported` | `unsupported_by_design` | n/a | `read` | no | Auction insight fields are version and account sensitive. Use live metadata and planning_plan_gaql_query before implementing this report. |
+| `get_audience_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM ad_group_audience_view | `read` | no | Performance by audience segment. |
 | `get_call_details_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM call_view | `read` | no | Call details report. |
 | `get_campaign_metrics` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Campaign metrics with preset or custom date ranges. |
 | `get_change_history_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM change_event | `read` | no | Change history report. |
@@ -226,7 +226,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 | `get_gender_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM gender_view | `read` | no | Performance by gender. |
 | `get_geo_performance` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM geographic_view | `read` | no | Performance by geographic target id and readable name. |
 | `get_hour_of_day_performance` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by hour of day. |
-| `get_household_income_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM household_income_view | `read` | no | Performance by household income. |
+| `get_household_income_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM income_range_view | `read` | no | Performance by household income. |
 | `get_keyword_metrics` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM keyword_view | `read` | no | Keyword metrics plus quality score fields. |
 | `get_landing_page_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM landing_page_view | `read` | no | Landing page performance. |
 | `get_paid_organic_report` | `reporting` | `unsupported` | `unsupported_by_design` | n/a | `read` | no | Paid and organic reporting depends on Search Console linkage and version-specific fields. Use live metadata before building this report. |

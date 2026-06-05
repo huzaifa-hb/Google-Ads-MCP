@@ -13,7 +13,7 @@ from typing import Any
 
 
 CONFIRMATION_PHRASE = "CONFIRM_GOOGLE_ADS_WRITE"
-CUSTOMER_ID_RE = re.compile(r"^\d{3,}$")
+CUSTOMER_ID_RE = re.compile(r"^\d{10}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 WRITE_MODES = {"safe_read_only", "validation_only", "write_enabled", "admin_debug"}
 AUDIT_LOGGER = logging.getLogger("google_ads_mcp.audit")
@@ -38,7 +38,7 @@ class WriteDecision:
 def normalize_customer_id(customer_id: str | int) -> str:
     value = str(customer_id).replace("-", "").strip()
     if not CUSTOMER_ID_RE.match(value):
-        raise ValidationError("customer_id must contain digits only, with no dashes.")
+        raise ValidationError("customer_id must be exactly 10 digits, with no dashes.")
     return value
 
 

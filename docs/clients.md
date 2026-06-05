@@ -70,7 +70,7 @@ get_tool_catalog
 Then test a read:
 
 ```text
-list_customers
+account_list_customers
 ```
 
 For writes, use validation mode first. Real writes require:
