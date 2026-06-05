@@ -5,9 +5,20 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from .capability_matrix import capability_matrix_payload
 from .config import ConfigError, get_settings
 from .friendly import FriendlyDispatcher
 from .gateway import GoogleAdsGateway
+from .resources import (
+    capability_matrix_resource,
+    discovery_document_resource,
+    gaql_knowledge_base_resource,
+    metrics_resource,
+    release_notes_resource,
+    segments_resource,
+    tool_catalog_resource,
+)
+from .tool_config import ToolExposure, ToolRegistry, load_tool_registry
 from .tool_catalog import FRIENDLY_TOOL_SPECS
 
 
@@ -20,9 +31,10 @@ def build_mcp() -> Any:
 
     settings = get_settings()
     settings.require_mcp_auth()
+    registry = load_tool_registry(settings)
     auth = _build_auth(settings)
     mcp = FastMCP("Google Ads Full API MCP", auth=auth)
-    gateway = GoogleAdsGateway(settings=settings)
+    gateway = GoogleAdsGateway(settings=settings, mode=registry.mode)
     dispatcher = FriendlyDispatcher(gateway=gateway)
 
     @mcp.custom_route("/healthz", methods=["GET"])
@@ -32,47 +44,121 @@ def build_mcp() -> Any:
                 "status": "ok",
                 "service": "google-ads-mcp",
                 "api_version": settings.api_version,
-                "auth": "bearer" if settings.mcp_bearer_token else "disabled-local-dev",
+                "auth": "disabled-local-dev" if settings.allow_unauthenticated_mcp else settings.auth_mode,
+                "mode": registry.mode,
+                "tools_config_source": registry.config_source,
+                "exposed_tool_count": len(registry.exposures),
             }
         )
 
-    @mcp.tool
     async def get_tool_catalog() -> dict[str, Any]:
-        """Return the registered friendly Google Ads MCP tool catalog."""
+        """Return the currently exposed Google Ads MCP tool catalog."""
 
         return {
-            "tool_count": len(FRIENDLY_TOOL_SPECS),
-            "tools": [
-                {
-                    "name": spec.name,
-                    "category": spec.category,
-                    "mode": spec.mode,
-                    "resource": spec.resource,
-                    "description": spec.description,
-                }
-                for spec in FRIENDLY_TOOL_SPECS
-            ],
+            "mode": registry.mode,
+            "tools_config_source": registry.config_source,
+            "legacy_aliases_enabled": registry.legacy_aliases_enabled,
+            "tool_count": len(registry.exposures),
+            "tools": [exposure.to_catalog_entry() for exposure in registry.exposures],
         }
 
-    @mcp.tool
+    async def get_capability_matrix() -> dict[str, Any]:
+        """Return implementation status for the currently exposed tools."""
+
+        return capability_matrix_payload(registry)
+
     async def list_google_ads_services() -> dict[str, Any]:
         """List service classes available in the installed Google Ads API client."""
 
         return gateway.list_services()
 
-    @mcp.tool
     async def describe_google_ads_service(service_name: str) -> dict[str, Any]:
         """Describe callable methods for a Google Ads service."""
 
         return gateway.describe_service(service_name)
 
-    @mcp.tool
     async def describe_google_ads_resource(resource_name: str) -> dict[str, Any]:
         """Describe fields for a Google Ads API resource using GoogleAdsFieldService."""
 
         return await gateway.describe_resource(resource_name)
 
-    @mcp.tool
+    async def get_google_ads_resource_metadata(
+        resource_name: str,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        """Return selectable, filterable, sortable, metric, and segment metadata."""
+
+        return await gateway.get_resource_metadata(
+            resource_name,
+            force_refresh=force_refresh,
+        )
+
+    async def validate_gaql_fields(
+        resource_name: str,
+        fields: list[str],
+        include_metrics: bool = True,
+        include_segments: bool = True,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        """Validate GAQL SELECT fields against live resource metadata."""
+
+        return await gateway.validate_gaql_fields(
+            resource_name,
+            fields,
+            include_metrics=include_metrics,
+            include_segments=include_segments,
+            force_refresh=force_refresh,
+        )
+
+    async def suggest_gaql_fields(
+        resource_name: str,
+        field_prefix_or_query: str,
+        limit: int = 10,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        """Suggest GAQL fields from live metadata for a resource."""
+
+        return await gateway.suggest_gaql_fields(
+            resource_name,
+            field_prefix_or_query,
+            limit=limit,
+            force_refresh=force_refresh,
+        )
+
+    async def plan_gaql_query(
+        resource_name: str,
+        user_goal: str | None = None,
+        fields: list[str] | None = None,
+        metrics: list[str] | None = None,
+        segments: list[str] | None = None,
+        date_range: str | None = "LAST_7_DAYS",
+        start_date: str | None = None,
+        end_date: str | None = None,
+        filters: dict[str, Any] | None = None,
+        include_primary_field: bool = True,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        """Build and validate a GAQL query plan without executing it."""
+
+        return await gateway.plan_gaql_query(
+            resource_name=resource_name,
+            user_goal=user_goal,
+            fields=fields,
+            metrics=metrics,
+            segments=segments,
+            date_range=date_range,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters,
+            include_primary_field=include_primary_field,
+            force_refresh=force_refresh,
+        )
+
+    async def explain_gaql_error(error_text: str) -> dict[str, object]:
+        """Explain a common GAQL error and suggest the next safe tool to use."""
+
+        return gateway.explain_gaql_error(error_text)
+
     async def query_google_ads_docs(
         question: str,
         category: str | None = None,
@@ -97,7 +183,6 @@ def build_mcp() -> Any:
             ),
         }
 
-    @mcp.tool
     async def google_ads_search(
         customer_id: str,
         query: str,
@@ -117,7 +202,6 @@ def build_mcp() -> Any:
             primary_field=primary_field,
         )
 
-    @mcp.tool
     async def google_ads_search_stream(
         customer_id: str,
         query: str,
@@ -131,7 +215,6 @@ def build_mcp() -> Any:
             primary_field=primary_field,
         )
 
-    @mcp.tool
     async def google_ads_mutate(
         customer_id: str,
         operations: list[dict[str, Any]],
@@ -151,9 +234,10 @@ def build_mcp() -> Any:
             confirmation_phrase=confirmation_phrase,
             partial_failure=partial_failure,
             response_content_type=response_content_type,
+            tool_name="google_ads_mutate",
+            operation_type="google_ads_mutate",
         )
 
-    @mcp.tool
     async def google_ads_call_service(
         service_name: str,
         method_name: str,
@@ -175,9 +259,9 @@ def build_mcp() -> Any:
             validate_only=validate_only,
             execute=execute,
             confirmation_phrase=confirmation_phrase,
+            tool_name="google_ads_call_service",
         )
 
-    @mcp.tool
     async def validate_google_ads_payload(
         request_type: str,
         payload: dict[str, Any],
@@ -188,8 +272,32 @@ def build_mcp() -> Any:
         gateway._parse_dict(payload, message)  # noqa: SLF001 - exposed as an MCP validation tool.
         return {"valid": True, "request_type": request_type}
 
+    core_tools = {
+        "get_tool_catalog": get_tool_catalog,
+        "get_capability_matrix": get_capability_matrix,
+        "list_google_ads_services": list_google_ads_services,
+        "describe_google_ads_service": describe_google_ads_service,
+        "describe_google_ads_resource": describe_google_ads_resource,
+        "get_google_ads_resource_metadata": get_google_ads_resource_metadata,
+        "validate_gaql_fields": validate_gaql_fields,
+        "suggest_gaql_fields": suggest_gaql_fields,
+        "plan_gaql_query": plan_gaql_query,
+        "explain_gaql_error": explain_gaql_error,
+        "query_google_ads_docs": query_google_ads_docs,
+        "google_ads_search": google_ads_search,
+        "google_ads_search_stream": google_ads_search_stream,
+        "google_ads_mutate": google_ads_mutate,
+        "google_ads_call_service": google_ads_call_service,
+        "validate_google_ads_payload": validate_google_ads_payload,
+    }
+    for canonical_name, func in core_tools.items():
+        _register_core_tool(mcp, registry, canonical_name, func)
+
     for spec in FRIENDLY_TOOL_SPECS:
-        _register_friendly_tool(mcp, dispatcher, spec.name, spec.description)
+        for exposure in registry.exposures_for(spec.name):
+            _register_friendly_tool(mcp, dispatcher, exposure)
+
+    _register_resources(mcp, settings, registry)
 
     return mcp
 
@@ -197,6 +305,22 @@ def build_mcp() -> Any:
 def _build_auth(settings: Any) -> Any:
     if settings.allow_unauthenticated_mcp:
         return None
+    if settings.auth_mode == "oauth_proxy":
+        try:
+            from fastmcp.server.auth.providers.google import GoogleProvider
+        except ImportError as exc:  # pragma: no cover
+            raise ConfigError("fastmcp GoogleProvider is required for OAuth proxy auth.") from exc
+        return GoogleProvider(
+            client_id=settings.mcp_oauth_client_id,
+            client_secret=settings.mcp_oauth_client_secret,
+            base_url=settings.mcp_base_url,
+            required_scopes=[
+                "openid",
+                "https://www.googleapis.com/auth/userinfo.email",
+                "https://www.googleapis.com/auth/userinfo.profile",
+                "https://www.googleapis.com/auth/adwords",
+            ],
+        )
     try:
         from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
     except ImportError as exc:  # pragma: no cover
@@ -215,8 +339,7 @@ def _build_auth(settings: Any) -> Any:
 def _register_friendly_tool(
     mcp: Any,
     dispatcher: FriendlyDispatcher,
-    tool_name: str,
-    description: str,
+    exposure: ToolExposure,
 ) -> None:
     async def friendly_tool(
         customer_id: str = "",
@@ -235,7 +358,7 @@ def _register_friendly_tool(
         partial_failure: bool = False,
     ) -> dict[str, Any]:
         return await dispatcher.dispatch(
-            tool_name,
+            exposure.canonical_name,
             customer_id=customer_id or None,
             payload=payload,
             filters=filters,
@@ -252,9 +375,79 @@ def _register_friendly_tool(
             partial_failure=partial_failure,
         )
 
-    friendly_tool.__name__ = tool_name
-    friendly_tool.__doc__ = description
-    mcp.tool(name=tool_name)(friendly_tool)
+    friendly_tool.__name__ = exposure.registered_name
+    friendly_tool.__doc__ = exposure.description
+    mcp.tool(name=exposure.registered_name)(friendly_tool)
+
+
+def _register_core_tool(
+    mcp: Any,
+    registry: ToolRegistry,
+    canonical_name: str,
+    func: Any,
+) -> None:
+    for exposure in registry.exposures_for(canonical_name):
+        func.__name__ = exposure.registered_name
+        func.__doc__ = exposure.description
+        mcp.tool(name=exposure.registered_name)(func)
+
+
+def _register_resources(mcp: Any, settings: Any, registry: ToolRegistry) -> None:
+    @mcp.resource(
+        "resource://google-ads/discovery-document",
+        name="Google Ads Discovery Document",
+        mime_type="application/json",
+    )
+    def discovery_document() -> str:
+        return discovery_document_resource(settings.api_version)
+
+    @mcp.resource(
+        "resource://google-ads/metrics",
+        name="Google Ads Metrics",
+        mime_type="application/json",
+    )
+    def metrics() -> str:
+        return metrics_resource(settings.api_version)
+
+    @mcp.resource(
+        "resource://google-ads/segments",
+        name="Google Ads Segments",
+        mime_type="application/json",
+    )
+    def segments() -> str:
+        return segments_resource(settings.api_version)
+
+    @mcp.resource(
+        "resource://google-ads/release-notes",
+        name="Google Ads Release Notes",
+        mime_type="application/json",
+    )
+    def release_notes() -> str:
+        return release_notes_resource(settings.api_version)
+
+    @mcp.resource(
+        "resource://google-ads/tool-catalog",
+        name="Google Ads MCP Tool Catalog",
+        mime_type="text/markdown",
+    )
+    def tool_catalog() -> str:
+        return tool_catalog_resource()
+
+    @mcp.resource(
+        "resource://google-ads/capability-matrix",
+        name="Google Ads MCP Capability Matrix",
+        mime_type="application/json",
+    )
+    def capability_matrix() -> str:
+        return capability_matrix_resource(registry)
+
+    @mcp.resource(
+        "resource://google-ads/gaql-knowledge-base",
+        name="Google Ads GAQL Knowledge Base",
+        mime_type="text/markdown",
+    )
+    def gaql_knowledge_base() -> str:
+        return gaql_knowledge_base_resource()
 
 
 def main() -> None:

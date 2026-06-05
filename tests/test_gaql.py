@@ -3,7 +3,16 @@ from __future__ import annotations
 import unittest
 
 import _bootstrap  # noqa: F401
-from google_ads_mcp.gaql import Pagination, apply_pagination, date_where_clause, ensure_primary_field, summarize_page, trim_offset_page
+from google_ads_mcp.gaql import (
+    Pagination,
+    apply_default_parameters,
+    apply_pagination,
+    date_where_clause,
+    ensure_primary_field,
+    explain_gaql_error,
+    summarize_page,
+    trim_offset_page,
+)
 from google_ads_mcp.safety import ValidationError
 
 
@@ -31,6 +40,29 @@ class GaqlTests(unittest.TestCase):
         summary = summarize_page(trimmed, page_size=2, offset=50, fetched_count=len(rows))
         self.assertTrue(summary["has_more"])
         self.assertEqual(summary["next_offset"], 52)
+
+    def test_default_parameters_added_once(self) -> None:
+        query = apply_default_parameters("SELECT campaign.id FROM campaign")
+
+        self.assertIn("PARAMETERS omit_unselected_resource_names = true", query)
+        self.assertEqual(apply_default_parameters(query), query)
+
+    def test_pagination_is_inserted_before_existing_parameters(self) -> None:
+        query = apply_pagination(
+            "SELECT campaign.id FROM campaign PARAMETERS include_drafts = true",
+            Pagination(page_size=2, offset=10),
+        )
+
+        self.assertEqual(
+            query,
+            "SELECT campaign.id FROM campaign LIMIT 3 OFFSET 10 PARAMETERS include_drafts = true",
+        )
+
+    def test_explain_gaql_error_returns_specific_guidance(self) -> None:
+        result = explain_gaql_error("EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE")
+
+        self.assertEqual(result["error_type"], "EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE")
+        self.assertIn("planning_plan_gaql_query", result["related_tools"])
 
 
 if __name__ == "__main__":

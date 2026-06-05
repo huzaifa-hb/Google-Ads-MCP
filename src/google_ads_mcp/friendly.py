@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from .gaql import TIME_SEGMENTS, date_where_clause, select_clause
+from .gaql import GAQL_FIELD_RE, TIME_SEGMENTS, date_where_clause, select_clause
 from .gateway import GoogleAdsGateway
 from .geo_targets import resolve_geo_target
 from .safety import CONFIRMATION_PHRASE, ValidationError, normalize_customer_id
@@ -242,6 +242,8 @@ class FriendlyDispatcher:
             execute=execute,
             confirmation_phrase=confirmation_phrase,
             partial_failure=partial_failure,
+            tool_name=spec.name,
+            operation_type=spec.name,
         )
 
     async def _negative_keyword(
@@ -278,6 +280,8 @@ class FriendlyDispatcher:
             execute=execute,
             confirmation_phrase=confirmation_phrase,
             partial_failure=partial_failure,
+            tool_name=spec.name,
+            operation_type=spec.name,
         )
 
     async def _service(
@@ -325,6 +329,7 @@ class FriendlyDispatcher:
             validate_only=validate_only,
             execute=execute,
             confirmation_phrase=confirmation_phrase,
+            tool_name=spec.name,
         )
 
     async def _default_service_tool(
@@ -511,12 +516,21 @@ class FriendlyDispatcher:
         for field, value in sorted(filters.items()):
             if value is None:
                 continue
+            field = self._filter_field(field)
             if isinstance(value, (list, tuple, set)):
                 values = ", ".join(self._literal(item) for item in value)
                 clauses.append(f"{field} IN ({values})")
             else:
                 clauses.append(f"{field} = {self._literal(value)}")
         return clauses
+
+    def _filter_field(self, field: str) -> str:
+        clean = field.strip()
+        if not GAQL_FIELD_RE.fullmatch(clean):
+            raise ValidationError(
+                "Friendly filters must use a GAQL field path like campaign.status."
+            )
+        return clean
 
     async def _mcc_hierarchy(
         self,

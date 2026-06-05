@@ -37,7 +37,14 @@ class Settings:
     api_version: str
     host: str
     port: int
+    auth_mode: str
     allow_unauthenticated_mcp: bool
+    mcp_mode: str | None
+    tools_config_path: str | None
+    allow_legacy_write_defaults: bool
+    mcp_oauth_client_id: str | None
+    mcp_oauth_client_secret: str | None
+    mcp_base_url: str | None
     max_retries: int
     retry_base_seconds: float
 
@@ -47,6 +54,10 @@ class Settings:
         max_retries = int(_env("GOOGLE_ADS_MAX_RETRIES", "3") or "3")
         retry_base_seconds = float(_env("GOOGLE_ADS_RETRY_BASE_SECONDS", "0.5") or "0.5")
         allow_unauthenticated = (_env("ALLOW_UNAUTHENTICATED_MCP", "false") or "").lower()
+        allow_legacy_write_defaults = (
+            _env("GOOGLE_ADS_MCP_ALLOW_LEGACY_WRITE_DEFAULTS", "false") or ""
+        ).lower()
+        auth_mode = (_env("GOOGLE_ADS_MCP_AUTH_MODE", "bearer") or "bearer").lower()
         return cls(
             mcp_bearer_token=_env("MCP_BEARER_TOKEN"),
             developer_token=_env("GOOGLE_ADS_DEVELOPER_TOKEN"),
@@ -58,17 +69,42 @@ class Settings:
             api_version=_env("GOOGLE_ADS_API_VERSION", "v24") or "v24",
             host=_env("HOST", "0.0.0.0") or "0.0.0.0",
             port=port,
+            auth_mode=auth_mode,
             allow_unauthenticated_mcp=allow_unauthenticated in {"1", "true", "yes"},
+            mcp_mode=_env("GOOGLE_ADS_MCP_MODE"),
+            tools_config_path=_env("GOOGLE_ADS_MCP_TOOLS_CONFIG"),
+            allow_legacy_write_defaults=allow_legacy_write_defaults in {"1", "true", "yes"},
+            mcp_oauth_client_id=_env("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID"),
+            mcp_oauth_client_secret=_env("GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"),
+            mcp_base_url=_env("GOOGLE_ADS_MCP_BASE_URL"),
             max_retries=max_retries,
             retry_base_seconds=retry_base_seconds,
         )
 
     def require_mcp_auth(self) -> None:
-        if not self.mcp_bearer_token and not self.allow_unauthenticated_mcp:
+        if self.allow_unauthenticated_mcp:
+            return
+        if self.auth_mode not in {"bearer", "oauth_proxy"}:
+            raise ConfigError(
+                "GOOGLE_ADS_MCP_AUTH_MODE must be 'bearer' or 'oauth_proxy'."
+            )
+        if self.auth_mode == "bearer" and not self.mcp_bearer_token:
             raise ConfigError(
                 "MCP_BEARER_TOKEN is required. Set ALLOW_UNAUTHENTICATED_MCP=true only "
                 "for local development."
             )
+        if self.auth_mode == "oauth_proxy":
+            missing = [
+                name
+                for name, value in {
+                    "GOOGLE_ADS_MCP_OAUTH_CLIENT_ID": self.mcp_oauth_client_id,
+                    "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET": self.mcp_oauth_client_secret,
+                    "GOOGLE_ADS_MCP_BASE_URL": self.mcp_base_url,
+                }.items()
+                if not value
+            ]
+            if missing:
+                raise ConfigError(f"Missing OAuth MCP auth values: {', '.join(missing)}")
 
     def require_google_ads(self) -> None:
         missing = [

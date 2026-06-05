@@ -13,6 +13,7 @@ dependencies = [
     "google-ads>=28.0.0",
     "google-auth>=2.29.0",
     "protobuf>=4.25.0",
+    "PyYAML>=6.0.2",
     "python-dotenv>=1.0.1",
     "starlette>=0.37.0",
 ]
@@ -32,6 +33,9 @@ google-ads-mcp-stdio-relay = "google_ads_mcp.stdio_relay:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+google_ads_mcp = ["default_tools_config.yaml"]
 
 [tool.ruff]
 line-length = 100

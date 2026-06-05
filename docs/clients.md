@@ -27,6 +27,8 @@ Cloud chatbots that do not support static bearer headers need an OAuth front
 door, an auth-injecting gateway, or a separate private test deployment. Do not
 expose a no-auth service connected to a real Google Ads account.
 
+For the built-in OAuth proxy mode, see `docs/oauth-front-door.md`.
+
 ## Codex-Style Config
 
 If the client supports remote MCP URLs with bearer tokens:

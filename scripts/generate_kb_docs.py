@@ -10,10 +10,10 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from google_ads_mcp.knowledge_base import ENTRIES
+from google_ads_mcp.knowledge_base import ENTRIES  # noqa: E402
 
 
-def main() -> None:
+def build_markdown() -> str:
     groups = defaultdict(list)
     for entry in ENTRIES:
         groups[entry.category].append(entry)
@@ -53,9 +53,13 @@ def main() -> None:
                 lines.append(f"**See also:** {links}")
                 lines.append("")
 
+    return "\n".join(lines)
+
+
+def main() -> None:
     target = Path("docs/gaql-knowledge-base.md")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(lines), encoding="utf-8")
+    target.write_text(build_markdown(), encoding="utf-8")
 
 
 if __name__ == "__main__":

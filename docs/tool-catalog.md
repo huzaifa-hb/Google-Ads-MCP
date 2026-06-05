@@ -1,12 +1,27 @@
 # Google Ads MCP Tool Catalog
 
-This file is generated from `src/google_ads_mcp/tool_catalog.py`.
+This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google_ads_mcp/tool_config.py`.
 
 ## Planning
 
 | Tool | Mode | Resource | Description |
 |---|---|---|---|
-| `query_google_ads_docs` | `kb_lookup` |  | Offline GAQL knowledge base with examples, limitations, and common error fixes. |
+| `describe_google_ads_resource` | `metadata` | `metadata` | Describe fields for a Google Ads API resource. |
+| `describe_google_ads_service` | `metadata` | `metadata` | Describe callable methods for a Google Ads service. |
+| `explain_gaql_error` | `query_planning` | `planning` | Explain common GAQL errors and suggest safe next steps. |
+| `get_capability_matrix` | `metadata` | `metadata` | Return implementation status for the currently exposed tools. |
+| `get_google_ads_resource_metadata` | `metadata` | `metadata` | Return selectable fields, filters, metrics, and segments for a resource. |
+| `get_tool_catalog` | `metadata` | `metadata` | Return the currently exposed Google Ads MCP tool catalog. |
+| `google_ads_call_service` | `service` | `generic` | Call any Google Ads API service method exposed by the client. |
+| `google_ads_mutate` | `mutate` | `generic` | Run GoogleAdsService.mutate against arbitrary operations. |
+| `google_ads_search` | `raw_gaql` | `generic` | Run a GAQL search query. |
+| `google_ads_search_stream` | `raw_gaql_stream` | `generic` | Run a GAQL SearchStream query. |
+| `list_google_ads_services` | `metadata` | `metadata` | List service classes available in the installed Google Ads API client. |
+| `plan_gaql_query` | `query_planning` | `planning` | Build a validated GAQL query plan without executing it. |
+| `query_google_ads_docs` | `kb_lookup` | `metadata` | Query the offline GAQL knowledge base. |
+| `suggest_gaql_fields` | `metadata` | `metadata` | Suggest GAQL fields from live resource metadata. |
+| `validate_gaql_fields` | `validation` | `metadata` | Validate GAQL SELECT fields against live resource metadata. |
+| `validate_google_ads_payload` | `validation` | `metadata` | Validate a protobuf JSON payload against a Google Ads message type. |
 
 ## Account
 

@@ -120,6 +120,15 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("segments.date BETWEEN '2026-01-01' AND '2026-01-31'", result["query"])
         self.assertIn("campaign.status = 'ENABLED'", result["query"])
 
+    async def test_friendly_filters_reject_non_field_keys(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+        with self.assertRaises(ValidationError):
+            await dispatcher.dispatch(
+                "get_campaign_metrics",
+                customer_id="1234567890",
+                filters={"campaign.status OR metrics.clicks > 0": "ENABLED"},
+            )
+
     async def test_add_campaign_negative_keywords_builds_operations(self) -> None:
         gateway = FakeGateway()
         dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]

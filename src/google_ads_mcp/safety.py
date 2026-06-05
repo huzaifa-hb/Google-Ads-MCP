@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
+from collections.abc import Callable
 from typing import Any
 
 
 CONFIRMATION_PHRASE = "CONFIRM_GOOGLE_ADS_WRITE"
 CUSTOMER_ID_RE = re.compile(r"^\d{3,}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+WRITE_MODES = {"safe_read_only", "validation_only", "write_enabled", "admin_debug"}
+AUDIT_LOGGER = logging.getLogger("google_ads_mcp.audit")
 
 
 class ValidationError(ValueError):
@@ -25,6 +31,8 @@ class WriteDecision:
     execute: bool
     allowed: bool
     reason: str
+    mode: str = "write_enabled"
+    forced_validation: bool = False
 
 
 def normalize_customer_id(customer_id: str | int) -> str:
@@ -91,6 +99,102 @@ def ensure_write_allowed(
     return decision.validate_only
 
 
+def guard_google_ads_write(
+    *,
+    mode: str,
+    tool_name: str,
+    customer_id: str | int,
+    validate_only: bool = True,
+    execute: bool = False,
+    confirmation_phrase: str | None = None,
+    operation_type: str | None = None,
+    operation_count: int | None = None,
+    audit_sink: Callable[[dict[str, Any]], None] | None = None,
+) -> WriteDecision:
+    """Enforce mode-aware write safety and emit a redacted audit event."""
+
+    normalized_customer_id = normalize_customer_id(customer_id)
+    if mode not in WRITE_MODES:
+        raise ValidationError(f"Unknown Google Ads MCP mode '{mode}'.")
+
+    if mode == "safe_read_only":
+        decision = WriteDecision(
+            validate_only=True,
+            execute=False,
+            allowed=False,
+            reason="Google Ads writes are disabled in safe_read_only mode.",
+            mode=mode,
+        )
+    elif mode == "validation_only":
+        decision = WriteDecision(
+            validate_only=True,
+            execute=False,
+            allowed=True,
+            reason="Validation-only mode forces all Google Ads writes to validate_only=true.",
+            mode=mode,
+            forced_validation=bool(execute or not validate_only),
+        )
+    else:
+        base_decision = evaluate_write_gate(
+            validate_only=validate_only,
+            execute=execute,
+            confirmation_phrase=confirmation_phrase,
+        )
+        decision = WriteDecision(
+            validate_only=base_decision.validate_only,
+            execute=base_decision.execute,
+            allowed=base_decision.allowed,
+            reason=base_decision.reason,
+            mode=mode,
+        )
+
+    emit_write_audit_event(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "tool": tool_name,
+            "customer_id_hash": hash_customer_id(normalized_customer_id),
+            "operation_type": operation_type or tool_name,
+            "operation_count": operation_count,
+            "mode": mode,
+            "validate_only": decision.validate_only,
+            "execute": decision.execute,
+            "confirmed": decision.allowed and decision.execute and not decision.validate_only,
+            "validation_forced": decision.forced_validation,
+            "result": _audit_result(decision),
+            "reason": decision.reason,
+        },
+        audit_sink=audit_sink,
+    )
+    if not decision.allowed:
+        raise ValidationError(decision.reason)
+    return decision
+
+
+def hash_customer_id(customer_id: str | int) -> str:
+    normalized = normalize_customer_id(customer_id)
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
+def emit_write_audit_event(
+    event: dict[str, Any],
+    *,
+    audit_sink: Callable[[dict[str, Any]], None] | None = None,
+) -> None:
+    if audit_sink is not None:
+        audit_sink(dict(event))
+        return
+    AUDIT_LOGGER.info(json.dumps(event, sort_keys=True))
+
+
+def _audit_result(decision: WriteDecision) -> str:
+    if not decision.allowed:
+        return "denied"
+    if decision.validate_only:
+        return "validated"
+    return "executed"
+
+
 def validate_date(value: str, field_name: str) -> str:
     if not DATE_RE.match(value):
         raise ValidationError(f"{field_name} must be YYYY-MM-DD.")
@@ -108,7 +212,24 @@ def redact_sensitive(value: Any) -> Any:
         redacted: dict[str, Any] = {}
         for key, item in value.items():
             lowered = key.lower()
-            if any(token in lowered for token in ("secret", "token", "refresh", "password", "key")):
+            if any(
+                token in lowered
+                for token in (
+                    "secret",
+                    "token",
+                    "refresh",
+                    "password",
+                    "key",
+                    "email",
+                    "phone",
+                    "address",
+                    "user_identifier",
+                    "gclid",
+                    "gbraid",
+                    "wbraid",
+                    "customer_match",
+                )
+            ):
                 redacted[key] = "[REDACTED]"
             else:
                 redacted[key] = redact_sensitive(item)

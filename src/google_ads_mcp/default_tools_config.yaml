@@ -1,0 +1,78 @@
+mode: safe_read_only
+
+legacy_aliases:
+  enabled: false
+
+namespaces:
+  metadata:
+    enabled: true
+    prefix: metadata
+  planning:
+    enabled: true
+    prefix: planning
+  account:
+    enabled: true
+    prefix: account
+  reporting:
+    enabled: true
+    prefix: reporting
+  campaigns:
+    enabled: true
+    prefix: campaigns
+  ad_groups:
+    enabled: true
+    prefix: adgroups
+  ads:
+    enabled: true
+    prefix: ads
+  keywords:
+    enabled: true
+    prefix: keywords
+  assets:
+    enabled: true
+    prefix: assets
+  audiences:
+    enabled: true
+    prefix: audiences
+  conversions:
+    enabled: true
+    prefix: conversions
+  recommendations:
+    enabled: true
+    prefix: recommendations
+  budgets:
+    enabled: false
+    prefix: budgets
+  extensions:
+    enabled: false
+    prefix: extensions
+  bidding:
+    enabled: false
+    prefix: bidding
+  targeting:
+    enabled: false
+    prefix: targeting
+  shopping_pmax:
+    enabled: false
+    prefix: shoppingpmax
+  labels:
+    enabled: false
+    prefix: labels
+  feeds:
+    enabled: false
+    prefix: feeds
+  mutations:
+    enabled: false
+    prefix: mutate
+  bulk:
+    enabled: false
+    prefix: bulk
+  generic:
+    enabled: false
+    prefix: generic
+
+tools:
+  google_ads_mutate:
+    enabled: false
+  google_ads_call_service:
+    enabled: false

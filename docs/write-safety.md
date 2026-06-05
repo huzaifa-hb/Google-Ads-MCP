@@ -1,5 +1,18 @@
 # Write Safety
 
+The server starts in `safe_read_only` mode by default. In that mode, mutating
+tools and generic service bridge tools are not exposed.
+
+Supported modes:
+
+- `safe_read_only`: read/reporting/docs/metadata tools only.
+- `validation_only`: configured mutation tools are exposed, but every write is
+  forced to `validate_only=true`.
+- `write_enabled`: configured mutation tools can commit real writes only after
+  explicit confirmation.
+- `admin_debug`: generic bridge tools can be exposed by config; real writes
+  still require explicit confirmation.
+
 All mutating tools default to `validate_only=true`.
 
 To commit a write, every write path requires:
@@ -18,6 +31,11 @@ This applies to:
 - bulk mutation helpers
 
 Validation-only requests still call Google Ads in validation mode and may consume API quota, but they do not commit external changes.
+
+Every write attempt emits a structured audit event with the mode, tool name,
+operation count, result, and a hashed customer ID. Audit events must not include
+developer tokens, refresh tokens, bearer tokens, raw payloads, audience upload
+data, invoice files, or raw customer data.
 
 Bulk writes can set:
 
