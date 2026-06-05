@@ -94,6 +94,7 @@ First MCP calls:
 get_server_status
 get_tool_catalog
 get_capability_matrix
+account_list_accessible_customers
 metadata_get_google_ads_resource_metadata(resource_name="campaign")
 planning_plan_gaql_query(resource_name="campaign", metrics=["metrics.clicks"])
 ```
@@ -135,6 +136,11 @@ See [docs/tool-configuration.md](docs/tool-configuration.md),
 [docs/modes-and-safety.md](docs/modes-and-safety.md), and
 [docs/oauth-front-door.md](docs/oauth-front-door.md).
 
+Some broad catalog entries are intentionally marked as unsupported or
+operation-template tools when the repo cannot safely promise a high-level
+backend mapping. Check `get_capability_matrix` before trusting a tool name
+literally.
+
 ## Tool Exposure
 
 Tools are namespaced by default:
@@ -144,6 +150,7 @@ Tools are namespaced by default:
 - `metadata_suggest_gaql_fields`
 - `planning_plan_gaql_query`
 - `planning_explain_gaql_error`
+- `account_list_accessible_customers`
 - `reporting_get_campaign_metrics`
 - `campaigns_list_campaigns`
 - `keywords_list_keywords`

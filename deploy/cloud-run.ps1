@@ -4,7 +4,11 @@ param(
 
     [string]$Region = "us-central1",
     [string]$ServiceName = "google-ads-mcp",
-    [string]$ArtifactRepo = "mcp-servers"
+    [string]$ArtifactRepo = "mcp-servers",
+    [string]$McpMode = "safe_read_only",
+    [string]$McpAuthMode = "bearer",
+    [string]$ToolsConfigPath = "",
+    [switch]$EnableGenericServiceBridge
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +41,18 @@ if ($LASTEXITCODE -ne 0) {
 $image = "$Region-docker.pkg.dev/$ProjectId/$ArtifactRepo/$ServiceName`:latest"
 gcloud builds submit --tag $image .
 
+$genericServiceBridge = if ($EnableGenericServiceBridge.IsPresent) { "true" } else { "false" }
+$envMappings = @(
+    "GOOGLE_ADS_API_VERSION=v24",
+    "GOOGLE_PROJECT_ID=$ProjectId",
+    "GOOGLE_ADS_MCP_MODE=$McpMode",
+    "GOOGLE_ADS_MCP_AUTH_MODE=$McpAuthMode",
+    "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=$genericServiceBridge"
+)
+if ($ToolsConfigPath) {
+    $envMappings += "GOOGLE_ADS_MCP_TOOLS_CONFIG=$ToolsConfigPath"
+}
+
 $secretMappings = @(
     "MCP_BEARER_TOKEN=MCP_BEARER_TOKEN:latest",
     "GOOGLE_ADS_DEVELOPER_TOKEN=GOOGLE_ADS_DEVELOPER_TOKEN:latest",
@@ -58,7 +74,7 @@ gcloud run deploy $ServiceName `
     --platform managed `
     --allow-unauthenticated `
     --port 8080 `
-    --set-env-vars "GOOGLE_ADS_API_VERSION=v24,GOOGLE_PROJECT_ID=$ProjectId" `
+    --set-env-vars ($envMappings -join ",") `
     --set-secrets ($secretMappings -join ",")
 
 gcloud run services describe $ServiceName `

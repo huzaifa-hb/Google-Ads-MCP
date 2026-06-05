@@ -46,6 +46,7 @@ class ToolConfigTests(unittest.TestCase):
         self.assertIn("get_tool_catalog", registry.registered_names)
         self.assertIn("get_capability_matrix", registry.registered_names)
         self.assertIn("get_server_status", registry.registered_names)
+        self.assertIn("account_list_accessible_customers", registry.registered_names)
         self.assertIn("metadata_get_google_ads_resource_metadata", registry.registered_names)
         self.assertIn("metadata_validate_gaql_fields", registry.registered_names)
         self.assertIn("planning_plan_gaql_query", registry.registered_names)

@@ -97,6 +97,12 @@ CORE_TOOL_DEFS: dict[str, dict[str, str]] = {
         "read_write": "read",
         "description": "List service classes available in the installed Google Ads API client.",
     },
+    "list_accessible_customers": {
+        "namespace": "account",
+        "mode": "query",
+        "read_write": "read",
+        "description": "List customer resource names accessible to the configured OAuth user.",
+    },
     "describe_google_ads_service": {
         "namespace": "metadata",
         "mode": "metadata",

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 from .capability_matrix import capability_matrix_payload
 from .knowledge_base import ENTRIES
-from .tool_catalog import DEFAULT_METRICS
-from .tool_config import ToolRegistry
+from .tool_catalog import DEFAULT_METRICS, FRIENDLY_TOOL_SPECS
+from .tool_config import CORE_TOOL_DEFS, ToolRegistry
 
 
 COMMON_SEGMENTS = (
@@ -82,7 +83,7 @@ def release_notes_resource(api_version: str) -> str:
 
 
 def tool_catalog_resource() -> str:
-    return _read_doc("tool-catalog.md")
+    return _read_doc("tool-catalog.md") or _tool_catalog_markdown()
 
 
 def capability_matrix_resource(registry: ToolRegistry) -> str:
@@ -93,7 +94,7 @@ def gaql_knowledge_base_resource() -> str:
     path = _docs_dir() / "gaql-knowledge-base.md"
     if path.exists():
         return path.read_text(encoding="utf-8")
-    return _json({"entries": [entry.to_dict() for entry in ENTRIES]})
+    return _gaql_knowledge_base_markdown()
 
 
 def _read_doc(filename: str) -> str:
@@ -101,6 +102,58 @@ def _read_doc(filename: str) -> str:
     if path.exists():
         return path.read_text(encoding="utf-8")
     return ""
+
+
+def _tool_catalog_markdown() -> str:
+    groups = defaultdict(list)
+    for spec in FRIENDLY_TOOL_SPECS:
+        groups[spec.category].append(spec)
+    lines = [
+        "# Google Ads MCP Tool Catalog",
+        "",
+        "Generated at runtime from package metadata.",
+        "",
+        "## Core Tools",
+        "",
+        "| Tool | Mode | Namespace | Description |",
+        "|---|---|---|---|",
+    ]
+    for name, definition in sorted(CORE_TOOL_DEFS.items()):
+        lines.append(
+            f"| `{name}` | `{definition['mode']}` | `{definition['namespace']}` | "
+            f"{definition['description']} |"
+        )
+    lines.append("")
+    for category in sorted(groups):
+        lines.append(f"## {category.replace('_', ' ').title()}")
+        lines.append("")
+        lines.append("| Tool | Mode | Resource | Description |")
+        lines.append("|---|---|---|---|")
+        for spec in groups[category]:
+            lines.append(
+                f"| `{spec.name}` | `{spec.mode}` | `{spec.resource or ''}` | "
+                f"{spec.description} |"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _gaql_knowledge_base_markdown() -> str:
+    groups = defaultdict(list)
+    for entry in ENTRIES:
+        groups[entry.category].append(entry)
+    lines = ["# GAQL Knowledge Base", "", "Generated at runtime from package metadata.", ""]
+    for category in sorted(groups):
+        lines.append(f"## {category.replace('_', ' ').title()}")
+        lines.append("")
+        for entry in groups[category]:
+            lines.append(f"### `{entry.id}`")
+            lines.append("")
+            lines.append(f"**Question:** {entry.question}")
+            lines.append("")
+            lines.append(entry.answer)
+            lines.append("")
+    return "\n".join(lines)
 
 
 def _docs_dir() -> Path:

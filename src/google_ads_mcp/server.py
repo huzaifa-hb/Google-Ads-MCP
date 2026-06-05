@@ -70,6 +70,11 @@ def build_mcp() -> Any:
 
         return gateway.list_services()
 
+    async def list_accessible_customers() -> dict[str, Any]:
+        """List customer resource names accessible to the configured OAuth user."""
+
+        return await gateway.list_accessible_customers()
+
     async def describe_google_ads_service(service_name: str) -> dict[str, Any]:
         """Describe callable methods for a Google Ads service."""
 
@@ -274,6 +279,7 @@ def build_mcp() -> Any:
         "get_server_status": get_server_status,
         "get_tool_catalog": get_tool_catalog,
         "get_capability_matrix": get_capability_matrix,
+        "list_accessible_customers": list_accessible_customers,
         "list_google_ads_services": list_google_ads_services,
         "describe_google_ads_service": describe_google_ads_service,
         "describe_google_ads_resource": describe_google_ads_resource,

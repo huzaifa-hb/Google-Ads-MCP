@@ -109,6 +109,28 @@ class GoogleAdsGateway:
     def get_type(self, type_name: str) -> Any:
         return self.client.get_type(type_name)
 
+    async def list_accessible_customers(self) -> dict[str, Any]:
+        def call() -> Any:
+            service = self.get_service("CustomerService")
+            request = self.get_type("ListAccessibleCustomersRequest")
+            try:
+                return service.list_accessible_customers(request=request)
+            except TypeError:
+                return service.list_accessible_customers()
+
+        response = await self._retry(call)
+        data = self._message_to_dict(response)
+        resource_names = []
+        if isinstance(data, dict):
+            resource_names = list(data.get("resource_names") or data.get("resourceNames") or [])
+        return {
+            "resource_names": resource_names,
+            "customer_ids": [
+                str(name).rsplit("/", 1)[-1] for name in resource_names if str(name).startswith("customers/")
+            ],
+            "response": data,
+        }
+
     async def search(
         self,
         *,

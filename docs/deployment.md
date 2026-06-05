@@ -56,11 +56,24 @@ deploy manually, grant the same role before deploying.
 - Port: `8080`
 - MCP path: `/mcp`
 - Health path: `/healthz`
+- MCP mode: `safe_read_only`
+- MCP auth mode: `bearer`
+- Generic service bridge escape hatch: disabled
 
 Cloud Run is configured with public ingress because most external AI agents cannot mint Google IAM identity tokens. The MCP server still requires its own bearer token.
 
 Cloud Run may scale to zero after idle time. The first request after idle can
 take 5 to 15 seconds; later requests are normally faster.
+
+Override safety settings deliberately:
+
+```powershell
+.\deploy\cloud-run.ps1 `
+  -ProjectId YOUR_GCP_PROJECT_ID `
+  -McpMode validation_only
+```
+
+Only use `-EnableGenericServiceBridge` for private `admin_debug` deployments.
 
 ## Post-Deploy Checks
 

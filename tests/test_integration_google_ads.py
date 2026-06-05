@@ -6,6 +6,7 @@ import unittest
 import _bootstrap  # noqa: F401
 from google_ads_mcp.friendly import FriendlyDispatcher
 from google_ads_mcp.gateway import GoogleAdsGateway
+from google_ads_mcp.safety import CONFIRMATION_PHRASE
 
 
 RUN_INTEGRATION = os.environ.get("GOOGLE_ADS_MCP_RUN_INTEGRATION_TESTS", "").lower() in {
@@ -49,8 +50,9 @@ class GoogleAdsIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "pause_campaign",
             customer_id=customer_id,
             payload={"campaign_id": campaign_id},
-            validate_only=True,
-            execute=False,
+            validate_only=False,
+            execute=True,
+            confirmation_phrase=CONFIRMATION_PHRASE,
         )
 
         self.assertTrue(result["validate_only"])

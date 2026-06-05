@@ -37,6 +37,14 @@ class SafetyTests(unittest.TestCase):
             )
         )
 
+    def test_real_write_denies_confirmation_when_validate_only_true(self) -> None:
+        with self.assertRaises(ValidationError):
+            ensure_write_allowed(
+                validate_only=True,
+                execute=True,
+                confirmation_phrase=CONFIRMATION_PHRASE,
+            )
+
     def test_write_guard_denies_read_only_mode(self) -> None:
         events = []
         with self.assertRaises(ValidationError):
@@ -79,6 +87,20 @@ class SafetyTests(unittest.TestCase):
         )
         self.assertFalse(decision.validate_only)
         self.assertEqual(events[0]["result"], "executed")
+
+    def test_write_guard_denies_execute_with_validate_only_true(self) -> None:
+        events = []
+        with self.assertRaises(ValidationError):
+            guard_google_ads_write(
+                mode="write_enabled",
+                tool_name="pause_campaign",
+                customer_id="1234567890",
+                validate_only=True,
+                execute=True,
+                confirmation_phrase=CONFIRMATION_PHRASE,
+                audit_sink=events.append,
+            )
+        self.assertEqual(events[0]["result"], "denied")
 
 
 if __name__ == "__main__":

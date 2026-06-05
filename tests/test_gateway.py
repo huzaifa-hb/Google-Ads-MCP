@@ -24,6 +24,10 @@ class RecordingService:
         self.last_request = dict(request)
         return {"ok": True, "request": self.last_request}
 
+    def list_accessible_customers(self, request: dict[str, object]) -> dict[str, object]:
+        self.last_request = dict(request)
+        return {"resource_names": ["customers/1234567890", "customers/2223334444"]}
+
 
 class FakeClient:
     def __init__(self, service: RecordingService) -> None:
@@ -139,6 +143,15 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(result["is_write"])
         self.assertEqual(service.last_request, {"customer_id": "1234567890"})
+
+    async def test_list_accessible_customers_uses_customer_service(self) -> None:
+        service = RecordingService()
+        gateway = ParsingGateway(client=FakeClient(service), mode="safe_read_only")
+
+        result = await gateway.list_accessible_customers()
+
+        self.assertEqual(result["customer_ids"], ["1234567890", "2223334444"])
+        self.assertEqual(service.last_request, {})
 
 
 if __name__ == "__main__":

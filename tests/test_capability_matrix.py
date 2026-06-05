@@ -29,6 +29,13 @@ class CapabilityMatrixTests(unittest.TestCase):
         self.assertEqual(by_name["create_similar_audience"].implementation_status, "deprecated")
         self.assertEqual(by_name["get_keyword_ideas"].implementation_status, "generic_routed")
         self.assertEqual(by_name["google_ads_call_service"].implementation_status, "generic_routed")
+        self.assertEqual(by_name["pause_campaign"].implementation_status, "hand_implemented")
+        self.assertEqual(
+            by_name["create_responsive_search_ad"].implementation_status,
+            "hand_implemented",
+        )
+        self.assertEqual(by_name["create_dsa_page_feed"].implementation_status, "operation_template")
+        self.assertEqual(by_name["get_topic_report"].implementation_status, "unsupported_by_design")
 
     def test_safe_read_only_matrix_contains_only_read_classes(self) -> None:
         registry = build_tool_registry({"mode": "safe_read_only"})

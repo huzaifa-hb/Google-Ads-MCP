@@ -17,6 +17,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `google_ads_mutate` | `mutate` | `generic` | Run GoogleAdsService.mutate against arbitrary operations. |
 | `google_ads_search` | `raw_gaql` | `generic` | Run a GAQL search query. |
 | `google_ads_search_stream` | `raw_gaql_stream` | `generic` | Run a GAQL SearchStream query. |
+| `list_accessible_customers` | `query` | `account` | List customer resource names accessible to the configured OAuth user. |
 | `list_google_ads_services` | `metadata` | `metadata` | List service classes available in the installed Google Ads API client. |
 | `plan_gaql_query` | `query_planning` | `planning` | Build a validated GAQL query plan without executing it. |
 | `query_google_ads_docs` | `kb_lookup` | `metadata` | Query the offline GAQL knowledge base. |
@@ -72,7 +73,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `enable_ad` | `mutate` | `` | Enable an ad. |
 | `remove_ad` | `mutate` | `` | Remove an ad. |
 | `get_ad_approval_status` | `service` | `` | Get policy review status and disapproval reasons. |
-| `get_ad_asset_performance` | `report` | `campaign` | Get RSA asset serving rate and performance labels. |
+| `get_ad_asset_performance` | `report` | `ad_group_ad_asset_view` | Get RSA asset serving rate and performance labels. |
 | `apply_ad_label` | `mutate` | `` | Attach a label to an ad. |
 | `remove_ad_label` | `mutate` | `` | Detach a label from an ad. |
 
@@ -85,7 +86,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `upload_image_asset` | `mutate` | `` | Upload or create an image asset. |
 | `create_text_asset` | `mutate` | `` | Create a text asset. |
 | `create_video_asset` | `mutate` | `` | Create a YouTube video asset. |
-| `get_asset_performance` | `report` | `campaign` | Get asset serving performance. |
+| `get_asset_performance` | `report` | `asset_group_asset` | Get asset serving performance. |
 | `get_asset_approval_status` | `service` | `` | Get asset policy approval status. |
 | `remove_asset` | `mutate` | `` | Remove an asset. |
 
@@ -119,7 +120,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `remove_bidding_strategy` | `mutate` | `` | Remove an unused portfolio bidding strategy. |
 | `attach_bidding_strategy_to_campaign` | `mutate` | `` | Attach portfolio strategy to campaign. |
 | `set_campaign_inline_bid_strategy` | `mutate` | `` | Set campaign-level inline bid strategy. |
-| `get_bidding_strategy_report` | `report` | `campaign` | Report performance by bidding strategy. |
+| `get_bidding_strategy_report` | `report` | `bidding_strategy` | Report performance by bidding strategy. |
 | `set_audience_bid_adjustments` | `mutate` | `` | Set audience bid modifiers. |
 | `set_demographic_bid_adjustments` | `mutate` | `` | Set demographic bid modifiers. |
 | `set_ad_schedule_bid_adjustments` | `mutate` | `` | Set ad schedule bid modifiers. |
@@ -311,7 +312,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_household_income_report` | `report` | `household_income_view` | Performance by household income. |
 | `get_audience_performance_report` | `report` | `audience_view` | Performance by audience segment. |
 | `get_placement_report` | `report` | `group_placement_view` | Display placement performance. |
-| `get_topic_report` | `report` | `campaign` | GDN topic performance. |
+| `get_topic_report` | `unsupported` | `` | GDN topic performance. |
 | `get_ad_schedule_report` | `report` | `campaign` | Performance by scheduled time block. |
 | `get_asset_performance_report` | `report` | `asset_group_asset` | Asset performance for RSA and PMax. |
 | `get_video_performance_report` | `report` | `video` | Video performance report. |
@@ -320,8 +321,8 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_landing_page_report` | `report` | `landing_page_view` | Landing page performance. |
 | `get_call_details_report` | `report` | `call_view` | Call details report. |
 | `get_change_history_report` | `report` | `change_event` | Change history report. |
-| `get_reach_frequency_report` | `report` | `campaign` | Reach and frequency report. |
-| `get_paid_organic_report` | `report` | `campaign` | Paid and organic report when Search Console is linked. |
+| `get_reach_frequency_report` | `unsupported` | `` | Reach and frequency report. |
+| `get_paid_organic_report` | `unsupported` | `` | Paid and organic report when Search Console is linked. |
 | `execute_gaql_query` | `raw_gaql` | `` | Execute raw GAQL for uncovered reporting needs. |
 
 ## Shopping Pmax
@@ -339,7 +340,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `remove_pmax_asset_group` | `mutate` | `` | Remove a PMax asset group. |
 | `set_pmax_audience_signals` | `mutate` | `` | Set PMax audience signals and search themes. |
 | `get_pmax_search_term_themes` | `service` | `` | Get PMax search term themes where exposed. |
-| `get_pmax_asset_group_performance` | `report` | `campaign` | Report PMax asset group performance. |
+| `get_pmax_asset_group_performance` | `report` | `asset_group` | Report PMax asset group performance. |
 | `get_pmax_campaign_insights` | `service` | `` | Report PMax campaign insights. |
 
 ## Targeting

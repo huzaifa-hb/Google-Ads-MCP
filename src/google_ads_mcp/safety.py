@@ -65,7 +65,7 @@ def evaluate_write_gate(
             allowed=True,
             reason="Validation-only request. No external write will be committed.",
         )
-    if execute and confirmation_phrase == CONFIRMATION_PHRASE:
+    if execute and validate_only is False and confirmation_phrase == CONFIRMATION_PHRASE:
         return WriteDecision(
             validate_only=False,
             execute=True,
@@ -77,7 +77,8 @@ def evaluate_write_gate(
         execute=False,
         allowed=False,
         reason=(
-            f"Real writes require execute=true and confirmation_phrase='{CONFIRMATION_PHRASE}'. "
+            "Real writes require validate_only=false, execute=true, and "
+            f"confirmation_phrase='{CONFIRMATION_PHRASE}'. "
             "Call again with validate_only=true to preview without committing."
         ),
     )

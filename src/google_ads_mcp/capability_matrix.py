@@ -5,8 +5,77 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .tool_catalog import FriendlyToolSpec, SERVICE_TOOLS, UNSUPPORTED_TOOLS
+from .tool_catalog import FriendlyToolSpec, REPORT_RESOURCES, SERVICE_TOOLS, UNSUPPORTED_TOOLS
 from .tool_config import CORE_TOOL_DEFS, ToolExposure, ToolRegistry, classify_friendly_read_write
+
+
+DIRECT_MUTATION_TOOLS = {
+    "create_search_campaign",
+    "create_display_campaign",
+    "create_video_campaign",
+    "create_shopping_campaign",
+    "create_pmax_campaign",
+    "create_demand_gen_campaign",
+    "create_app_campaign",
+    "create_smart_campaign",
+    "create_budget",
+    "create_shared_budget",
+    "update_budget",
+    "update_shared_budget",
+    "remove_budget",
+    "link_budget_to_campaign",
+    "update_campaign",
+    "update_network_settings",
+    "bulk_pause_campaigns",
+    "bulk_enable_campaigns",
+    "pause_campaign",
+    "enable_campaign",
+    "remove_campaign",
+    "create_ad_group",
+    "update_ad_group",
+    "pause_ad_group",
+    "enable_ad_group",
+    "remove_ad_group",
+    "create_responsive_search_ad",
+    "pause_ad",
+    "enable_ad",
+    "remove_ad",
+    "add_keywords",
+    "bulk_add_keywords",
+    "update_keyword_bid",
+    "bulk_update_bids",
+    "pause_keyword",
+    "enable_keyword",
+    "remove_keywords",
+    "bulk_add_negative_keywords",
+    "create_sitelink",
+    "create_callout",
+    "create_text_asset",
+    "create_video_asset",
+    "create_label",
+    "update_label",
+    "remove_label",
+    "apply_campaign_label",
+    "remove_campaign_label",
+    "apply_ad_group_label",
+    "remove_ad_group_label",
+    "apply_ad_label",
+    "remove_ad_label",
+    "apply_keyword_label",
+    "remove_keyword_label",
+}
+
+DIRECT_NEGATIVE_KEYWORD_TOOLS = {
+    "add_negative_keywords_ad_group",
+    "add_negative_keywords_campaign",
+    "remove_negative_keywords_ad_group",
+    "remove_negative_keywords_campaign",
+    "create_shared_negative_keyword_list",
+    "add_keywords_to_shared_list",
+    "remove_keywords_from_shared_list",
+    "apply_shared_list_to_campaign",
+    "remove_shared_list_from_campaign",
+}
 
 
 @dataclass(frozen=True)
@@ -54,7 +123,11 @@ def build_capability_matrix(registry: ToolRegistry | None = None) -> list[Capabi
                 implementation_status=_core_status(name, definition["read_write"]),
                 backend=_core_backend(name),
                 read_write=definition["read_write"],
-                requires_eligibility="depends" if name in {"google_ads_mutate", "google_ads_call_service"} else "no",
+                requires_eligibility=(
+                    "depends"
+                    if name in {"google_ads_mutate", "google_ads_call_service"}
+                    else "no"
+                ),
                 notes=definition["description"],
             )
         )
@@ -172,6 +245,7 @@ def _core_backend(name: str) -> str:
         "google_ads_search_stream": "GoogleAdsService.SearchStream",
         "google_ads_mutate": "GoogleAdsService.Mutate",
         "google_ads_call_service": "Generic Google Ads service bridge",
+        "list_accessible_customers": "CustomerService.ListAccessibleCustomers",
         "describe_google_ads_resource": "GoogleAdsFieldService.SearchGoogleAdsFields",
         "get_google_ads_resource_metadata": "GoogleAdsFieldService.SearchGoogleAdsFields",
         "validate_gaql_fields": "GoogleAdsFieldService.SearchGoogleAdsFields",
@@ -195,19 +269,19 @@ def _friendly_status(spec: FriendlyToolSpec) -> str:
     if spec.mode == "service" or spec.name in SERVICE_TOOLS:
         return "generic_routed"
     if spec.mode in {"query", "report"}:
+        if spec.mode == "report" and spec.name not in REPORT_RESOURCES:
+            return "unmapped_report"
         return "hand_implemented"
     if spec.mode == "negative_keyword":
-        return "hand_implemented" if spec.name.startswith("list_") else "operation_template"
+        if spec.name.startswith("list_") or spec.name in DIRECT_NEGATIVE_KEYWORD_TOOLS:
+            return "hand_implemented"
+        return "operation_template"
     if spec.mode == "raw_gaql":
         return "generic_routed"
     if spec.name == "batch_mutate":
         return "generic_routed"
-    if spec.name.startswith("create_") and spec.category in {
-        "campaigns",
-        "shopping_pmax",
-        "feeds",
-    }:
-        return "payload_operations_required"
+    if spec.name in DIRECT_MUTATION_TOOLS:
+        return "hand_implemented"
     return "operation_template"
 
 

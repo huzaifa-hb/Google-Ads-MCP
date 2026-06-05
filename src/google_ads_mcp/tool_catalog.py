@@ -480,6 +480,18 @@ UNSUPPORTED_TOOLS: dict[str, str] = {
         "Similar audiences are no longer a generally available creation path in Google Ads. "
         "Use audience signals, optimized targeting, Customer Match, or custom segments."
     ),
+    "get_topic_report": (
+        "Topic performance fields are version and campaign-type sensitive. Use live metadata and "
+        "planning_plan_gaql_query to build a topic-compatible GAQL query for the target account."
+    ),
+    "get_reach_frequency_report": (
+        "Reach and frequency reporting is not a universal GAQL view. Use live metadata to confirm "
+        "compatible reach/frequency fields before querying."
+    ),
+    "get_paid_organic_report": (
+        "Paid and organic reporting depends on Search Console linkage and version-specific fields. "
+        "Use live metadata before building this report."
+    ),
     "upload_store_visit_conversions": (
         "Store visit conversion uploads are eligibility-gated and not available for most API users. "
         "Use google_ads_call_service if your account has the required service access."
@@ -569,6 +581,29 @@ REPORT_RESOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
         ("asset.id", "asset_group.id", "asset_group_asset.performance_label"),
         "asset.id",
     ),
+    "get_ad_asset_performance": (
+        "ad_group_ad_asset_view",
+        (
+            "ad_group_ad_asset_view.resource_name",
+            "ad_group_ad_asset_view.field_type",
+            "ad_group_ad_asset_view.performance_label",
+            "ad_group_ad.ad.id",
+            "ad_group.id",
+            "campaign.id",
+        ),
+        "ad_group_ad_asset_view.resource_name",
+    ),
+    "get_asset_performance": (
+        "asset_group_asset",
+        (
+            "asset.id",
+            "asset_group.id",
+            "asset_group_asset.field_type",
+            "asset_group_asset.performance_label",
+            "campaign.id",
+        ),
+        "asset.id",
+    ),
     "get_video_performance_report": ("video", ("video.id", "video.title"), "video.id"),
     "get_shopping_performance_report": (
         "shopping_performance_view",
@@ -594,6 +629,26 @@ REPORT_RESOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
             "change_event.change_resource_name",
         ),
         "change_event.resource_name",
+    ),
+    "get_ad_schedule_report": (
+        "campaign",
+        ("campaign.id", "campaign.name", "segments.day_of_week", "segments.hour"),
+        "campaign.id",
+    ),
+    "get_display_performance_report": (
+        "campaign",
+        ("campaign.id", "campaign.name", "segments.ad_network_type"),
+        "campaign.id",
+    ),
+    "get_bidding_strategy_report": (
+        "bidding_strategy",
+        ("bidding_strategy.id", "bidding_strategy.name", "bidding_strategy.type"),
+        "bidding_strategy.id",
+    ),
+    "get_pmax_asset_group_performance": (
+        "asset_group",
+        ("asset_group.id", "asset_group.name", "asset_group.status", "campaign.id"),
+        "asset_group.id",
     ),
 }
 
@@ -661,11 +716,16 @@ def build_tool_specs() -> tuple[FriendlyToolSpec, ...]:
                 if resource is None:
                     mode = "service"
             elif mode == "report":
-                resource, base_fields, primary_field = REPORT_RESOURCES.get(
-                    name,
-                    ("campaign", ("campaign.id",), "campaign.id"),
-                )
-                fields = base_fields + DEFAULT_METRICS
+                if name not in REPORT_RESOURCES:
+                    mode = "unsupported"
+                    notes = (
+                        "Report mapping is not defined. Use live metadata and "
+                        "planning_plan_gaql_query to build this report safely."
+                    )
+                    resource, fields, primary_field = None, (), None
+                else:
+                    resource, base_fields, primary_field = REPORT_RESOURCES[name]
+                    fields = base_fields + DEFAULT_METRICS
             specs.append(
                 FriendlyToolSpec(
                     name=name,

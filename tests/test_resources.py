@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from unittest.mock import patch
 import unittest
 
 import _bootstrap  # noqa: F401
@@ -10,6 +12,8 @@ from google_ads_mcp.resources import (
     metrics_resource,
     release_notes_resource,
     segments_resource,
+    tool_catalog_resource,
+    gaql_knowledge_base_resource,
 )
 from google_ads_mcp.tool_config import build_tool_registry
 
@@ -43,6 +47,11 @@ class ResourcePayloadTests(unittest.TestCase):
 
         self.assertEqual(payload["mode"], "safe_read_only")
         self.assertEqual(payload["tool_count"], len(registry.exposures))
+
+    def test_docs_resources_have_runtime_fallbacks(self) -> None:
+        with patch("google_ads_mcp.resources._docs_dir", return_value=Path("missing-docs")):
+            self.assertIn("Google Ads MCP Tool Catalog", tool_catalog_resource())
+            self.assertIn("GAQL Knowledge Base", gaql_knowledge_base_resource())
 
 
 if __name__ == "__main__":
