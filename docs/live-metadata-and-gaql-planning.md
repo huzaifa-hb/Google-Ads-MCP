@@ -75,3 +75,17 @@ tool.
 
 Call `planning_explain_gaql_error` after a failed GAQL attempt. It maps common
 errors to practical next steps and points back to the metadata/planning tools.
+
+## Related Resources
+
+For MCP clients that support resources, use:
+
+- `resource://google-ads/reference-index`
+- `resource://google-ads/metrics`
+- `resource://google-ads/segments`
+- `resource://google-ads/release-notes-index`
+- `resource://google-ads/gaql-knowledge-base`
+
+`resource://google-ads/discovery-document` and
+`resource://google-ads/release-notes` remain as compatibility aliases, but they
+return index/link payloads rather than full synced documents.

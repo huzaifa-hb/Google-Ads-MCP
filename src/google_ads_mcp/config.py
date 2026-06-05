@@ -42,6 +42,7 @@ class Settings:
     mcp_mode: str | None
     tools_config_path: str | None
     allow_legacy_write_defaults: bool
+    enable_generic_service_bridge: bool
     mcp_oauth_client_id: str | None
     mcp_oauth_client_secret: str | None
     mcp_base_url: str | None
@@ -56,6 +57,9 @@ class Settings:
         allow_unauthenticated = (_env("ALLOW_UNAUTHENTICATED_MCP", "false") or "").lower()
         allow_legacy_write_defaults = (
             _env("GOOGLE_ADS_MCP_ALLOW_LEGACY_WRITE_DEFAULTS", "false") or ""
+        ).lower()
+        enable_generic_service_bridge = (
+            _env("GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE", "false") or ""
         ).lower()
         auth_mode = (_env("GOOGLE_ADS_MCP_AUTH_MODE", "bearer") or "bearer").lower()
         return cls(
@@ -74,6 +78,7 @@ class Settings:
             mcp_mode=_env("GOOGLE_ADS_MCP_MODE"),
             tools_config_path=_env("GOOGLE_ADS_MCP_TOOLS_CONFIG"),
             allow_legacy_write_defaults=allow_legacy_write_defaults in {"1", "true", "yes"},
+            enable_generic_service_bridge=enable_generic_service_bridge in {"1", "true", "yes"},
             mcp_oauth_client_id=_env("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID"),
             mcp_oauth_client_secret=_env("GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"),
             mcp_base_url=_env("GOOGLE_ADS_MCP_BASE_URL"),

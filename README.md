@@ -1,85 +1,78 @@
 # Google Ads MCP
 
-Private, Cloud Run-ready, write-capable Model Context Protocol server for Google Ads API access.
+[![CI](https://github.com/huzaifa-hb/Google-Ads-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/huzaifa-hb/Google-Ads-MCP/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-This server exposes Google Ads in three layers:
+Private, Cloud Run-ready, write-capable Google Ads MCP for advanced advertisers,
+agencies, and internal automation agents.
 
-1. Generic API tools for GAQL, streaming GAQL, arbitrary mutate operations, and arbitrary service calls.
-2. Generated/friendly tool names for account, campaign, budget, ad group, ads, keywords, negatives, assets, audiences, conversions, reports, recommendations, planning, and bulk workflows.
-3. Explicit capability responses for API features that are unavailable, deprecated, or eligibility-gated.
+The core idea is simple: give agents broad Google Ads coverage, but make the
+default posture safe. The server starts in read-only mode, exposes only the tools
+allowed by `tools_config.yaml`, validates GAQL with live Google Ads metadata, and
+requires an explicit confirmation gate for any real write.
 
-The MCP endpoint is `POST /mcp`. Health checks are available at `GET /healthz`.
+## Why This Exists
 
-## Security Model
+The official Google Ads MCP is the safer baseline for trusted read-only
+reporting and metadata discovery. This repo is for private operational workflows
+that need broader coverage and controlled write paths:
 
-This is designed as a private single-owner endpoint:
+- account, campaign, budget, ad group, ad, keyword, negative, asset, audience,
+  conversion, recommendation, reporting, planning, and bulk workflows
+- validation-first mutation tools
+- live GoogleAdsFieldService metadata and GAQL planning
+- configurable tool exposure by namespace and individual tool
+- private Cloud Run deployment with bearer auth by default
+- optional OAuth proxy front door for clients that require OAuth
 
-- Google Ads access uses one OAuth2 refresh token and one developer token.
-- MCP access is protected by a bearer token.
-- All secrets are read from environment variables or GCP Secret Manager.
-- Default mode is `safe_read_only`, which does not expose mutation or generic service bridge tools.
-- `validation_only` exposes configured write tools but forces `validate_only=true`.
-- Real writes require `GOOGLE_ADS_MCP_MODE=write_enabled` or `admin_debug`, `execute=true`, `validate_only=false`, and `confirmation_phrase="CONFIRM_GOOGLE_ADS_WRITE"`.
-- Every write attempt emits a structured audit event with a hashed customer ID.
+See [docs/comparison.md](docs/comparison.md) for the positioning against the
+official read-only server.
 
-Never commit `.env`, OAuth JSON files, refresh tokens, customer data, invoices, or uploaded audience files.
+## Safety Defaults
 
-See `docs/modes-and-safety.md` and `docs/tool-configuration.md` for copy-paste mode and tool exposure examples.
-See `docs/live-metadata-and-gaql-planning.md` for read-only GAQL planning
-examples.
-See `docs/capability-matrix.md` for implementation status, backend routing,
-read/write class, and eligibility notes.
+| Mode | Exposed Tools | Real Writes |
+|---|---|---|
+| `safe_read_only` | read, reporting, docs, metadata, planning | impossible |
+| `validation_only` | configured writes plus read tools | impossible, forced `validate_only=true` |
+| `write_enabled` | configured writes plus read tools | requires confirmation |
+| `admin_debug` | can expose generic bridges | requires confirmation |
 
-## Tool Exposure
+Real writes require all of these:
 
-Tools are registered from `tools_config.yaml` and are namespaced by default:
+- `GOOGLE_ADS_MCP_MODE=write_enabled` or `admin_debug`
+- `validate_only=false`
+- `execute=true`
+- `confirmation_phrase="CONFIRM_GOOGLE_ADS_WRITE"`
 
-- `metadata_query_google_ads_docs`
-- `metadata_describe_google_ads_resource`
-- `metadata_get_google_ads_resource_metadata`
-- `metadata_validate_gaql_fields`
-- `metadata_suggest_gaql_fields`
-- `planning_plan_gaql_query`
-- `planning_explain_gaql_error`
-- `reporting_get_campaign_metrics`
-- `campaigns_list_campaigns`
-- `keywords_list_keywords`
-- `get_tool_catalog`
-- `get_capability_matrix`
+Generic bridge tools are hidden by default. `google_ads_call_service` now uses a
+read-method allowlist and denies unknown service methods unless they are routed
+through the write guard or the server is explicitly in `admin_debug` with
+`GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true`.
 
-`get_tool_catalog` returns the currently exposed tool set, including registered name, canonical name, namespace, read/write class, and mode.
+Never expose a production endpoint with `ALLOW_UNAUTHENTICATED_MCP=true`.
+Never commit `.env`, OAuth JSON files, refresh tokens, developer tokens, bearer
+tokens, customer data, invoices, or audience upload files.
 
-Legacy unprefixed aliases, such as `pause_campaign`, are registered only when `legacy_aliases.enabled=true` in the tools config. Generic bridge tools such as `google_ads_mutate` and `google_ads_call_service` are hidden unless explicitly configured and allowed by mode.
+## Main Features
 
-Use `metadata_get_google_ads_resource_metadata` before writing raw GAQL. It uses
-GoogleAdsFieldService to return selectable resource fields plus compatible
-metrics and segments. Use `planning_plan_gaql_query` to build a validated query
-without executing it, then run the query with a read-only search tool.
+- **Configurable tool surface:** `tools_config.yaml` controls mode, namespaces,
+  prefixes, legacy aliases, and individual tool enablement.
+- **Live metadata:** `metadata_get_google_ads_resource_metadata` returns
+  selectable/filterable/sortable fields plus compatible metrics and segments.
+- **GAQL planning:** `planning_plan_gaql_query` validates fields and returns a
+  query plan without executing it.
+- **Capability matrix:** `get_capability_matrix` and
+  [docs/capability-matrix.md](docs/capability-matrix.md) show backend routing,
+  read/write class, eligibility notes, and implementation status.
+- **Write auditability:** every write attempt emits a structured JSON audit event
+  with hashed customer ID and no raw payloads.
+- **MCP resources:** read-only reference resources are exposed for clients that
+  support MCP resources.
+- **CI hygiene:** unit tests, compile checks, generated-doc checks, and secret
+  scanning run in GitHub Actions.
 
-`metadata_query_google_ads_docs` is an offline knowledge base with working
-examples, common API errors, and field-combination caveats.
-
-The friendly tools are generated from `src/google_ads_mcp/tool_catalog.py`; see
-`docs/tool-catalog.md`. The GAQL knowledge base is generated from
-`src/google_ads_mcp/knowledge_base.py`; see `docs/gaql-knowledge-base.md`.
-
-## MCP Resources
-
-Read-only resources are exposed for clients that support MCP resources:
-
-- `resource://google-ads/discovery-document`
-- `resource://google-ads/metrics`
-- `resource://google-ads/segments`
-- `resource://google-ads/release-notes`
-- `resource://google-ads/tool-catalog`
-- `resource://google-ads/capability-matrix`
-- `resource://google-ads/gaql-knowledge-base`
-
-For a full clone-to-Cloud-Run setup, including Google Ads developer token,
-OAuth test users, refresh-token generation, GCP secrets, deployment, and agent
-connection examples, see `docs/owner-setup-guide.md`.
-
-## Local Setup
+## Safe First 10 Minutes
 
 ```powershell
 python -m venv .venv
@@ -88,23 +81,21 @@ pip install -e ".[dev]"
 Copy-Item .env.example .env
 ```
 
-Fill `.env` locally, or set environment variables directly:
-
-- `MCP_BEARER_TOKEN`
-- `GOOGLE_ADS_DEVELOPER_TOKEN`
-- `GOOGLE_ADS_CLIENT_ID`
-- `GOOGLE_ADS_CLIENT_SECRET`
-- `GOOGLE_ADS_REFRESH_TOKEN`
-- optional `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
-- optional `GOOGLE_ADS_API_VERSION`, default `v24`
-- optional `GOOGLE_ADS_MCP_MODE`, default `safe_read_only`
-- optional `GOOGLE_ADS_MCP_TOOLS_CONFIG`, explicit path to a tools config
-- optional `GOOGLE_ADS_MCP_AUTH_MODE`, default `bearer`
-
-Start the server:
+Set local values in `.env`, then start in safe mode:
 
 ```powershell
+$env:GOOGLE_ADS_MCP_MODE = "safe_read_only"
 python -m google_ads_mcp
+```
+
+First MCP calls:
+
+```text
+get_server_status
+get_tool_catalog
+get_capability_matrix
+metadata_get_google_ads_resource_metadata(resource_name="campaign")
+planning_plan_gaql_query(resource_name="campaign", metrics=["metrics.clicks"])
 ```
 
 The endpoint is:
@@ -113,37 +104,80 @@ The endpoint is:
 http://localhost:8080/mcp
 ```
 
-Run tests from a fresh checkout:
+Health check:
 
-```powershell
-python -m unittest discover -s tests
+```text
+GET http://localhost:8080/healthz
 ```
 
-The tests bootstrap the local `src/` path through `tests/_bootstrap.py`, so the
-command works before `pip install -e ".[dev]"`. Installing editable mode is still
-recommended for normal development because it also installs runtime and dev
-dependencies.
+## Configuration
 
-Run the full CI-equivalent local checks:
+Important environment variables:
 
-```powershell
-python -m compileall src scripts tests
-python -m unittest discover -s tests
-python scripts/check_generated_docs.py
-python scripts/scan_for_secrets.py
-```
+| Variable | Default | Purpose |
+|---|---|---|
+| `MCP_BEARER_TOKEN` | none | private MCP bearer token |
+| `GOOGLE_ADS_MCP_MODE` | `safe_read_only` | safety/exposure mode |
+| `GOOGLE_ADS_MCP_TOOLS_CONFIG` | none | explicit config path |
+| `GOOGLE_ADS_MCP_AUTH_MODE` | `bearer` | `bearer` or `oauth_proxy` |
+| `GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE` | `false` | dangerous admin-debug bridge escape hatch |
+| `GOOGLE_ADS_API_VERSION` | `v24` | Google Ads API version |
 
-## Auth Modes
+Google Ads credentials are still required for live API calls:
 
-Bearer auth is the private-owner default. Optional OAuth proxy mode is available
-for clients that require OAuth instead of static bearer headers. See
-`docs/oauth-front-door.md`.
+- `GOOGLE_ADS_DEVELOPER_TOKEN`
+- `GOOGLE_ADS_CLIENT_ID`
+- `GOOGLE_ADS_CLIENT_SECRET`
+- `GOOGLE_ADS_REFRESH_TOKEN`
+- optional `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
 
-## Cloud Run Deployment
+See [docs/tool-configuration.md](docs/tool-configuration.md),
+[docs/modes-and-safety.md](docs/modes-and-safety.md), and
+[docs/oauth-front-door.md](docs/oauth-front-door.md).
 
-For the complete version, use `docs/owner-setup-guide.md`. The short version is:
+## Tool Exposure
 
-Create Secret Manager values first:
+Tools are namespaced by default:
+
+- `metadata_get_google_ads_resource_metadata`
+- `metadata_validate_gaql_fields`
+- `metadata_suggest_gaql_fields`
+- `planning_plan_gaql_query`
+- `planning_explain_gaql_error`
+- `reporting_get_campaign_metrics`
+- `campaigns_list_campaigns`
+- `keywords_list_keywords`
+
+Stable unprefixed introspection tools:
+
+- `get_server_status`
+- `get_tool_catalog`
+- `get_capability_matrix`
+
+Legacy unprefixed aliases, such as `pause_campaign`, are registered only when
+`legacy_aliases.enabled=true`.
+
+## MCP Resources
+
+Read-only resources:
+
+- `resource://google-ads/reference-index`
+- `resource://google-ads/discovery-document` compatibility alias
+- `resource://google-ads/metrics`
+- `resource://google-ads/segments`
+- `resource://google-ads/release-notes-index`
+- `resource://google-ads/release-notes` compatibility alias
+- `resource://google-ads/tool-catalog`
+- `resource://google-ads/capability-matrix`
+- `resource://google-ads/gaql-knowledge-base`
+
+The reference and release-note resources are indexes/links by design, not full
+network-synced snapshots.
+
+## Cloud Run
+
+Use [docs/owner-setup-guide.md](docs/owner-setup-guide.md) for the complete
+clone-to-Cloud-Run guide. Short version:
 
 ```powershell
 .\scripts\set_gcp_secret.ps1 -ProjectId YOUR_GCP_PROJECT_ID -Name MCP_BEARER_TOKEN
@@ -151,39 +185,29 @@ Create Secret Manager values first:
 .\scripts\set_gcp_secret.ps1 -ProjectId YOUR_GCP_PROJECT_ID -Name GOOGLE_ADS_CLIENT_ID
 .\scripts\set_gcp_secret.ps1 -ProjectId YOUR_GCP_PROJECT_ID -Name GOOGLE_ADS_CLIENT_SECRET
 .\scripts\set_gcp_secret.ps1 -ProjectId YOUR_GCP_PROJECT_ID -Name GOOGLE_ADS_REFRESH_TOKEN
-```
-
-Create `GOOGLE_ADS_LOGIN_CUSTOMER_ID` only if you route through an MCC manager
-account.
-
-Then deploy:
-
-```powershell
 .\deploy\cloud-run.ps1 -ProjectId YOUR_GCP_PROJECT_ID
 ```
 
-The service is deployed with public ingress but app-level bearer token protection. That makes it attachable by external AI agents that can send an `Authorization` header.
-Do not set `ALLOW_UNAUTHENTICATED_MCP=true` on a production Cloud Run endpoint.
+The Cloud Run service may use public ingress only because app-level bearer or
+OAuth auth remains required. Do not deploy unauthenticated access to a real ad
+account.
 
-## Write Example
-
-Writes are unavailable in the default `safe_read_only` mode. To preview a write, set:
+## Validation-Only Write Example
 
 ```powershell
 $env:GOOGLE_ADS_MCP_MODE = "validation_only"
 ```
 
-Validation-only campaign pause:
-
 ```json
 {
   "customer_id": "1234567890",
   "payload": { "campaign_id": "1111111111" },
-  "validate_only": true
+  "validate_only": true,
+  "execute": false
 }
 ```
 
-Real write:
+## Confirmed Real Write Example
 
 ```powershell
 $env:GOOGLE_ADS_MCP_MODE = "write_enabled"
@@ -199,37 +223,36 @@ $env:GOOGLE_ADS_MCP_MODE = "write_enabled"
 }
 ```
 
-Complex campaign types such as Performance Max use `payload.operations` in Google Ads `MutateOperation` protobuf JSON shape. Use `metadata_validate_google_ads_payload` before executing large batches when that metadata namespace tool is exposed.
+## Local Checks
 
-## Reporting Dates
-
-Reporting tools accept either:
-
-- `date_range`: `TODAY`, `YESTERDAY`, `LAST_7_DAYS`, `LAST_14_DAYS`, `LAST_30_DAYS`, `LAST_90_DAYS`, `THIS_MONTH`, `LAST_MONTH`, `ALL_TIME`
-- `start_date` and `end_date` in `YYYY-MM-DD`
-
-Pagination supports `page_size`, `offset`, and `page_token`.
-
-## GAQL Planning
-
-Plan a campaign query without executing it:
-
-```json
-{
-  "resource_name": "campaign",
-  "user_goal": "campaign clicks and cost for the last week",
-  "fields": ["campaign.name"],
-  "metrics": ["metrics.clicks", "metrics.cost_micros"],
-  "filters": { "campaign.status": "ENABLED" },
-  "date_range": "LAST_7_DAYS"
-}
+```powershell
+python -m compileall src scripts tests
+python -m unittest discover -s tests
+python scripts/check_generated_docs.py
+python scripts/scan_for_secrets.py
 ```
 
-The planner validates fields against live metadata, adds `campaign.id` when
-available, and returns `not_executed=true`.
+Optional live tests are skipped by default:
 
-## Limitations
+```powershell
+$env:GOOGLE_ADS_MCP_RUN_INTEGRATION_TESTS = "true"
+python -m unittest tests.test_integration_google_ads
+```
 
-The generic bridge can call any service and method exposed by the installed Google Ads client. Friendly tools return an `unsupported_capability` response if Google does not expose the requested feature, the feature is deprecated, or the account requires special eligibility.
+## Docs Map
 
-Quota behavior depends on your developer-token access level and service-specific Google limits; this server does not hardcode a universal daily operation limit.
+- [Capability matrix](docs/capability-matrix.md)
+- [Modes and safety](docs/modes-and-safety.md)
+- [Tool configuration](docs/tool-configuration.md)
+- [Live metadata and GAQL planning](docs/live-metadata-and-gaql-planning.md)
+- [OAuth front door](docs/oauth-front-door.md)
+- [Sample prompts](docs/sample-prompts.md)
+- [Client configuration](docs/clients.md)
+- [Owner setup guide](docs/owner-setup-guide.md)
+- [Security](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).

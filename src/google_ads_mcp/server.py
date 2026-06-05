@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from functools import wraps
 import os
+import inspect
 from typing import Any
 
 from .capability_matrix import capability_matrix_payload
 from .config import ConfigError, get_settings
+from .errors import format_tool_error
 from .friendly import FriendlyDispatcher
 from .gateway import GoogleAdsGateway
 from .resources import (
@@ -39,17 +42,12 @@ def build_mcp() -> Any:
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def healthz(request: Any) -> Any:  # noqa: ARG001
-        return JSONResponse(
-            {
-                "status": "ok",
-                "service": "google-ads-mcp",
-                "api_version": settings.api_version,
-                "auth": "disabled-local-dev" if settings.allow_unauthenticated_mcp else settings.auth_mode,
-                "mode": registry.mode,
-                "tools_config_source": registry.config_source,
-                "exposed_tool_count": len(registry.exposures),
-            }
-        )
+        return JSONResponse(_server_status_payload(settings, registry))
+
+    async def get_server_status() -> dict[str, Any]:
+        """Return server mode, auth mode, config source, and exposed tool count."""
+
+        return _server_status_payload(settings, registry)
 
     async def get_tool_catalog() -> dict[str, Any]:
         """Return the currently exposed Google Ads MCP tool catalog."""
@@ -273,6 +271,7 @@ def build_mcp() -> Any:
         return {"valid": True, "request_type": request_type}
 
     core_tools = {
+        "get_server_status": get_server_status,
         "get_tool_catalog": get_tool_catalog,
         "get_capability_matrix": get_capability_matrix,
         "list_google_ads_services": list_google_ads_services,
@@ -357,23 +356,26 @@ def _register_friendly_tool(
         confirmation_phrase: str | None = None,
         partial_failure: bool = False,
     ) -> dict[str, Any]:
-        return await dispatcher.dispatch(
-            exposure.canonical_name,
-            customer_id=customer_id or None,
-            payload=payload,
-            filters=filters,
-            date_range=date_range,
-            start_date=start_date,
-            end_date=end_date,
-            time_segment=time_segment,
-            page_size=page_size,
-            page_token=page_token,
-            offset=offset,
-            validate_only=validate_only,
-            execute=execute,
-            confirmation_phrase=confirmation_phrase,
-            partial_failure=partial_failure,
-        )
+        try:
+            return await dispatcher.dispatch(
+                exposure.canonical_name,
+                customer_id=customer_id or None,
+                payload=payload,
+                filters=filters,
+                date_range=date_range,
+                start_date=start_date,
+                end_date=end_date,
+                time_segment=time_segment,
+                page_size=page_size,
+                page_token=page_token,
+                offset=offset,
+                validate_only=validate_only,
+                execute=execute,
+                confirmation_phrase=confirmation_phrase,
+                partial_failure=partial_failure,
+            )
+        except Exception as exc:  # pragma: no cover - behavior covered through helper tests.
+            return format_tool_error(exc)
 
     friendly_tool.__name__ = exposure.registered_name
     friendly_tool.__doc__ = exposure.description
@@ -387,9 +389,38 @@ def _register_core_tool(
     func: Any,
 ) -> None:
     for exposure in registry.exposures_for(canonical_name):
-        func.__name__ = exposure.registered_name
-        func.__doc__ = exposure.description
-        mcp.tool(name=exposure.registered_name)(func)
+        registered = _tool_response(func)
+        registered.__name__ = exposure.registered_name
+        registered.__doc__ = exposure.description
+        mcp.tool(name=exposure.registered_name)(registered)
+
+
+def _tool_response(func: Any) -> Any:
+    @wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            result = func(*args, **kwargs)
+            if inspect.isawaitable(result):
+                return await result
+            return result
+        except Exception as exc:
+            return format_tool_error(exc)
+
+    return wrapper
+
+
+def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "google-ads-mcp",
+        "api_version": settings.api_version,
+        "auth": "disabled-local-dev" if settings.allow_unauthenticated_mcp else settings.auth_mode,
+        "mode": registry.mode,
+        "tools_config_source": registry.config_source,
+        "exposed_tool_count": len(registry.exposures),
+        "legacy_aliases_enabled": registry.legacy_aliases_enabled,
+        "generic_service_bridge_enabled": bool(settings.enable_generic_service_bridge),
+    }
 
 
 def _register_resources(mcp: Any, settings: Any, registry: ToolRegistry) -> None:
@@ -399,6 +430,14 @@ def _register_resources(mcp: Any, settings: Any, registry: ToolRegistry) -> None
         mime_type="application/json",
     )
     def discovery_document() -> str:
+        return discovery_document_resource(settings.api_version)
+
+    @mcp.resource(
+        "resource://google-ads/reference-index",
+        name="Google Ads Reference Index",
+        mime_type="application/json",
+    )
+    def reference_index() -> str:
         return discovery_document_resource(settings.api_version)
 
     @mcp.resource(
@@ -423,6 +462,14 @@ def _register_resources(mcp: Any, settings: Any, registry: ToolRegistry) -> None
         mime_type="application/json",
     )
     def release_notes() -> str:
+        return release_notes_resource(settings.api_version)
+
+    @mcp.resource(
+        "resource://google-ads/release-notes-index",
+        name="Google Ads Release Notes Index",
+        mime_type="application/json",
+    )
+    def release_notes_index() -> str:
         return release_notes_resource(settings.api_version)
 
     @mcp.resource(

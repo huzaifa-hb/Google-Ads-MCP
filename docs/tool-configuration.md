@@ -44,8 +44,9 @@ tools:
 Most tools register as `<prefix>_<canonical_tool_name>`, such as
 `reporting_get_campaign_metrics`. `get_tool_catalog` is the stable unprefixed
 introspection tool and returns the currently exposed tool set.
-`get_capability_matrix` is also unprefixed and returns implementation status for
-the currently exposed tool set.
+`get_capability_matrix` and `get_server_status` are also unprefixed. They return
+implementation status and server mode/config status for the currently exposed
+tool set.
 
 The default read-only surface includes:
 
@@ -55,6 +56,7 @@ The default read-only surface includes:
 - `planning_plan_gaql_query`
 - `planning_explain_gaql_error`
 - `get_capability_matrix`
+- `get_server_status`
 
 These tools are safe in `safe_read_only`: they inspect metadata, validate field
 choices, or build query text. They do not call GoogleAdsService search or mutate.
@@ -122,3 +124,8 @@ tools:
 
 This mode is dangerous because it exposes broad Google Ads API access. Use it
 only on a private endpoint and keep the write confirmation gate in place.
+
+Unknown generic service methods are still denied unless
+`GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true` is also set. Known read-only
+methods such as `GoogleAdsFieldService.search_google_ads_fields` and
+`InvoiceService.list_invoices` are allowlisted.

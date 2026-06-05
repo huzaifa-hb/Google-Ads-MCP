@@ -5,6 +5,7 @@ import unittest
 import _bootstrap  # noqa: F401
 from google_ads_mcp.errors import format_google_ads_exception, format_tool_error
 from google_ads_mcp.safety import ValidationError
+from google_ads_mcp.server import _tool_response
 
 
 class FieldPathElement:
@@ -43,6 +44,17 @@ class ErrorFormattingTests(unittest.TestCase):
 
     def test_validation_error_uses_validation_shape(self) -> None:
         result = format_tool_error(ValidationError("bad input"))
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_type"], "ValidationError")
+
+
+class ToolResponseWrapperTests(unittest.IsolatedAsyncioTestCase):
+    async def test_wrapper_returns_structured_validation_error(self) -> None:
+        async def broken_tool() -> dict[str, object]:
+            raise ValidationError("bad tool input")
+
+        result = await _tool_response(broken_tool)()
 
         self.assertFalse(result["ok"])
         self.assertEqual(result["error_type"], "ValidationError")

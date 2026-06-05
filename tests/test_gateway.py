@@ -5,6 +5,7 @@ import unittest
 import _bootstrap  # noqa: F401
 from google_ads_mcp.gateway import GoogleAdsGateway
 from google_ads_mcp.safety import CONFIRMATION_PHRASE, ValidationError
+from test_tool_config import make_settings
 
 
 class RecordingService:
@@ -12,6 +13,14 @@ class RecordingService:
         self.last_request: dict[str, object] | None = None
 
     def mutate_campaigns(self, request: dict[str, object]) -> dict[str, object]:
+        self.last_request = dict(request)
+        return {"ok": True, "request": self.last_request}
+
+    def list_invoices(self, request: dict[str, object]) -> dict[str, object]:
+        self.last_request = dict(request)
+        return {"ok": True, "request": self.last_request}
+
+    def get_unlisted_report(self, request: dict[str, object]) -> dict[str, object]:
         self.last_request = dict(request)
         return {"ok": True, "request": self.last_request}
 
@@ -86,6 +95,50 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["is_write"])
         self.assertIsNotNone(service.last_request)
         self.assertFalse(service.last_request["validate_only"])  # type: ignore[index]
+
+    async def test_unlisted_service_read_is_denied_by_default(self) -> None:
+        service = RecordingService()
+        gateway = ParsingGateway(client=FakeClient(service), mode="admin_debug")
+
+        with self.assertRaises(ValidationError):
+            await gateway.call_service(
+                service_name="SomeService",
+                method_name="get_unlisted_report",
+                request_type="GetUnlistedReportRequest",
+                payload={"customer_id": "1234567890"},
+                is_write=False,
+            )
+
+    async def test_allowlisted_service_read_is_allowed(self) -> None:
+        service = RecordingService()
+        gateway = ParsingGateway(client=FakeClient(service), mode="safe_read_only")
+
+        result = await gateway.call_service(
+            service_name="InvoiceService",
+            method_name="list_invoices",
+            request_type="ListInvoicesRequest",
+            payload={"customer_id": "1234567890"},
+            is_write=False,
+        )
+
+        self.assertFalse(result["is_write"])
+        self.assertEqual(service.last_request, {"customer_id": "1234567890"})
+
+    async def test_admin_debug_escape_hatch_allows_unlisted_read(self) -> None:
+        service = RecordingService()
+        settings = make_settings(enable_generic_service_bridge=True)
+        gateway = ParsingGateway(client=FakeClient(service), mode="admin_debug", settings=settings)
+
+        result = await gateway.call_service(
+            service_name="SomeService",
+            method_name="get_unlisted_report",
+            request_type="GetUnlistedReportRequest",
+            payload={"customer_id": "1234567890"},
+            is_write=False,
+        )
+
+        self.assertFalse(result["is_write"])
+        self.assertEqual(service.last_request, {"customer_id": "1234567890"})
 
 
 if __name__ == "__main__":

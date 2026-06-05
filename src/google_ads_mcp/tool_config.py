@@ -85,6 +85,12 @@ CORE_TOOL_DEFS: dict[str, dict[str, str]] = {
         "read_write": "read",
         "description": "Return implementation status for the currently exposed tools.",
     },
+    "get_server_status": {
+        "namespace": "metadata",
+        "mode": "metadata",
+        "read_write": "read",
+        "description": "Return server mode, auth mode, config source, and exposed tool count.",
+    },
     "list_google_ads_services": {
         "namespace": "metadata",
         "mode": "metadata",
@@ -305,7 +311,7 @@ def _exposures_for_tool(
 
     namespace_config = namespaces[namespace]
     registered_names = [_registered_name(canonical_name, namespace_config.prefix)]
-    if canonical_name in {"get_tool_catalog", "get_capability_matrix"}:
+    if canonical_name in {"get_tool_catalog", "get_capability_matrix", "get_server_status"}:
         registered_names = [canonical_name]
     elif legacy_aliases_enabled:
         registered_names.append(canonical_name)

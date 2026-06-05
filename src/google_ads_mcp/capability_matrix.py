@@ -163,7 +163,7 @@ def _core_status(name: str, read_write: str) -> str:
         return "generic_routed"
     if read_write == "generic":
         return "generic_routed"
-    return "implemented"
+    return "hand_implemented"
 
 
 def _core_backend(name: str) -> str:
@@ -194,9 +194,21 @@ def _friendly_status(spec: FriendlyToolSpec) -> str:
         return "unsupported_by_design"
     if spec.mode == "service" or spec.name in SERVICE_TOOLS:
         return "generic_routed"
+    if spec.mode in {"query", "report"}:
+        return "hand_implemented"
+    if spec.mode == "negative_keyword":
+        return "hand_implemented" if spec.name.startswith("list_") else "operation_template"
+    if spec.mode == "raw_gaql":
+        return "generic_routed"
     if spec.name == "batch_mutate":
         return "generic_routed"
-    return "implemented"
+    if spec.name.startswith("create_") and spec.category in {
+        "campaigns",
+        "shopping_pmax",
+        "feeds",
+    }:
+        return "payload_operations_required"
+    return "operation_template"
 
 
 def _friendly_backend(spec: FriendlyToolSpec) -> str:

@@ -4,257 +4,258 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 
 | Tool | Namespace | Mode | Implementation Status | Backend | Read/Write | Requires Eligibility | Notes |
 |---|---|---|---|---|---|---|---|
-| `create_account_budget_proposal` | `account` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create an account-level budget proposal. |
+| `create_account_budget_proposal` | `account` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create an account-level budget proposal. |
 | `download_invoice_pdf` | `account` | `service` | `generic_routed` | Google Ads service bridge | `read` | yes | Return invoice PDF metadata or URL when available from the API. |
 | `get_account_budget` | `account` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Read account-level budgets and proposals. |
-| `get_account_info` | `account` | `query` | `implemented` | GoogleAdsService.Search FROM customer | `read` | no | Account name, currency, time zone, tracking, and auto-tagging status. |
-| `get_account_settings` | `account` | `query` | `implemented` | GoogleAdsService.Search FROM customer | `read` | no | Account-level tracking and conversion settings. |
+| `get_account_info` | `account` | `query` | `hand_implemented` | GoogleAdsService.Search FROM customer | `read` | no | Account name, currency, time zone, tracking, and auto-tagging status. |
+| `get_account_settings` | `account` | `query` | `hand_implemented` | GoogleAdsService.Search FROM customer | `read` | no | Account-level tracking and conversion settings. |
 | `get_billing_setup` | `account` | `service` | `generic_routed` | Google Ads service bridge | `read` | yes | Read billing setup details. |
-| `get_mcc_hierarchy` | `account` | `query` | `implemented` | GoogleAdsService.Search FROM customer_client | `read` | no | Traverse manager account hierarchy with parent and child links. |
-| `list_customers` | `account` | `query` | `implemented` | GoogleAdsService.Search FROM customer_client | `read` | no | List accessible leaf customer accounts. |
+| `get_mcc_hierarchy` | `account` | `query` | `hand_implemented` | GoogleAdsService.Search FROM customer_client | `read` | no | Traverse manager account hierarchy with parent and child links. |
+| `list_customers` | `account` | `query` | `hand_implemented` | GoogleAdsService.Search FROM customer_client | `read` | no | List accessible leaf customer accounts. |
 | `list_invoices` | `account` | `service` | `generic_routed` | Google Ads service bridge | `read` | yes | List billing invoices. Requires payload.billing_setup; call get_billing_setup first. |
 | `list_linked_accounts` | `account` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | List Analytics, Merchant Center, Search Console, and product links. |
-| `apply_ad_group_label` | `ad_groups` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach a label to an ad group. |
-| `create_ad_group` | `ad_groups` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create an ad group. |
-| `enable_ad_group` | `ad_groups` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Enable an ad group. |
-| `get_ad_group` | `ad_groups` | `query` | `implemented` | GoogleAdsService.Search FROM ad_group | `read` | no | Get one ad group. |
-| `list_ad_groups` | `ad_groups` | `query` | `implemented` | GoogleAdsService.Search FROM ad_group | `read` | no | List ad groups, optionally filtered by campaign. |
-| `pause_ad_group` | `ad_groups` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Pause an ad group. |
-| `remove_ad_group` | `ad_groups` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove an ad group. |
-| `remove_ad_group_label` | `ad_groups` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach a label from an ad group. |
-| `update_ad_group` | `ad_groups` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update ad group name, status, or bids. |
-| `apply_ad_label` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach a label to an ad. |
-| `create_app_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create an app ad. |
-| `create_call_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a call ad. |
-| `create_demand_gen_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Demand Gen ad. |
-| `create_dynamic_search_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a dynamic search ad. |
-| `create_hotel_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Hotel ad when supported. |
-| `create_responsive_display_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a responsive display ad. |
-| `create_responsive_search_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a responsive search ad. |
-| `create_shopping_product_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Shopping product ad. |
-| `create_video_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a video ad. |
-| `enable_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Enable an ad. |
-| `get_ad` | `ads` | `query` | `implemented` | GoogleAdsService.Search FROM ad_group_ad | `read` | no | Get one ad with approval status. |
+| `apply_ad_group_label` | `ad_groups` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach a label to an ad group. |
+| `create_ad_group` | `ad_groups` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create an ad group. |
+| `enable_ad_group` | `ad_groups` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Enable an ad group. |
+| `get_ad_group` | `ad_groups` | `query` | `hand_implemented` | GoogleAdsService.Search FROM ad_group | `read` | no | Get one ad group. |
+| `list_ad_groups` | `ad_groups` | `query` | `hand_implemented` | GoogleAdsService.Search FROM ad_group | `read` | no | List ad groups, optionally filtered by campaign. |
+| `pause_ad_group` | `ad_groups` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Pause an ad group. |
+| `remove_ad_group` | `ad_groups` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove an ad group. |
+| `remove_ad_group_label` | `ad_groups` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach a label from an ad group. |
+| `update_ad_group` | `ad_groups` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update ad group name, status, or bids. |
+| `apply_ad_label` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach a label to an ad. |
+| `create_app_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create an app ad. |
+| `create_call_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a call ad. |
+| `create_demand_gen_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a Demand Gen ad. |
+| `create_dynamic_search_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a dynamic search ad. |
+| `create_hotel_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a Hotel ad when supported. |
+| `create_responsive_display_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a responsive display ad. |
+| `create_responsive_search_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a responsive search ad. |
+| `create_shopping_product_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a Shopping product ad. |
+| `create_video_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a video ad. |
+| `enable_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Enable an ad. |
+| `get_ad` | `ads` | `query` | `hand_implemented` | GoogleAdsService.Search FROM ad_group_ad | `read` | no | Get one ad with approval status. |
 | `get_ad_approval_status` | `ads` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Get policy review status and disapproval reasons. |
-| `get_ad_asset_performance` | `ads` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Get RSA asset serving rate and performance labels. |
-| `list_ads` | `ads` | `query` | `implemented` | GoogleAdsService.Search FROM ad_group_ad | `read` | no | List ads by campaign, ad group, status, or type. |
-| `pause_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Pause an ad. |
-| `remove_ad` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove an ad. |
-| `remove_ad_label` | `ads` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach a label from an ad. |
-| `create_text_asset` | `assets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a text asset. |
-| `create_video_asset` | `assets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a YouTube video asset. |
-| `get_asset` | `assets` | `query` | `implemented` | GoogleAdsService.Search FROM asset | `read` | no | Get one asset with policy and performance data. |
+| `get_ad_asset_performance` | `ads` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Get RSA asset serving rate and performance labels. |
+| `list_ads` | `ads` | `query` | `hand_implemented` | GoogleAdsService.Search FROM ad_group_ad | `read` | no | List ads by campaign, ad group, status, or type. |
+| `pause_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Pause an ad. |
+| `remove_ad` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove an ad. |
+| `remove_ad_label` | `ads` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach a label from an ad. |
+| `create_text_asset` | `assets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a text asset. |
+| `create_video_asset` | `assets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a YouTube video asset. |
+| `get_asset` | `assets` | `query` | `hand_implemented` | GoogleAdsService.Search FROM asset | `read` | no | Get one asset with policy and performance data. |
 | `get_asset_approval_status` | `assets` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Get asset policy approval status. |
-| `get_asset_performance` | `assets` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Get asset serving performance. |
-| `list_assets` | `assets` | `query` | `implemented` | GoogleAdsService.Search FROM asset | `read` | no | List reusable assets. |
-| `remove_asset` | `assets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove an asset. |
-| `upload_image_asset` | `assets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Upload or create an image asset. |
-| `append_to_customer_match_audience` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Append hashed members to Customer Match. |
-| `create_app_remarketing_list` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create app remarketing list. |
-| `create_combined_audience` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a combined audience. |
-| `create_custom_segment` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a custom segment. |
-| `create_customer_match_audience` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Customer Match audience. |
+| `get_asset_performance` | `assets` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Get asset serving performance. |
+| `list_assets` | `assets` | `query` | `hand_implemented` | GoogleAdsService.Search FROM asset | `read` | no | List reusable assets. |
+| `remove_asset` | `assets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove an asset. |
+| `upload_image_asset` | `assets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Upload or create an image asset. |
+| `append_to_customer_match_audience` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Append hashed members to Customer Match. |
+| `create_app_remarketing_list` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create app remarketing list. |
+| `create_combined_audience` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a combined audience. |
+| `create_custom_segment` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a custom segment. |
+| `create_customer_match_audience` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a Customer Match audience. |
 | `create_similar_audience` | `audiences` | `unsupported` | `deprecated` | n/a | `read` | no | Similar audiences are no longer a generally available creation path in Google Ads. Use audience signals, optimized targeting, Customer Match, or custom segments. |
-| `create_website_remarketing_list` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create website remarketing list. |
-| `create_youtube_remarketing_list` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create YouTube remarketing list. |
-| `get_audience` | `audiences` | `query` | `implemented` | GoogleAdsService.Search FROM user_list | `read` | no | Get one audience or user list. |
+| `create_website_remarketing_list` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create website remarketing list. |
+| `create_youtube_remarketing_list` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create YouTube remarketing list. |
+| `get_audience` | `audiences` | `query` | `hand_implemented` | GoogleAdsService.Search FROM user_list | `read` | no | Get one audience or user list. |
 | `get_audience_size_estimate` | `audiences` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Estimate audience reach when available. |
-| `list_audiences` | `audiences` | `query` | `implemented` | GoogleAdsService.Search FROM user_list | `read` | no | List user lists and audience resources. |
-| `remove_audience` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove audience or user list. |
-| `remove_from_customer_match_audience` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove members from Customer Match. |
-| `update_audience` | `audiences` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update audience or user list. |
-| `attach_bidding_strategy_to_campaign` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach portfolio strategy to campaign. |
-| `create_bidding_strategy` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a portfolio bidding strategy. |
-| `create_seasonal_bid_adjustment` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a seasonal conversion rate adjustment. |
-| `get_bidding_strategy` | `bidding` | `query` | `implemented` | GoogleAdsService.Search FROM bidding_strategy | `read` | no | Get one bidding strategy. |
-| `get_bidding_strategy_report` | `bidding` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Report performance by bidding strategy. |
-| `list_bidding_strategies` | `bidding` | `query` | `implemented` | GoogleAdsService.Search FROM bidding_strategy | `read` | no | List portfolio bidding strategies. |
-| `remove_bidding_strategy` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove an unused portfolio bidding strategy. |
-| `set_ad_schedule_bid_adjustments` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set ad schedule bid modifiers. |
-| `set_audience_bid_adjustments` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set audience bid modifiers. |
-| `set_campaign_inline_bid_strategy` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set campaign-level inline bid strategy. |
-| `set_demographic_bid_adjustments` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set demographic bid modifiers. |
-| `update_bidding_strategy` | `bidding` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update a portfolio bidding strategy. |
-| `create_budget` | `budgets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a campaign budget. |
-| `create_shared_budget` | `budgets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a budget shared by campaigns. |
-| `get_budget` | `budgets` | `query` | `implemented` | GoogleAdsService.Search FROM campaign_budget | `read` | no | Get one campaign budget. |
-| `link_budget_to_campaign` | `budgets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach a shared budget to a campaign. |
-| `list_budgets` | `budgets` | `query` | `implemented` | GoogleAdsService.Search FROM campaign_budget | `read` | no | List campaign budgets. |
-| `list_shared_budgets` | `budgets` | `query` | `implemented` | GoogleAdsService.Search FROM campaign_budget | `read` | no | List shared campaign budgets. |
-| `remove_budget` | `budgets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove an unattached budget. |
-| `update_budget` | `budgets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update a campaign budget. |
-| `update_shared_budget` | `budgets` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update a shared budget. |
+| `list_audiences` | `audiences` | `query` | `hand_implemented` | GoogleAdsService.Search FROM user_list | `read` | no | List user lists and audience resources. |
+| `remove_audience` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove audience or user list. |
+| `remove_from_customer_match_audience` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove members from Customer Match. |
+| `update_audience` | `audiences` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update audience or user list. |
+| `attach_bidding_strategy_to_campaign` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach portfolio strategy to campaign. |
+| `create_bidding_strategy` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a portfolio bidding strategy. |
+| `create_seasonal_bid_adjustment` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a seasonal conversion rate adjustment. |
+| `get_bidding_strategy` | `bidding` | `query` | `hand_implemented` | GoogleAdsService.Search FROM bidding_strategy | `read` | no | Get one bidding strategy. |
+| `get_bidding_strategy_report` | `bidding` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Report performance by bidding strategy. |
+| `list_bidding_strategies` | `bidding` | `query` | `hand_implemented` | GoogleAdsService.Search FROM bidding_strategy | `read` | no | List portfolio bidding strategies. |
+| `remove_bidding_strategy` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove an unused portfolio bidding strategy. |
+| `set_ad_schedule_bid_adjustments` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set ad schedule bid modifiers. |
+| `set_audience_bid_adjustments` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set audience bid modifiers. |
+| `set_campaign_inline_bid_strategy` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set campaign-level inline bid strategy. |
+| `set_demographic_bid_adjustments` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set demographic bid modifiers. |
+| `update_bidding_strategy` | `bidding` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update a portfolio bidding strategy. |
+| `create_budget` | `budgets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a campaign budget. |
+| `create_shared_budget` | `budgets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a budget shared by campaigns. |
+| `get_budget` | `budgets` | `query` | `hand_implemented` | GoogleAdsService.Search FROM campaign_budget | `read` | no | Get one campaign budget. |
+| `link_budget_to_campaign` | `budgets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach a shared budget to a campaign. |
+| `list_budgets` | `budgets` | `query` | `hand_implemented` | GoogleAdsService.Search FROM campaign_budget | `read` | no | List campaign budgets. |
+| `list_shared_budgets` | `budgets` | `query` | `hand_implemented` | GoogleAdsService.Search FROM campaign_budget | `read` | no | List shared campaign budgets. |
+| `remove_budget` | `budgets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove an unattached budget. |
+| `update_budget` | `budgets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update a campaign budget. |
+| `update_shared_budget` | `budgets` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update a shared budget. |
 | `batch_mutate` | `bulk` | `mutate` | `generic_routed` | GoogleAdsService.Mutate | `write` | no | Run up to 5,000 mixed mutate operations. |
-| `bulk_add_keywords` | `bulk` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add keywords in bulk. |
-| `bulk_add_negative_keywords` | `bulk` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add negative keywords in bulk. |
-| `bulk_enable_campaigns` | `bulk` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Enable campaigns in bulk. |
-| `bulk_pause_campaigns` | `bulk` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Pause campaigns in bulk. |
-| `bulk_update_bids` | `bulk` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update keyword bids in bulk. |
-| `apply_campaign_label` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach a label to a campaign. |
-| `create_app_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create an App campaign from mutate operations. |
-| `create_campaign_draft` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a campaign draft. |
-| `create_campaign_experiment` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a campaign experiment. |
-| `create_demand_gen_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Demand Gen campaign from mutate operations. |
-| `create_display_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Display campaign from Google Ads mutate operations. |
-| `create_pmax_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Performance Max campaign from mutate operations. |
-| `create_search_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Search campaign from Google Ads mutate operations. |
-| `create_shopping_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Shopping campaign from Google Ads mutate operations. |
-| `create_smart_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Smart campaign from mutate operations when supported. |
-| `create_video_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Video campaign from Google Ads mutate operations. |
-| `enable_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Enable a campaign. |
-| `end_campaign_experiment` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | End an experiment. |
-| `get_campaign` | `campaigns` | `query` | `implemented` | GoogleAdsService.Search FROM campaign | `read` | no | Get one campaign by id or resource name. |
-| `graduate_campaign_experiment` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Graduate an experiment. |
-| `list_campaigns` | `campaigns` | `query` | `implemented` | GoogleAdsService.Search FROM campaign | `read` | no | List campaigns with status, type, budget, and bidding strategy. |
-| `pause_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Pause a campaign. |
-| `promote_campaign_draft` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Promote a campaign draft. |
-| `remove_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove a campaign. |
-| `remove_campaign_label` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach a label from a campaign. |
-| `set_ad_scheduling` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set campaign dayparting criteria and bid modifiers. |
-| `set_device_bid_adjustments` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set campaign device bid modifiers. |
-| `set_geo_targeting` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add or remove targeted and excluded campaign locations. |
-| `set_language_targeting` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add or remove campaign language criteria. |
-| `update_campaign` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update campaign name, status, dates, tracking, or URL options. |
-| `update_network_settings` | `campaigns` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update search/display/search partner network settings. |
-| `create_conversion_action` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a conversion action. |
-| `get_conversion_action` | `conversions` | `query` | `implemented` | GoogleAdsService.Search FROM conversion_action | `read` | no | Get one conversion action. |
+| `bulk_add_keywords` | `bulk` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add keywords in bulk. |
+| `bulk_add_negative_keywords` | `bulk` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add negative keywords in bulk. |
+| `bulk_enable_campaigns` | `bulk` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Enable campaigns in bulk. |
+| `bulk_pause_campaigns` | `bulk` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Pause campaigns in bulk. |
+| `bulk_update_bids` | `bulk` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update keyword bids in bulk. |
+| `apply_campaign_label` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach a label to a campaign. |
+| `create_app_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create an App campaign from mutate operations. |
+| `create_campaign_draft` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a campaign draft. |
+| `create_campaign_experiment` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a campaign experiment. |
+| `create_demand_gen_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Demand Gen campaign from mutate operations. |
+| `create_display_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Display campaign from Google Ads mutate operations. |
+| `create_pmax_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Performance Max campaign from mutate operations. |
+| `create_search_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Search campaign from Google Ads mutate operations. |
+| `create_shopping_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Shopping campaign from Google Ads mutate operations. |
+| `create_smart_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Smart campaign from mutate operations when supported. |
+| `create_video_campaign` | `campaigns` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Video campaign from Google Ads mutate operations. |
+| `enable_campaign` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Enable a campaign. |
+| `end_campaign_experiment` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | End an experiment. |
+| `get_campaign` | `campaigns` | `query` | `hand_implemented` | GoogleAdsService.Search FROM campaign | `read` | no | Get one campaign by id or resource name. |
+| `graduate_campaign_experiment` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Graduate an experiment. |
+| `list_campaigns` | `campaigns` | `query` | `hand_implemented` | GoogleAdsService.Search FROM campaign | `read` | no | List campaigns with status, type, budget, and bidding strategy. |
+| `pause_campaign` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Pause a campaign. |
+| `promote_campaign_draft` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Promote a campaign draft. |
+| `remove_campaign` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove a campaign. |
+| `remove_campaign_label` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach a label from a campaign. |
+| `set_ad_scheduling` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set campaign dayparting criteria and bid modifiers. |
+| `set_device_bid_adjustments` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set campaign device bid modifiers. |
+| `set_geo_targeting` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add or remove targeted and excluded campaign locations. |
+| `set_language_targeting` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add or remove campaign language criteria. |
+| `update_campaign` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update campaign name, status, dates, tracking, or URL options. |
+| `update_network_settings` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update search/display/search partner network settings. |
+| `create_conversion_action` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a conversion action. |
+| `get_conversion_action` | `conversions` | `query` | `hand_implemented` | GoogleAdsService.Search FROM conversion_action | `read` | no | Get one conversion action. |
 | `get_conversion_attribution_settings` | `conversions` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Get attribution settings. |
-| `list_conversion_actions` | `conversions` | `query` | `implemented` | GoogleAdsService.Search FROM conversion_action | `read` | no | List conversion actions. |
-| `pause_conversion_action` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Pause conversion action. |
-| `remove_conversion_action` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove conversion action. |
-| `update_conversion_action` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update conversion action settings. |
-| `update_conversion_attribution_model` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update conversion attribution model. |
-| `upload_call_conversions` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Upload call conversions. |
-| `upload_enhanced_conversions` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Upload enhanced conversion user data. |
-| `upload_offline_conversions` | `conversions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Upload GCLID-based offline conversions. |
+| `list_conversion_actions` | `conversions` | `query` | `hand_implemented` | GoogleAdsService.Search FROM conversion_action | `read` | no | List conversion actions. |
+| `pause_conversion_action` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Pause conversion action. |
+| `remove_conversion_action` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove conversion action. |
+| `update_conversion_action` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update conversion action settings. |
+| `update_conversion_attribution_model` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update conversion attribution model. |
+| `upload_call_conversions` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Upload call conversions. |
+| `upload_enhanced_conversions` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Upload enhanced conversion user data. |
+| `upload_offline_conversions` | `conversions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Upload GCLID-based offline conversions. |
 | `upload_store_visit_conversions` | `conversions` | `unsupported` | `eligibility_gated` | n/a | `read` | yes | Store visit conversion uploads are eligibility-gated and not available for most API users. Use google_ads_call_service if your account has the required service access. |
-| `create_app_extension` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create an app asset. |
-| `create_call_extension` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a call asset. |
-| `create_callout` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a callout asset. |
-| `create_image_extension` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create an image asset extension. |
-| `create_lead_form_extension` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a lead form asset. |
-| `create_price_extension` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a price asset. |
-| `create_promotion_extension` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a promotion asset. |
-| `create_sitelink` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a sitelink asset. |
-| `create_structured_snippet` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a structured snippet asset. |
+| `create_app_extension` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create an app asset. |
+| `create_call_extension` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a call asset. |
+| `create_callout` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a callout asset. |
+| `create_image_extension` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create an image asset extension. |
+| `create_lead_form_extension` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a lead form asset. |
+| `create_price_extension` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a price asset. |
+| `create_promotion_extension` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a promotion asset. |
+| `create_sitelink` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a sitelink asset. |
+| `create_structured_snippet` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a structured snippet asset. |
 | `get_extension` | `extensions` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Get one extension or asset. |
 | `get_extension_approval_status` | `extensions` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Get extension policy approval status. |
 | `list_extensions` | `extensions` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | List assets/extensions by type and level. |
-| `remove_extension` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove an extension asset. |
-| `set_extension_scheduling` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set extension scheduling. |
-| `update_extension_status` | `extensions` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Pause or enable an extension asset. |
-| `create_ad_customizer_feed` | `feeds` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create ad customizer feed or attributes. |
-| `create_dsa_page_feed` | `feeds` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Dynamic Search Ads page feed. |
+| `remove_extension` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove an extension asset. |
+| `set_extension_scheduling` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set extension scheduling. |
+| `update_extension_status` | `extensions` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Pause or enable an extension asset. |
+| `create_ad_customizer_feed` | `feeds` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create ad customizer feed or attributes. |
+| `create_dsa_page_feed` | `feeds` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Dynamic Search Ads page feed. |
 | `list_dsa_page_feeds` | `feeds` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | List DSA page feeds. |
-| `set_custom_parameters` | `feeds` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set URL custom parameters. |
-| `update_ad_customizer_feed` | `feeds` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update ad customizer rows. |
-| `update_dsa_page_feed` | `feeds` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update DSA page feed rows. |
+| `set_custom_parameters` | `feeds` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set URL custom parameters. |
+| `update_ad_customizer_feed` | `feeds` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update ad customizer rows. |
+| `update_dsa_page_feed` | `feeds` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update DSA page feed rows. |
 | `google_ads_call_service` | `generic` | `service` | `generic_routed` | Generic Google Ads service bridge | `generic` | depends | Call any Google Ads API service method exposed by the client. |
 | `google_ads_mutate` | `generic` | `mutate` | `generic_routed` | GoogleAdsService.Mutate | `write` | depends | Run GoogleAdsService.mutate against arbitrary operations. |
-| `google_ads_search` | `generic` | `raw_gaql` | `implemented` | GoogleAdsService.Search | `read` | no | Run a GAQL search query. |
-| `google_ads_search_stream` | `generic` | `raw_gaql_stream` | `implemented` | GoogleAdsService.SearchStream | `read` | no | Run a GAQL SearchStream query. |
-| `add_keywords` | `keywords` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add one or more keywords to an ad group. |
-| `add_keywords_to_shared_list` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add keywords to a shared negative list. |
-| `add_negative_keywords_ad_group` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add ad group-level negative keywords. |
-| `add_negative_keywords_campaign` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add campaign-level negative keywords. |
-| `apply_keyword_label` | `keywords` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach a label to a keyword. |
-| `apply_shared_list_to_campaign` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Attach a shared negative list to a campaign. |
-| `create_shared_negative_keyword_list` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Create a shared negative keyword list. |
-| `enable_keyword` | `keywords` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Enable a keyword. |
-| `get_keyword` | `keywords` | `query` | `implemented` | GoogleAdsService.Search FROM keyword_view | `read` | no | Get one keyword with bid and quality score fields. |
+| `google_ads_search` | `generic` | `raw_gaql` | `hand_implemented` | GoogleAdsService.Search | `read` | no | Run a GAQL search query. |
+| `google_ads_search_stream` | `generic` | `raw_gaql_stream` | `hand_implemented` | GoogleAdsService.SearchStream | `read` | no | Run a GAQL SearchStream query. |
+| `add_keywords` | `keywords` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add one or more keywords to an ad group. |
+| `add_keywords_to_shared_list` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add keywords to a shared negative list. |
+| `add_negative_keywords_ad_group` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add ad group-level negative keywords. |
+| `add_negative_keywords_campaign` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add campaign-level negative keywords. |
+| `apply_keyword_label` | `keywords` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach a label to a keyword. |
+| `apply_shared_list_to_campaign` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Attach a shared negative list to a campaign. |
+| `create_shared_negative_keyword_list` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Create a shared negative keyword list. |
+| `enable_keyword` | `keywords` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Enable a keyword. |
+| `get_keyword` | `keywords` | `query` | `hand_implemented` | GoogleAdsService.Search FROM keyword_view | `read` | no | Get one keyword with bid and quality score fields. |
 | `get_keyword_bid_estimates` | `keywords` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Get keyword CPC and traffic estimates when supported. |
 | `get_keyword_ideas` | `keywords` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Get Keyword Planner ideas. |
-| `list_keywords` | `keywords` | `query` | `implemented` | GoogleAdsService.Search FROM keyword_view | `read` | no | List keywords by campaign, ad group, match type, or status. |
-| `list_negative_keywords_ad_group` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `read` | no | List ad group-level negative keywords. |
-| `list_negative_keywords_campaign` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `read` | no | List campaign-level negative keywords. |
-| `list_shared_negative_keyword_lists` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `read` | no | List account-level shared negative keyword lists. |
-| `pause_keyword` | `keywords` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Pause a keyword. |
-| `remove_keyword_label` | `keywords` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach a label from a keyword. |
-| `remove_keywords` | `keywords` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove one or more keywords. |
-| `remove_keywords_from_shared_list` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Remove keywords from a shared negative list. |
-| `remove_negative_keywords_ad_group` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Remove ad group-level negative keywords. |
-| `remove_negative_keywords_campaign` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Remove campaign-level negative keywords. |
-| `remove_shared_list_from_campaign` | `keywords` | `negative_keyword` | `implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Detach a shared negative list from a campaign. |
-| `update_keyword_bid` | `keywords` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update CPC bid on a keyword. |
-| `apply_label_to_ad` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to ads. |
-| `apply_label_to_ad_group` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to ad groups. |
-| `apply_label_to_campaign` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to campaigns. |
-| `apply_label_to_keyword` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to keywords. |
-| `create_label` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a label. |
-| `list_labels` | `labels` | `query` | `implemented` | GoogleAdsService.Search FROM label | `read` | no | List account labels. |
-| `remove_label` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove a label. |
-| `remove_label_from_ad` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from ads. |
-| `remove_label_from_ad_group` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from ad groups. |
-| `remove_label_from_campaign` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from campaigns. |
-| `remove_label_from_keyword` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from keywords. |
-| `update_label` | `labels` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update label name, color, or description. |
-| `describe_google_ads_resource` | `metadata` | `metadata` | `implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Describe fields for a Google Ads API resource. |
-| `describe_google_ads_service` | `metadata` | `metadata` | `implemented` | Local metadata/introspection | `read` | no | Describe callable methods for a Google Ads service. |
-| `get_capability_matrix` | `metadata` | `metadata` | `implemented` | Local tool registry | `read` | no | Return implementation status for the currently exposed tools. |
-| `get_google_ads_resource_metadata` | `metadata` | `metadata` | `implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Return selectable fields, filters, metrics, and segments for a resource. |
-| `get_tool_catalog` | `metadata` | `metadata` | `implemented` | Local metadata/introspection | `read` | no | Return the currently exposed Google Ads MCP tool catalog. |
-| `list_google_ads_services` | `metadata` | `metadata` | `implemented` | Local metadata/introspection | `read` | no | List service classes available in the installed Google Ads API client. |
-| `query_google_ads_docs` | `metadata` | `kb_lookup` | `implemented` | Offline GAQL knowledge base | `read` | no | Query the offline GAQL knowledge base. |
-| `suggest_gaql_fields` | `metadata` | `metadata` | `implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Suggest GAQL fields from live resource metadata. |
-| `validate_gaql_fields` | `metadata` | `validation` | `implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Validate GAQL SELECT fields against live resource metadata. |
-| `validate_google_ads_payload` | `metadata` | `validation` | `implemented` | Protobuf JSON parser | `read` | no | Validate a protobuf JSON payload against a Google Ads message type. |
-| `explain_gaql_error` | `planning` | `query_planning` | `implemented` | Static GAQL error helper | `read` | no | Explain common GAQL errors and suggest safe next steps. |
+| `list_keywords` | `keywords` | `query` | `hand_implemented` | GoogleAdsService.Search FROM keyword_view | `read` | no | List keywords by campaign, ad group, match type, or status. |
+| `list_negative_keywords_ad_group` | `keywords` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `read` | no | List ad group-level negative keywords. |
+| `list_negative_keywords_campaign` | `keywords` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `read` | no | List campaign-level negative keywords. |
+| `list_shared_negative_keyword_lists` | `keywords` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `read` | no | List account-level shared negative keyword lists. |
+| `pause_keyword` | `keywords` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Pause a keyword. |
+| `remove_keyword_label` | `keywords` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach a label from a keyword. |
+| `remove_keywords` | `keywords` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove one or more keywords. |
+| `remove_keywords_from_shared_list` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Remove keywords from a shared negative list. |
+| `remove_negative_keywords_ad_group` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Remove ad group-level negative keywords. |
+| `remove_negative_keywords_campaign` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Remove campaign-level negative keywords. |
+| `remove_shared_list_from_campaign` | `keywords` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Detach a shared negative list from a campaign. |
+| `update_keyword_bid` | `keywords` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update CPC bid on a keyword. |
+| `apply_label_to_ad` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach label to ads. |
+| `apply_label_to_ad_group` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach label to ad groups. |
+| `apply_label_to_campaign` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach label to campaigns. |
+| `apply_label_to_keyword` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Attach label to keywords. |
+| `create_label` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Create a label. |
+| `list_labels` | `labels` | `query` | `hand_implemented` | GoogleAdsService.Search FROM label | `read` | no | List account labels. |
+| `remove_label` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove a label. |
+| `remove_label_from_ad` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach label from ads. |
+| `remove_label_from_ad_group` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach label from ad groups. |
+| `remove_label_from_campaign` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach label from campaigns. |
+| `remove_label_from_keyword` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Detach label from keywords. |
+| `update_label` | `labels` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update label name, color, or description. |
+| `describe_google_ads_resource` | `metadata` | `metadata` | `hand_implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Describe fields for a Google Ads API resource. |
+| `describe_google_ads_service` | `metadata` | `metadata` | `hand_implemented` | Local metadata/introspection | `read` | no | Describe callable methods for a Google Ads service. |
+| `get_capability_matrix` | `metadata` | `metadata` | `hand_implemented` | Local tool registry | `read` | no | Return implementation status for the currently exposed tools. |
+| `get_google_ads_resource_metadata` | `metadata` | `metadata` | `hand_implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Return selectable fields, filters, metrics, and segments for a resource. |
+| `get_server_status` | `metadata` | `metadata` | `hand_implemented` | Local metadata/introspection | `read` | no | Return server mode, auth mode, config source, and exposed tool count. |
+| `get_tool_catalog` | `metadata` | `metadata` | `hand_implemented` | Local metadata/introspection | `read` | no | Return the currently exposed Google Ads MCP tool catalog. |
+| `list_google_ads_services` | `metadata` | `metadata` | `hand_implemented` | Local metadata/introspection | `read` | no | List service classes available in the installed Google Ads API client. |
+| `query_google_ads_docs` | `metadata` | `kb_lookup` | `hand_implemented` | Offline GAQL knowledge base | `read` | no | Query the offline GAQL knowledge base. |
+| `suggest_gaql_fields` | `metadata` | `metadata` | `hand_implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Suggest GAQL fields from live resource metadata. |
+| `validate_gaql_fields` | `metadata` | `validation` | `hand_implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Validate GAQL SELECT fields against live resource metadata. |
+| `validate_google_ads_payload` | `metadata` | `validation` | `hand_implemented` | Protobuf JSON parser | `read` | no | Validate a protobuf JSON payload against a Google Ads message type. |
+| `explain_gaql_error` | `planning` | `query_planning` | `hand_implemented` | Static GAQL error helper | `read` | no | Explain common GAQL errors and suggest safe next steps. |
 | `get_ad_diagnosis` | `planning` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Diagnose why an ad is not serving when API surface allows. |
 | `get_ad_preview` | `planning` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | Get ad preview or serving simulation data when available. |
 | `get_reach_forecast` | `planning` | `service` | `generic_routed` | Google Ads service bridge | `read` | yes | Get Reach Planner forecast where available. |
-| `plan_gaql_query` | `planning` | `query_planning` | `implemented` | Metadata-backed GAQL planner | `read` | no | Build a validated GAQL query plan without executing it. |
-| `apply_recommendation` | `recommendations` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Apply a recommendation. |
-| `dismiss_recommendation` | `recommendations` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Dismiss a recommendation. |
+| `plan_gaql_query` | `planning` | `query_planning` | `hand_implemented` | Metadata-backed GAQL planner | `read` | no | Build a validated GAQL query plan without executing it. |
+| `apply_recommendation` | `recommendations` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Apply a recommendation. |
+| `dismiss_recommendation` | `recommendations` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Dismiss a recommendation. |
 | `get_recommendation_types` | `recommendations` | `service` | `generic_routed` | Google Ads service bridge | `read` | depends | List supported recommendation type metadata. |
-| `list_recommendations` | `recommendations` | `query` | `implemented` | GoogleAdsService.Search FROM recommendation | `read` | no | List pending Google recommendations. |
-| `execute_gaql_query` | `reporting` | `raw_gaql` | `implemented` | GoogleAdsService.Search | `read` | no | Execute raw GAQL for uncovered reporting needs. |
-| `get_ad_group_metrics` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM ad_group | `read` | no | Ad group metrics with preset or custom date ranges. |
-| `get_ad_metrics` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM ad_group_ad | `read` | no | Ad metrics with preset or custom date ranges. |
-| `get_ad_schedule_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by scheduled time block. |
-| `get_age_range_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM age_range_view | `read` | no | Performance by age range. |
-| `get_asset_performance_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM asset_group_asset | `read` | no | Asset performance for RSA and PMax. |
-| `get_auction_insights` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Auction insight metrics. |
-| `get_audience_performance_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM audience_view | `read` | no | Performance by audience segment. |
-| `get_call_details_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM call_view | `read` | no | Call details report. |
-| `get_campaign_metrics` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Campaign metrics with preset or custom date ranges. |
-| `get_change_history_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM change_event | `read` | no | Change history report. |
-| `get_day_of_week_performance` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by day of week. |
-| `get_device_performance` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by device. |
-| `get_display_performance_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Display network performance. |
-| `get_gender_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM gender_view | `read` | no | Performance by gender. |
-| `get_geo_performance` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM geographic_view | `read` | no | Performance by geographic target id and readable name. |
-| `get_hour_of_day_performance` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by hour of day. |
-| `get_household_income_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM household_income_view | `read` | no | Performance by household income. |
-| `get_keyword_metrics` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM keyword_view | `read` | no | Keyword metrics plus quality score fields. |
-| `get_landing_page_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM landing_page_view | `read` | no | Landing page performance. |
-| `get_paid_organic_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Paid and organic report when Search Console is linked. |
-| `get_parental_status_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM parental_status_view | `read` | no | Performance by parental status. |
-| `get_placement_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM group_placement_view | `read` | no | Display placement performance. |
-| `get_reach_frequency_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Reach and frequency report. |
-| `get_search_terms_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM search_term_view | `read` | no | Search query performance report. |
-| `get_shopping_performance_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM shopping_performance_view | `read` | no | Shopping product performance. |
-| `get_topic_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | GDN topic performance. |
-| `get_video_performance_report` | `reporting` | `report` | `implemented` | GoogleAdsService.Search report FROM video | `read` | no | Video performance report. |
-| `create_listing_group_tree` | `shopping_pmax` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a Shopping listing group tree. |
-| `create_pmax_asset_group` | `shopping_pmax` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Create a PMax asset group. |
-| `get_pmax_asset_group` | `shopping_pmax` | `query` | `implemented` | GoogleAdsService.Search FROM asset_group | `read` | no | Get one PMax asset group. |
-| `get_pmax_asset_group_performance` | `shopping_pmax` | `report` | `implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Report PMax asset group performance. |
+| `list_recommendations` | `recommendations` | `query` | `hand_implemented` | GoogleAdsService.Search FROM recommendation | `read` | no | List pending Google recommendations. |
+| `execute_gaql_query` | `reporting` | `raw_gaql` | `generic_routed` | GoogleAdsService.Search | `read` | no | Execute raw GAQL for uncovered reporting needs. |
+| `get_ad_group_metrics` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM ad_group | `read` | no | Ad group metrics with preset or custom date ranges. |
+| `get_ad_metrics` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM ad_group_ad | `read` | no | Ad metrics with preset or custom date ranges. |
+| `get_ad_schedule_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by scheduled time block. |
+| `get_age_range_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM age_range_view | `read` | no | Performance by age range. |
+| `get_asset_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM asset_group_asset | `read` | no | Asset performance for RSA and PMax. |
+| `get_auction_insights` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Auction insight metrics. |
+| `get_audience_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM audience_view | `read` | no | Performance by audience segment. |
+| `get_call_details_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM call_view | `read` | no | Call details report. |
+| `get_campaign_metrics` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Campaign metrics with preset or custom date ranges. |
+| `get_change_history_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM change_event | `read` | no | Change history report. |
+| `get_day_of_week_performance` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by day of week. |
+| `get_device_performance` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by device. |
+| `get_display_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Display network performance. |
+| `get_gender_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM gender_view | `read` | no | Performance by gender. |
+| `get_geo_performance` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM geographic_view | `read` | no | Performance by geographic target id and readable name. |
+| `get_hour_of_day_performance` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Performance by hour of day. |
+| `get_household_income_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM household_income_view | `read` | no | Performance by household income. |
+| `get_keyword_metrics` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM keyword_view | `read` | no | Keyword metrics plus quality score fields. |
+| `get_landing_page_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM landing_page_view | `read` | no | Landing page performance. |
+| `get_paid_organic_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Paid and organic report when Search Console is linked. |
+| `get_parental_status_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM parental_status_view | `read` | no | Performance by parental status. |
+| `get_placement_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM group_placement_view | `read` | no | Display placement performance. |
+| `get_reach_frequency_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Reach and frequency report. |
+| `get_search_terms_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM search_term_view | `read` | no | Search query performance report. |
+| `get_shopping_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM shopping_performance_view | `read` | no | Shopping product performance. |
+| `get_topic_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | GDN topic performance. |
+| `get_video_performance_report` | `reporting` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM video | `read` | no | Video performance report. |
+| `create_listing_group_tree` | `shopping_pmax` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a Shopping listing group tree. |
+| `create_pmax_asset_group` | `shopping_pmax` | `mutate` | `payload_operations_required` | GoogleAdsService.Mutate | `write` | no | Create a PMax asset group. |
+| `get_pmax_asset_group` | `shopping_pmax` | `query` | `hand_implemented` | GoogleAdsService.Search FROM asset_group | `read` | no | Get one PMax asset group. |
+| `get_pmax_asset_group_performance` | `shopping_pmax` | `report` | `hand_implemented` | GoogleAdsService.Search report FROM campaign | `read` | no | Report PMax asset group performance. |
 | `get_pmax_campaign_insights` | `shopping_pmax` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Report PMax campaign insights. |
 | `get_pmax_search_term_themes` | `shopping_pmax` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Get PMax search term themes where exposed. |
 | `get_shopping_campaign_settings` | `shopping_pmax` | `service` | `generic_routed` | Google Ads service bridge | `generic` | depends | Get Merchant Center and Shopping campaign settings. |
-| `list_pmax_asset_groups` | `shopping_pmax` | `query` | `implemented` | GoogleAdsService.Search FROM asset_group | `read` | no | List PMax asset groups. |
-| `remove_listing_group` | `shopping_pmax` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove a listing group node. |
-| `remove_pmax_asset_group` | `shopping_pmax` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove a PMax asset group. |
-| `set_pmax_audience_signals` | `shopping_pmax` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set PMax audience signals and search themes. |
-| `update_listing_group` | `shopping_pmax` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update a listing group node. |
-| `update_pmax_asset_group` | `shopping_pmax` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Update a PMax asset group. |
-| `add_audience_to_ad_group` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add ad group audience targeting or observation. |
-| `add_audience_to_campaign` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add campaign audience targeting or observation. |
-| `add_content_label_exclusions` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add sensitive content exclusions. |
-| `add_placement_exclusions` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add placement exclusions. |
-| `add_placement_targeting` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add placement targeting. |
-| `add_topic_targeting` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Add GDN topic targeting. |
-| `remove_audience_from_ad_group` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove ad group audience targeting. |
-| `remove_audience_from_campaign` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove campaign audience targeting. |
-| `remove_topic_targeting` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Remove GDN topic targeting. |
-| `set_demographic_targeting` | `targeting` | `mutate` | `implemented` | GoogleAdsService.Mutate | `write` | no | Set age, gender, parental, or household targeting. |
+| `list_pmax_asset_groups` | `shopping_pmax` | `query` | `hand_implemented` | GoogleAdsService.Search FROM asset_group | `read` | no | List PMax asset groups. |
+| `remove_listing_group` | `shopping_pmax` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove a listing group node. |
+| `remove_pmax_asset_group` | `shopping_pmax` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove a PMax asset group. |
+| `set_pmax_audience_signals` | `shopping_pmax` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set PMax audience signals and search themes. |
+| `update_listing_group` | `shopping_pmax` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update a listing group node. |
+| `update_pmax_asset_group` | `shopping_pmax` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Update a PMax asset group. |
+| `add_audience_to_ad_group` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add ad group audience targeting or observation. |
+| `add_audience_to_campaign` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add campaign audience targeting or observation. |
+| `add_content_label_exclusions` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add sensitive content exclusions. |
+| `add_placement_exclusions` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add placement exclusions. |
+| `add_placement_targeting` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add placement targeting. |
+| `add_topic_targeting` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Add GDN topic targeting. |
+| `remove_audience_from_ad_group` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove ad group audience targeting. |
+| `remove_audience_from_campaign` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove campaign audience targeting. |
+| `remove_topic_targeting` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Remove GDN topic targeting. |
+| `set_demographic_targeting` | `targeting` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | Set age, gender, parental, or household targeting. |

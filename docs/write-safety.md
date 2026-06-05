@@ -26,6 +26,8 @@ This applies to:
 
 - `google_ads_mutate`
 - `google_ads_call_service` when `is_write=true` or the method name looks mutating
+- `google_ads_call_service` for unknown read methods unless the method is allowlisted
+  or `admin_debug` plus `GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true` is used
 - friendly campaign/budget/ad/ad group/keyword/asset/audience/conversion tools
 - negative keyword helpers
 - bulk mutation helpers

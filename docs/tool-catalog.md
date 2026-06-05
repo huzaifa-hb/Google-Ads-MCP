@@ -11,6 +11,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `explain_gaql_error` | `query_planning` | `planning` | Explain common GAQL errors and suggest safe next steps. |
 | `get_capability_matrix` | `metadata` | `metadata` | Return implementation status for the currently exposed tools. |
 | `get_google_ads_resource_metadata` | `metadata` | `metadata` | Return selectable fields, filters, metrics, and segments for a resource. |
+| `get_server_status` | `metadata` | `metadata` | Return server mode, auth mode, config source, and exposed tool count. |
 | `get_tool_catalog` | `metadata` | `metadata` | Return the currently exposed Google Ads MCP tool catalog. |
 | `google_ads_call_service` | `service` | `generic` | Call any Google Ads API service method exposed by the client. |
 | `google_ads_mutate` | `mutate` | `generic` | Run GoogleAdsService.mutate against arbitrary operations. |

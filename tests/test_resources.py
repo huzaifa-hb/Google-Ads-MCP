@@ -19,6 +19,7 @@ class ResourcePayloadTests(unittest.TestCase):
         payload = json.loads(discovery_document_resource("v24"))
 
         self.assertEqual(payload["api_version"], "v24")
+        self.assertEqual(payload["kind"], "reference-index")
         self.assertIn("/v24", payload["field_reference"])
 
     def test_metrics_and_segments_resources_are_versioned(self) -> None:

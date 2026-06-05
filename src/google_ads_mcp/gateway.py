@@ -57,6 +57,16 @@ MUTATING_METHOD_PREFIXES = (
     "update_",
 )
 
+READ_ONLY_SERVICE_METHODS = {
+    ("CustomerService", "list_accessible_customers"),
+    ("GoogleAdsService", "search"),
+    ("GoogleAdsService", "search_stream"),
+    ("GoogleAdsFieldService", "search_google_ads_fields"),
+    ("InvoiceService", "list_invoices"),
+    ("KeywordPlanIdeaService", "generate_keyword_ideas"),
+    ("ReachPlanService", "generate_reach_forecast"),
+}
+
 
 def snake_to_pascal(value: str) -> str:
     return "".join(part.capitalize() for part in value.split("_") if part)
@@ -238,6 +248,17 @@ class GoogleAdsGateway:
         payload = payload or {}
         method_looks_mutating = method_name.startswith(MUTATING_METHOD_PREFIXES)
         effective_is_write = bool(is_write) or method_looks_mutating
+        read_allowed = (service_name, method_name) in READ_ONLY_SERVICE_METHODS
+        generic_bridge_enabled = (
+            self.mode == "admin_debug" and self.settings.enable_generic_service_bridge
+        )
+        if not effective_is_write and not read_allowed and not generic_bridge_enabled:
+            raise ValidationError(
+                f"{service_name}.{method_name} is not on the read-only service allowlist. "
+                "Set is_write=true to route it through the write guard, or enable "
+                "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true in admin_debug mode for "
+                "explicit generic bridge debugging."
+            )
         write_decision = None
         if effective_is_write:
             customer_id = payload.get("customer_id") or payload.get("customerId")

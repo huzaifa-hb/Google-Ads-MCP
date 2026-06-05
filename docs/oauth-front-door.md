@@ -34,6 +34,8 @@ Required scopes:
 - Do not set `ALLOW_UNAUTHENTICATED_MCP=true` on a production endpoint.
 - Store OAuth client secrets in Secret Manager.
 - Keep `safe_read_only` as the first deployment mode.
+- Keep `GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=false` unless you are doing
+  private `admin_debug` work.
 - OAuth protects MCP access; Google Ads account access still depends on the
   configured Google Ads developer token and OAuth refresh token used by the
   server.

@@ -26,6 +26,7 @@ def make_settings(**overrides: object) -> Settings:
         "mcp_mode": None,
         "tools_config_path": None,
         "allow_legacy_write_defaults": False,
+        "enable_generic_service_bridge": False,
         "mcp_oauth_client_id": None,
         "mcp_oauth_client_secret": None,
         "mcp_base_url": None,
@@ -44,6 +45,7 @@ class ToolConfigTests(unittest.TestCase):
         self.assertEqual(registry.mode, "safe_read_only")
         self.assertIn("get_tool_catalog", registry.registered_names)
         self.assertIn("get_capability_matrix", registry.registered_names)
+        self.assertIn("get_server_status", registry.registered_names)
         self.assertIn("metadata_get_google_ads_resource_metadata", registry.registered_names)
         self.assertIn("metadata_validate_gaql_fields", registry.registered_names)
         self.assertIn("planning_plan_gaql_query", registry.registered_names)
