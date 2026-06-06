@@ -31,7 +31,6 @@ from .gaql import (
     select_clause,
     summarize_page,
     suggest_fields,
-    trim_offset_page,
 )
 from .safety import ValidationError, guard_google_ads_write, normalize_customer_id, redact_sensitive
 
@@ -147,13 +146,12 @@ class GoogleAdsGateway:
         query: str,
         page_size: int = 1000,
         page_token: str | None = None,
-        offset: int | None = None,
         primary_field: str | None = None,
     ) -> dict[str, Any]:
         cid = normalize_customer_id(customer_id)
         if primary_field:
             ensure_primary_field(query, primary_field)
-        pagination = Pagination(page_size=page_size, offset=offset, page_token=page_token)
+        pagination = Pagination(page_size=page_size, page_token=page_token)
         query = apply_pagination(query, pagination)
         query = apply_default_parameters(query)
 
@@ -170,17 +168,15 @@ class GoogleAdsGateway:
         response = await self._retry(call)
         page_results = getattr(response, "results", response)
         raw_rows = [self._message_to_dict(row) for row in page_results]
-        rows = trim_offset_page(raw_rows, page_size, offset)
         next_token = getattr(response, "next_page_token", None)
         return {
             "customer_id": cid,
             "query": query,
-            "rows": rows,
+            "rows": raw_rows,
             "pagination": summarize_page(
-                rows,
+                raw_rows,
                 page_size,
                 next_token,
-                offset=offset,
                 fetched_count=len(raw_rows),
             ),
         }

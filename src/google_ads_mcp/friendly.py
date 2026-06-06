@@ -31,7 +31,6 @@ class FriendlyDispatcher:
         time_segment: str | None = None,
         page_size: int = 1000,
         page_token: str | None = None,
-        offset: int | None = None,
         validate_only: bool = True,
         execute: bool = False,
         confirmation_phrase: str | None = None,
@@ -49,7 +48,6 @@ class FriendlyDispatcher:
                 payload=payload,
                 page_size=page_size,
                 page_token=page_token,
-                offset=offset,
             )
         if spec.mode == "query":
             return await self._query(
@@ -59,7 +57,6 @@ class FriendlyDispatcher:
                 filters=filters,
                 page_size=page_size,
                 page_token=page_token,
-                offset=offset,
             )
         if spec.mode == "report":
             return await self._report(
@@ -73,7 +70,6 @@ class FriendlyDispatcher:
                 time_segment=time_segment,
                 page_size=page_size,
                 page_token=page_token,
-                offset=offset,
             )
         if spec.mode == "negative_keyword":
             return await self._negative_keyword(
@@ -83,7 +79,6 @@ class FriendlyDispatcher:
                 filters=filters,
                 page_size=page_size,
                 page_token=page_token,
-                offset=offset,
                 validate_only=validate_only,
                 execute=execute,
                 confirmation_phrase=confirmation_phrase,
@@ -115,7 +110,6 @@ class FriendlyDispatcher:
         payload: dict[str, Any],
         page_size: int,
         page_token: str | None,
-        offset: int | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
         query = payload.get("query")
@@ -126,7 +120,6 @@ class FriendlyDispatcher:
             query=query,
             page_size=page_size,
             page_token=page_token,
-            offset=offset,
             primary_field=payload.get("primary_field"),
         )
 
@@ -139,7 +132,6 @@ class FriendlyDispatcher:
         filters: dict[str, Any],
         page_size: int,
         page_token: str | None,
-        offset: int | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
         if spec.name == "get_mcc_hierarchy":
@@ -148,7 +140,6 @@ class FriendlyDispatcher:
                 payload=payload,
                 page_size=page_size,
                 page_token=page_token,
-                offset=offset,
             )
         if spec.name == "list_customers" and not payload.get("include_managers"):
             filters = {**filters, "customer_client.manager": False}
@@ -158,7 +149,6 @@ class FriendlyDispatcher:
             query=query,
             page_size=page_size,
             page_token=page_token,
-            offset=offset,
             primary_field=spec.primary_field,
         )
         return result
@@ -176,7 +166,6 @@ class FriendlyDispatcher:
         time_segment: str | None,
         page_size: int,
         page_token: str | None,
-        offset: int | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
         fields = list(spec.fields)
@@ -211,7 +200,6 @@ class FriendlyDispatcher:
             query=query,
             page_size=page_size,
             page_token=page_token,
-            offset=offset,
             primary_field=spec.primary_field,
         )
         if spec.name == "get_geo_performance":
@@ -261,7 +249,6 @@ class FriendlyDispatcher:
         filters: dict[str, Any],
         page_size: int,
         page_token: str | None,
-        offset: int | None,
         validate_only: bool,
         execute: bool,
         confirmation_phrase: str | None,
@@ -276,7 +263,6 @@ class FriendlyDispatcher:
                 query=query,
                 page_size=page_size,
                 page_token=page_token,
-                offset=offset,
             )
         operations = self._negative_keyword_operations(name, cid, payload)
         return await self.gateway.mutate(
@@ -416,7 +402,7 @@ class FriendlyDispatcher:
         if name == "list_invoices":
             request = {
                 "customer_id": cid,
-                "billing_setup": self._required(payload, "billing_setup"),
+                "billing_setup": self._required_value(payload, "billing_setup"),
                 "issue_year": str(payload.get("issue_year", date.today().year)),
                 "issue_month": payload.get("issue_month", "JANUARY"),
             }
@@ -545,7 +531,6 @@ class FriendlyDispatcher:
         payload: dict[str, Any],
         page_size: int,
         page_token: str | None,
-        offset: int | None,
     ) -> dict[str, Any]:
         max_depth = int(payload.get("max_depth", 10))
         seen: set[str] = set()
@@ -566,7 +551,6 @@ class FriendlyDispatcher:
                 query=query,
                 page_size=page_size,
                 page_token=page_token if depth == 0 else None,
-                offset=offset if depth == 0 else None,
                 primary_field="customer_client.id",
             )
             for row in result.get("rows", []):
@@ -654,7 +638,7 @@ class FriendlyDispatcher:
         payload: dict[str, Any],
     ) -> list[dict[str, Any]]:
         if name == "add_negative_keywords_ad_group":
-            ad_group_id = self._required(payload, "ad_group_id")
+            ad_group_id = self._required_id(payload, "ad_group_id")
             return [
                 {
                     "ad_group_criterion_operation": {
@@ -671,7 +655,7 @@ class FriendlyDispatcher:
                 for item in self._keyword_items(payload)
             ]
         if name == "add_negative_keywords_campaign":
-            campaign_id = self._required(payload, "campaign_id")
+            campaign_id = self._required_id(payload, "campaign_id")
             return [
                 {
                     "campaign_criterion_operation": {
@@ -688,7 +672,7 @@ class FriendlyDispatcher:
                 for item in self._keyword_items(payload)
             ]
         if name == "remove_negative_keywords_ad_group":
-            ad_group_id = self._required(payload, "ad_group_id")
+            ad_group_id = self._required_id(payload, "ad_group_id")
             return [
                 {
                     "ad_group_criterion_operation": {
@@ -698,7 +682,7 @@ class FriendlyDispatcher:
                 for criterion_id in self._ids(payload, "criterion_ids")
             ]
         if name == "remove_negative_keywords_campaign":
-            campaign_id = self._required(payload, "campaign_id")
+            campaign_id = self._required_id(payload, "campaign_id")
             return [
                 {
                     "campaign_criterion_operation": {
@@ -708,7 +692,7 @@ class FriendlyDispatcher:
                 for criterion_id in self._ids(payload, "criterion_ids")
             ]
         if name == "create_shared_negative_keyword_list":
-            list_name = self._required(payload, "name")
+            list_name = self._required_value(payload, "name")
             return [
                 {
                     "shared_set_operation": {
@@ -717,7 +701,7 @@ class FriendlyDispatcher:
                 }
             ]
         if name == "add_keywords_to_shared_list":
-            shared_set_id = self._required(payload, "shared_set_id")
+            shared_set_id = self._required_id(payload, "shared_set_id")
             return [
                 {
                     "shared_criterion_operation": {
@@ -742,8 +726,8 @@ class FriendlyDispatcher:
                 for criterion_id in self._ids(payload, "criterion_ids")
             ]
         if name == "apply_shared_list_to_campaign":
-            campaign_id = self._required(payload, "campaign_id")
-            shared_set_id = self._required(payload, "shared_set_id")
+            campaign_id = self._required_id(payload, "campaign_id")
+            shared_set_id = self._required_id(payload, "shared_set_id")
             return [
                 {
                     "campaign_shared_set_operation": {
@@ -755,7 +739,7 @@ class FriendlyDispatcher:
                 }
             ]
         if name == "remove_shared_list_from_campaign":
-            campaign_shared_set_id = self._required(payload, "campaign_shared_set_id")
+            campaign_shared_set_id = self._required_id(payload, "campaign_shared_set_id")
             return [
                 {
                     "campaign_shared_set_operation": {
@@ -763,6 +747,17 @@ class FriendlyDispatcher:
                     }
                 }
             ]
+        if name == "bulk_add_negative_keywords":
+            level = payload.get("level", "campaign")
+            if level == "ad_group":
+                return self._negative_keyword_operations(
+                    "add_negative_keywords_ad_group", customer_id, payload
+                )
+            if level == "campaign":
+                return self._negative_keyword_operations(
+                    "add_negative_keywords_campaign", customer_id, payload
+                )
+            raise ValidationError("payload.level must be 'campaign' or 'ad_group'.")
         raise ValidationError(f"{name} is not a recognized negative keyword helper.")
 
     def _operations_for_simple_mutation(
@@ -785,14 +780,20 @@ class FriendlyDispatcher:
         }:
             return self._create_campaign_operations(name, customer_id, payload)
         if name in {"create_budget", "create_shared_budget"}:
-            return [self._create_budget_operation(payload, explicitly_shared=name == "create_shared_budget")]
+            return [
+                self._create_budget_operation(
+                    payload,
+                    explicitly_shared=name == "create_shared_budget",
+                    require_explicit=True,
+                )
+            ]
         if name in {"update_budget", "update_shared_budget"}:
             return [self._update_budget_operation(customer_id, payload)]
         if name == "remove_budget":
             return [
                 {
                     "campaign_budget_operation": {
-                        "remove": f"customers/{customer_id}/campaignBudgets/{self._required(payload, 'budget_id')}"
+                        "remove": f"customers/{customer_id}/campaignBudgets/{self._required_id(payload, 'budget_id')}"
                     }
                 }
             ]
@@ -800,17 +801,17 @@ class FriendlyDispatcher:
             return [
                 self._campaign_update_operation(
                     customer_id,
-                    self._required(payload, "campaign_id"),
+                    self._required_id(payload, "campaign_id"),
                     {
                         "campaign_budget": self._resource_name(
-                            customer_id, "campaignBudgets", self._required(payload, "budget_id")
+                            customer_id, "campaignBudgets", self._required_id(payload, "budget_id")
                         )
                     },
                     ["campaign_budget"],
                 )
             ]
         if name == "update_campaign":
-            campaign_id = self._required(payload, "campaign_id")
+            campaign_id = self._required_id(payload, "campaign_id")
             updates = {
                 key: value
                 for key, value in {
@@ -825,7 +826,7 @@ class FriendlyDispatcher:
             }
             return [self._campaign_update_operation(customer_id, campaign_id, updates, list(updates))]
         if name == "update_network_settings":
-            campaign_id = self._required(payload, "campaign_id")
+            campaign_id = self._required_id(payload, "campaign_id")
             return [
                 self._campaign_update_operation(
                     customer_id,
@@ -851,9 +852,15 @@ class FriendlyDispatcher:
             ]
         if name in {"pause_campaign", "enable_campaign"}:
             status = "PAUSED" if name == "pause_campaign" else "ENABLED"
-            return [self._status_operation("campaign", customer_id, self._required(payload, "campaign_id"), status)]
+            return [
+                self._status_operation(
+                    "campaign", customer_id, self._required_id(payload, "campaign_id"), status
+                )
+            ]
         if name == "remove_campaign":
-            return [self._remove_operation("campaign", customer_id, self._required(payload, "campaign_id"))]
+            return [
+                self._remove_operation("campaign", customer_id, self._required_id(payload, "campaign_id"))
+            ]
         if name == "create_ad_group":
             return [self._create_ad_group_operation(customer_id, payload)]
         if name == "update_ad_group":
@@ -861,10 +868,12 @@ class FriendlyDispatcher:
         if name in {"pause_ad_group", "enable_ad_group"}:
             status = "PAUSED" if name == "pause_ad_group" else "ENABLED"
             return [
-                self._status_operation("ad_group", customer_id, self._required(payload, "ad_group_id"), status)
+                self._status_operation("ad_group", customer_id, self._required_id(payload, "ad_group_id"), status)
             ]
         if name == "remove_ad_group":
-            return [self._remove_operation("ad_group", customer_id, self._required(payload, "ad_group_id"))]
+            return [
+                self._remove_operation("ad_group", customer_id, self._required_id(payload, "ad_group_id"))
+            ]
         if name == "create_responsive_search_ad":
             return [self._create_responsive_search_ad_operation(customer_id, payload)]
         if name in {"pause_ad", "enable_ad"}:
@@ -879,7 +888,7 @@ class FriendlyDispatcher:
                 }
             ]
         if name == "add_keywords" or name == "bulk_add_keywords":
-            ad_group_id = self._required(payload, "ad_group_id")
+            ad_group_id = self._required_id(payload, "ad_group_id")
             return [
                 {
                     "ad_group_criterion_operation": {
@@ -904,7 +913,7 @@ class FriendlyDispatcher:
             return [
                 {
                     "ad_group_criterion_operation": {
-                        "remove": f"customers/{customer_id}/adGroupCriteria/{self._required(payload, 'ad_group_id')}~{criterion_id}"
+                        "remove": f"customers/{customer_id}/adGroupCriteria/{self._required_id(payload, 'ad_group_id')}~{criterion_id}"
                     }
                 }
                 for criterion_id in self._ids(payload, "criterion_ids")
@@ -974,7 +983,7 @@ class FriendlyDispatcher:
             operations.append(self._create_budget_operation(payload, resource_name=temp_budget_resource))
 
         campaign: dict[str, Any] = {
-            "name": self._required(payload, "name"),
+            "name": self._required_value(payload, "name"),
             "status": payload.get("status", "PAUSED"),
             "advertising_channel_type": channel_map[name],
             "campaign_budget": campaign_budget,
@@ -1052,10 +1061,20 @@ class FriendlyDispatcher:
         *,
         explicitly_shared: bool | None = None,
         resource_name: str | None = None,
+        require_explicit: bool = False,
     ) -> dict[str, Any]:
+        budget_name = payload.get("budget_name") or payload.get("name")
+        amount_micros = payload.get("amount_micros", payload.get("daily_budget_micros"))
+        if require_explicit:
+            if not budget_name:
+                raise ValidationError("create_budget requires payload.name or payload.budget_name.")
+            if amount_micros is None:
+                raise ValidationError(
+                    "create_budget requires payload.amount_micros or payload.daily_budget_micros."
+                )
         budget = {
-            "name": payload.get("budget_name") or payload.get("name") or "MCP budget",
-            "amount_micros": int(payload.get("amount_micros", payload.get("daily_budget_micros", 1_000_000))),
+            "name": budget_name or "MCP budget",
+            "amount_micros": int(amount_micros if amount_micros is not None else 1_000_000),
             "delivery_method": payload.get("delivery_method", "STANDARD"),
         }
         if explicitly_shared is not None:
@@ -1065,7 +1084,7 @@ class FriendlyDispatcher:
         return {"campaign_budget_operation": {"create": budget}}
 
     def _update_budget_operation(self, customer_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        budget_id = self._required(payload, "budget_id")
+        budget_id = self._required_id(payload, "budget_id")
         update = {"resource_name": self._resource_name(customer_id, "campaignBudgets", budget_id)}
         mask = []
         if payload.get("amount_micros") is not None:
@@ -1095,10 +1114,10 @@ class FriendlyDispatcher:
 
     def _create_ad_group_operation(self, customer_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         campaign = payload.get("campaign_resource_name") or self._resource_name(
-            customer_id, "campaigns", self._required(payload, "campaign_id")
+            customer_id, "campaigns", self._required_id(payload, "campaign_id")
         )
         ad_group = {
-            "name": self._required(payload, "name"),
+            "name": self._required_value(payload, "name"),
             "campaign": campaign,
             "status": payload.get("status", "ENABLED"),
             "type": payload.get("type", "SEARCH_STANDARD"),
@@ -1112,7 +1131,7 @@ class FriendlyDispatcher:
         return {"ad_group_operation": {"create": ad_group}}
 
     def _update_ad_group_operation(self, customer_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        ad_group_id = self._required(payload, "ad_group_id")
+        ad_group_id = self._required_id(payload, "ad_group_id")
         update = {"resource_name": self._resource_name(customer_id, "adGroups", ad_group_id)}
         mask = []
         for field in ("name", "status", "cpc_bid_micros", "cpm_bid_micros", "target_cpa_micros"):
@@ -1148,7 +1167,7 @@ class FriendlyDispatcher:
             "ad_group_ad_operation": {
                 "create": {
                     "ad_group": self._resource_name(
-                        customer_id, "adGroups", self._required(payload, "ad_group_id")
+                        customer_id, "adGroups", self._required_id(payload, "ad_group_id")
                     ),
                     "status": payload.get("status", "PAUSED"),
                     "ad": ad,
@@ -1169,7 +1188,7 @@ class FriendlyDispatcher:
             {"criterion_id": item, "cpc_bid_micros": payload.get("cpc_bid_micros")}
             for item in self._ids(payload, "criterion_ids")
         ]
-        ad_group_id = self._required(payload, "ad_group_id")
+        ad_group_id = self._required_id(payload, "ad_group_id")
         operations = []
         for item in updates:
             if item.get("cpc_bid_micros") is None:
@@ -1193,7 +1212,7 @@ class FriendlyDispatcher:
         payload: dict[str, Any],
         status: str,
     ) -> list[dict[str, Any]]:
-        ad_group_id = self._required(payload, "ad_group_id")
+        ad_group_id = self._required_id(payload, "ad_group_id")
         return [
             {
                 "ad_group_criterion_operation": {
@@ -1211,17 +1230,19 @@ class FriendlyDispatcher:
         asset: dict[str, Any] = {"name": payload.get("name", "MCP asset")}
         if name == "create_sitelink":
             asset["sitelink_asset"] = {
-                "link_text": self._required(payload, "link_text"),
+                "link_text": self._required_value(payload, "link_text"),
                 "description1": payload.get("description1", ""),
                 "description2": payload.get("description2", ""),
             }
             asset["final_urls"] = payload.get("final_urls", [])
         elif name == "create_callout":
-            asset["callout_asset"] = {"callout_text": self._required(payload, "callout_text")}
+            asset["callout_asset"] = {"callout_text": self._required_value(payload, "callout_text")}
         elif name == "create_text_asset":
-            asset["text_asset"] = {"text": self._required(payload, "text")}
+            asset["text_asset"] = {"text": self._required_value(payload, "text")}
         elif name == "create_video_asset":
-            asset["youtube_video_asset"] = {"youtube_video_id": self._required(payload, "youtube_video_id")}
+            asset["youtube_video_asset"] = {
+                "youtube_video_id": self._required_value(payload, "youtube_video_id")
+            }
         return {"asset_operation": {"create": asset}}
 
     def _label_operation(self, name: str, customer_id: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1229,12 +1250,12 @@ class FriendlyDispatcher:
             return {
                 "label_operation": {
                     "create": {
-                        "name": self._required(payload, "name"),
+                        "name": self._required_value(payload, "name"),
                         "text_label": {"background_color": payload.get("background_color", "#4285F4")},
                     }
                 }
             }
-        label_id = self._required(payload, "label_id")
+        label_id = self._required_id(payload, "label_id")
         if name == "remove_label":
             return {"label_operation": {"remove": self._resource_name(customer_id, "labels", label_id)}}
         update = {"resource_name": self._resource_name(customer_id, "labels", label_id)}
@@ -1284,7 +1305,7 @@ class FriendlyDispatcher:
         customer_id: str,
         payload: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        label_id = self._required(payload, "label_id")
+        label_id = self._required_id(payload, "label_id")
         label = self._resource_name(customer_id, "labels", label_id)
         if "campaign" in name:
             return [
@@ -1311,7 +1332,7 @@ class FriendlyDispatcher:
                 for item in self._ids(payload, "ad_group_ids")
             ]
         if "keyword" in name:
-            ad_group_id = self._required(payload, "ad_group_id")
+            ad_group_id = self._required_id(payload, "ad_group_id")
             return [
                 {
                     "ad_group_criterion_label_operation": {
@@ -1343,7 +1364,7 @@ class FriendlyDispatcher:
         customer_id: str,
         payload: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        label_id = self._required(payload, "label_id")
+        label_id = self._required_id(payload, "label_id")
         if "campaign" in name:
             return [
                 {
@@ -1363,7 +1384,7 @@ class FriendlyDispatcher:
                 for ad_group_id in self._ids(payload, "ad_group_ids")
             ]
         if "keyword" in name:
-            ad_group_id = self._required(payload, "ad_group_id")
+            ad_group_id = self._required_id(payload, "ad_group_id")
             return [
                 {
                     "ad_group_criterion_label_operation": {
@@ -1378,7 +1399,7 @@ class FriendlyDispatcher:
                     "ad_group_ad_label_operation": {
                         "remove": (
                             f"customers/{customer_id}/adGroupAdLabels/"
-                            f"{self._required(item, 'ad_group_id')}~{self._required(item, 'ad_id')}~{label_id}"
+                            f"{self._required_id(item, 'ad_group_id')}~{self._required_id(item, 'ad_id')}~{label_id}"
                         )
                     }
                 }
@@ -1466,11 +1487,17 @@ class FriendlyDispatcher:
         if selected not in allowed:
             raise ValidationError("change_event supports only up to LAST_30_DAYS.")
 
-    def _required(self, payload: dict[str, Any], field: str) -> str:
+    def _required_value(self, payload: dict[str, Any], field: str) -> str:
         value = payload.get(field)
         if value is None or value == "":
             raise ValidationError(f"payload.{field} is required.")
-        return str(value).replace("-", "")
+        return str(value)
+
+    def _required_id(self, payload: dict[str, Any], field: str) -> str:
+        return self._required_value(payload, field).replace("-", "")
+
+    def _required(self, payload: dict[str, Any], field: str) -> str:
+        return self._required_value(payload, field)
 
     def _require_customer_id(
         self,
@@ -1494,8 +1521,8 @@ class FriendlyDispatcher:
     ) -> str:
         if payload.get("resource_name"):
             return payload["resource_name"]
-        ad_group_id = self._required(payload, "ad_group_id")
-        ad_id = self._required(payload, "ad_id")
+        ad_group_id = self._required_id(payload, "ad_group_id")
+        ad_id = self._required_id(payload, "ad_id")
         return f"customers/{customer_id}/adGroupAds/{ad_group_id}~{ad_id}"
 
     def _literal(self, value: Any) -> str:

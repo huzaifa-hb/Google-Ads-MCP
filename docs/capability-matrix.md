@@ -87,7 +87,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 | `update_shared_budget` | `budgets` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Update a shared budget. |
 | `batch_mutate` | `bulk` | `mutate` | `generic_routed` | GoogleAdsService.Mutate | `write` | no | Run up to 5,000 mixed mutate operations. |
 | `bulk_add_keywords` | `bulk` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Add keywords in bulk. |
-| `bulk_add_negative_keywords` | `bulk` | `negative_keyword` | `operation_template` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add negative keywords in bulk. |
+| `bulk_add_negative_keywords` | `bulk` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Add negative keywords in bulk. |
 | `bulk_enable_campaigns` | `bulk` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Enable campaigns in bulk. |
 | `bulk_pause_campaigns` | `bulk` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Pause campaigns in bulk. |
 | `bulk_update_bids` | `bulk` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Update keyword bids in bulk. |

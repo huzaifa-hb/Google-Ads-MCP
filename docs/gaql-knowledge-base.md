@@ -314,7 +314,7 @@ Use geographic_view. It returns criterion IDs, not readable names; map IDs throu
 
 **Notes**
 
-- This MCP contains a local geo target lookup for common IDs and a refresh script.
+- This MCP contains a local geo target lookup for common IDs, an optional GOOGLE_ADS_GEO_TARGETS_CSV runtime override, and a refresh script.
 
 **See also:** `resource-name-format`
 

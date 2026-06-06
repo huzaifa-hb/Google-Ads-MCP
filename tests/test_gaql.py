@@ -29,10 +29,6 @@ class GaqlTests(unittest.TestCase):
     def test_primary_field_present(self) -> None:
         ensure_primary_field("SELECT campaign.id, campaign.name FROM campaign", "campaign.id")
 
-    def test_offset_pagination_is_rejected(self) -> None:
-        with self.assertRaises(ValidationError):
-            apply_pagination("SELECT campaign.id FROM campaign", Pagination(page_size=2, offset=50))
-
     def test_default_parameters_added_once(self) -> None:
         query = apply_default_parameters("SELECT campaign.id FROM campaign")
 
@@ -49,6 +45,11 @@ class GaqlTests(unittest.TestCase):
             query,
             "SELECT campaign.id FROM campaign PARAMETERS include_drafts = true",
         )
+
+    def test_pagination_shape_is_page_token_only(self) -> None:
+        pagination = Pagination(page_size=2, page_token="next-token")
+
+        self.assertFalse(hasattr(pagination, "offset"))
 
     def test_explain_gaql_error_returns_specific_guidance(self) -> None:
         result = explain_gaql_error("EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE")

@@ -39,6 +39,7 @@ class CapabilityMatrixTests(unittest.TestCase):
             by_name["remove_label_from_keyword"].implementation_status,
             "hand_implemented",
         )
+        self.assertEqual(by_name["bulk_add_negative_keywords"].implementation_status, "hand_implemented")
         self.assertEqual(by_name["create_dsa_page_feed"].implementation_status, "operation_template")
         self.assertEqual(by_name["get_topic_report"].implementation_status, "unsupported_by_design")
 

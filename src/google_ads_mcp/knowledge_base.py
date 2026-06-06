@@ -353,7 +353,10 @@ ENTRIES: tuple[KBEntry, ...] = (
             q("Geo by country criterion", "SELECT campaign.id, geographic_view.country_criterion_id, metrics.impressions, metrics.clicks, metrics.cost_micros FROM geographic_view WHERE segments.date DURING LAST_30_DAYS", "campaign.id"),
             q("Geo for one campaign", "SELECT campaign.id, geographic_view.country_criterion_id, metrics.conversions, metrics.cost_micros FROM geographic_view WHERE campaign.id = 1234567890 AND segments.date DURING LAST_30_DAYS", "campaign.id"),
         ),
-        notes=("This MCP contains a local geo target lookup for common IDs and a refresh script.",),
+        notes=(
+            "This MCP contains a local geo target lookup for common IDs, an optional "
+            "GOOGLE_ADS_GEO_TARGETS_CSV runtime override, and a refresh script.",
+        ),
         see_also=("resource-name-format",),
     ),
     KBEntry(

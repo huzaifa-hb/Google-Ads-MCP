@@ -83,6 +83,7 @@ DIRECT_NEGATIVE_KEYWORD_TOOLS = {
     "remove_keywords_from_shared_list",
     "apply_shared_list_to_campaign",
     "remove_shared_list_from_campaign",
+    "bulk_add_negative_keywords",
 }
 
 

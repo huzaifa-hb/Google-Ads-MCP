@@ -67,7 +67,6 @@ def normalize_field_list(fields: Iterable[str] | str | None) -> list[str]:
 @dataclass(frozen=True)
 class Pagination:
     page_size: int = 1000
-    offset: int | None = None
     page_token: str | None = None
 
 
@@ -123,9 +122,7 @@ def ensure_primary_field(query: str, primary_field: str) -> None:
 
 
 def apply_pagination(query: str, pagination: Pagination) -> str:
-    if pagination.offset is None:
-        return query
-    raise ValidationError("GAQL does not support OFFSET. Use page_token pagination instead.")
+    return query
 
 
 def apply_default_parameters(query: str) -> str:
@@ -134,25 +131,16 @@ def apply_default_parameters(query: str) -> str:
     return f"{query} PARAMETERS omit_unselected_resource_names = true"
 
 
-def trim_offset_page(rows: list[dict], page_size: int, offset: int | None = None) -> list[dict]:
-    if offset is None:
-        return rows
-    return rows[:page_size]
-
-
 def summarize_page(
     rows: list[dict],
     page_size: int,
     page_token: str | None = None,
-    offset: int | None = None,
     fetched_count: int | None = None,
 ) -> dict:
-    fetched = len(rows) if fetched_count is None else fetched_count
-    has_more = bool(page_token) or (offset is not None and fetched > page_size)
+    has_more = bool(page_token)
     return {
         "row_count": len(rows),
         "has_more": has_more,
-        "next_offset": (offset or 0) + len(rows) if has_more and not page_token else None,
         "next_page_token": page_token,
     }
 

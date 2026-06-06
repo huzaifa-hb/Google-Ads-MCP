@@ -4,8 +4,10 @@ from datetime import date
 import unittest
 
 import _bootstrap  # noqa: F401
+from google_ads_mcp.capability_matrix import build_full_capability_matrix
 from google_ads_mcp.friendly import FriendlyDispatcher
 from google_ads_mcp.safety import ValidationError
+from google_ads_mcp.tool_catalog import FRIENDLY_TOOL_SPECS
 
 
 class FakeGateway:
@@ -107,6 +109,34 @@ class BranchingGateway(FakeGateway):
 
 
 class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_all_friendly_tools_have_dispatch_behavior_matching_capability_status(self) -> None:
+        status_by_name = {
+            row.tool: row.implementation_status
+            for row in build_full_capability_matrix(FRIENDLY_TOOL_SPECS)
+            if row.tool in {spec.name for spec in FRIENDLY_TOOL_SPECS}
+        }
+
+        for spec in FRIENDLY_TOOL_SPECS:
+            with self.subTest(tool=spec.name):
+                gateway = FakeGateway()
+                dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+                status = status_by_name[spec.name]
+                payload = {} if status == "operation_template" else _dispatcher_smoke_payload(spec.name)
+
+                result = await dispatcher.dispatch(
+                    spec.name,
+                    customer_id="1234567890",
+                    payload=payload,
+                )
+
+                if status == "operation_template":
+                    self.assertIn("operations", result["required_payload"])
+                elif status in {"unsupported_by_design", "deprecated", "eligibility_gated"}:
+                    self.assertEqual(result["error"], "unsupported_capability")
+                else:
+                    self.assertNotEqual(result.get("error"), "unsupported_capability")
+                    self.assertNotIn("required_payload", result)
+
     async def test_campaign_report_builds_custom_date_query(self) -> None:
         gateway = FakeGateway()
         dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
@@ -415,6 +445,78 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["operation_count"], 2)
 
+    async def test_bulk_add_negative_keywords_routes_through_negative_keyword_helper(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "bulk_add_negative_keywords",
+            customer_id="1234567890",
+            payload={"campaign_id": "123-456", "keywords": ["free"]},
+        )
+
+        create = result["operations"][0]["campaign_criterion_operation"]["create"]
+        self.assertEqual(create["campaign"], "customers/1234567890/campaigns/123456")
+        self.assertEqual(create["keyword"]["text"], "free")
+
+    async def test_bulk_add_negative_keywords_supports_ad_group_level(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "bulk_add_negative_keywords",
+            customer_id="1234567890",
+            payload={"level": "ad_group", "ad_group_id": "789-000", "keywords": ["cheap"]},
+        )
+
+        create = result["operations"][0]["ad_group_criterion_operation"]["create"]
+        self.assertEqual(create["ad_group"], "customers/1234567890/adGroups/789000")
+        self.assertEqual(create["keyword"]["text"], "cheap")
+
+    async def test_required_text_values_preserve_hyphens(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        label = await dispatcher.dispatch(
+            "create_label",
+            customer_id="1234567890",
+            payload={"name": "summer-sale-2026"},
+        )
+        video = await dispatcher.dispatch(
+            "create_video_asset",
+            customer_id="1234567890",
+            payload={"youtube_video_id": "abc-def_123"},
+        )
+
+        label_create = label["operations"][0]["label_operation"]["create"]
+        video_create = video["operations"][0]["asset_operation"]["create"]["youtube_video_asset"]
+        self.assertEqual(label_create["name"], "summer-sale-2026")
+        self.assertEqual(video_create["youtube_video_id"], "abc-def_123")
+
+    async def test_required_ids_still_normalize_hyphens(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "create_ad_group",
+            customer_id="1234567890",
+            payload={"campaign_id": "111-222", "name": "Core Ad Group"},
+        )
+
+        create = result["operations"][0]["ad_group_operation"]["create"]
+        self.assertEqual(create["campaign"], "customers/1234567890/campaigns/111222")
+
+    async def test_create_budget_requires_explicit_name_and_amount(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        with self.assertRaises(ValidationError):
+            await dispatcher.dispatch("create_budget", customer_id="1234567890", payload={})
+
+        result = await dispatcher.dispatch(
+            "create_budget",
+            customer_id="1234567890",
+            payload={"name": "Monthly-budget-2026", "amount_micros": 1_500_000},
+        )
+        create = result["operations"][0]["campaign_budget_operation"]["create"]
+        self.assertEqual(create["name"], "Monthly-budget-2026")
+        self.assertEqual(create["amount_micros"], 1_500_000)
+
     async def test_label_apply_direct_ad_payload(self) -> None:
         gateway = FakeGateway()
         dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
@@ -477,6 +579,66 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
                     "descriptions": ["Desc one"],
                 },
             )
+
+
+def _dispatcher_smoke_payload(tool_name: str) -> dict:
+    payload = {
+        "name": f"Smoke {tool_name}",
+        "budget_name": f"Budget {tool_name}",
+        "amount_micros": 1_000_000,
+        "daily_budget_micros": 1_000_000,
+        "campaign_id": "111",
+        "campaign_ids": ["111", "222"],
+        "budget_id": "999",
+        "ad_group_id": "333",
+        "ad_group_ids": ["333"],
+        "ad_id": "444",
+        "label_id": "555",
+        "ids": ["111"],
+        "criterion_ids": ["666"],
+        "keywords": [{"text": "smoke keyword", "match_type": "PHRASE"}],
+        "keyword_bids": [{"criterion_id": "666", "cpc_bid_micros": 1_000_000}],
+        "cpc_bid_micros": 1_000_000,
+        "final_urls": ["https://example.com"],
+        "headlines": ["Headline one", "Headline two", "Headline three"],
+        "descriptions": ["Description one", "Description two"],
+        "link_text": "Sitelink",
+        "callout_text": "Callout",
+        "text": "Text asset",
+        "youtube_video_id": "abc-def_123",
+        "shared_set_id": "777",
+        "campaign_shared_set_id": "888",
+        "billing_setup": "customers/1234567890/billingSetups/999",
+        "keywords_to_add": ["smoke"],
+        "language": "languageConstants/1000",
+        "url": "https://example.com",
+        "service_name": "GoogleAdsService",
+        "method_name": "search",
+        "request_type": "SearchGoogleAdsRequest",
+        "request": {"customer_id": "1234567890", "query": "SELECT customer.id FROM customer"},
+        "query": "SELECT campaign.id FROM campaign",
+        "primary_field": "campaign.id",
+        "merchant_id": "123456",
+        "feed_label": "US",
+        "campaign_priority": 1,
+        "target_roas": 4.0,
+        "target_cpa_micros": 1_000_000,
+        "background_color": "#4285F4",
+        "ads": [{"ad_group_id": "333", "ad_id": "444"}],
+    }
+    if tool_name == "batch_mutate":
+        payload["operations"] = [
+            {
+                "campaign_operation": {
+                    "update": {
+                        "resource_name": "customers/1234567890/campaigns/111",
+                        "status": "PAUSED",
+                    },
+                    "update_mask": "status",
+                }
+            }
+        ]
+    return payload
 
 
 if __name__ == "__main__":

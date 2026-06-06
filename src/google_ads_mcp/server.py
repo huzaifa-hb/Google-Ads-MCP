@@ -196,7 +196,6 @@ def build_mcp() -> Any:
         query: str,
         page_size: int = 1000,
         page_token: str | None = None,
-        offset: int | None = None,
         primary_field: str | None = None,
     ) -> dict[str, Any]:
         """Run a GAQL search query."""
@@ -206,7 +205,6 @@ def build_mcp() -> Any:
             query=query,
             page_size=page_size,
             page_token=page_token,
-            offset=offset,
             primary_field=primary_field,
         )
 
@@ -408,7 +406,6 @@ def _register_friendly_tool(
         time_segment: str | None = None,
         page_size: int = 1000,
         page_token: str | None = None,
-        offset: int | None = None,
         validate_only: bool = True,
         execute: bool = False,
         confirmation_phrase: str | None = None,
@@ -426,7 +423,6 @@ def _register_friendly_tool(
                 time_segment=time_segment,
                 page_size=page_size,
                 page_token=page_token,
-                offset=offset,
                 validate_only=validate_only,
                 execute=execute,
                 confirmation_phrase=confirmation_phrase,
