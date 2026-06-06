@@ -31,6 +31,7 @@ setup = [
 
 [project.scripts]
 google-ads-mcp = "google_ads_mcp.__main__:main"
+google-ads-mcp-auth = "google_ads_mcp.auth_setup:main"
 google-ads-mcp-stdio-relay = "google_ads_mcp.stdio_relay:main"
 
 [tool.setuptools.packages.find]

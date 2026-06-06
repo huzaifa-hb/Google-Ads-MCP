@@ -77,7 +77,7 @@ tokens, customer data, invoices, or audience upload files.
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+pip install -e ".[dev,setup]"
 Copy-Item .env.example .env
 ```
 
@@ -131,6 +131,19 @@ Google Ads credentials are still required for live API calls:
 - `GOOGLE_ADS_CLIENT_SECRET`
 - `GOOGLE_ADS_REFRESH_TOKEN`
 - optional `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
+
+Generate the refresh token with the packaged local setup helper:
+
+```powershell
+google-ads-mcp-auth --client-secrets .\client_secret_YOUR_APP.json
+```
+
+For local smoke tests, the helper can update `.env` without printing the refresh
+token:
+
+```powershell
+google-ads-mcp-auth --write-env --prompt
+```
 
 See [docs/tool-configuration.md](docs/tool-configuration.md),
 [docs/modes-and-safety.md](docs/modes-and-safety.md), and

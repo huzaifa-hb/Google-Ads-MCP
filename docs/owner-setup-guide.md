@@ -146,37 +146,43 @@ available port.
 Do not commit the downloaded OAuth JSON. The repo ignores `client_secret*.json`
 and `oauth*.json`.
 
-Generate the Google Ads refresh token:
+Generate the Google Ads refresh token with the packaged setup helper:
 
 ```powershell
-python scripts\generate_refresh_token.py --client-secrets .\client_secret_YOUR_APP.json
+google-ads-mcp-auth --client-secrets .\client_secret_YOUR_APP.json
 ```
 
 Or use direct values:
 
 ```powershell
-python scripts\generate_refresh_token.py `
+google-ads-mcp-auth `
   --client-id "YOUR_CLIENT_ID.apps.googleusercontent.com" `
   --client-secret "YOUR_CLIENT_SECRET"
 ```
 
-The script opens a browser. Sign in as the Google user who can access the ad
-accounts. Copy the printed `GOOGLE_ADS_REFRESH_TOKEN`.
+The helper opens a browser. Sign in as the Google user who can access the ad
+accounts. Copy the printed `GOOGLE_ADS_REFRESH_TOKEN` for Secret Manager.
 
 For local smoke tests, you can also have the script update `.env`
 automatically after the Google login succeeds:
 
 ```powershell
-python scripts\generate_refresh_token.py --write-env --prompt
+google-ads-mcp-auth --write-env --prompt
 ```
 
 The prompt asks for `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`,
 `GOOGLE_ADS_DEVELOPER_TOKEN`, and optional `GOOGLE_ADS_LOGIN_CUSTOMER_ID`.
 Omit the login customer ID for direct single-account access. In `--write-env`
-mode, the script saves `GOOGLE_ADS_REFRESH_TOKEN` locally and does not print it.
+mode, the helper saves `GOOGLE_ADS_REFRESH_TOKEN` locally and does not print it.
+
+The old script path still works as a compatibility wrapper:
+
+```powershell
+python scripts\generate_refresh_token.py --client-secrets .\client_secret_YOUR_APP.json
+```
 
 If Google does not return a refresh token, remove the app's prior access from
-your Google Account permissions, then run the script again.
+your Google Account permissions, then run the helper again.
 
 ## Step 6: Generate The MCP Bearer Token
 
