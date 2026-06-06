@@ -46,6 +46,15 @@ def _env_csv(name: str) -> tuple[str, ...]:
     return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
 
 
+def _normalize_google_ads_customer_id(value: str | None, *, name: str) -> str | None:
+    if not value:
+        return None
+    normalized = value.replace("-", "").replace(" ", "").strip()
+    if len(normalized) != 10 or not normalized.isdigit():
+        raise ConfigError(f"{name} must be a 10-digit Google Ads customer ID.")
+    return normalized
+
+
 @dataclass(frozen=True)
 class Settings:
     """Application settings.
@@ -97,7 +106,10 @@ class Settings:
             oauth_client_id=_env("GOOGLE_ADS_CLIENT_ID"),
             oauth_client_secret=_env("GOOGLE_ADS_CLIENT_SECRET"),
             refresh_token=_env("GOOGLE_ADS_REFRESH_TOKEN"),
-            login_customer_id=_env("GOOGLE_ADS_LOGIN_CUSTOMER_ID"),
+            login_customer_id=_normalize_google_ads_customer_id(
+                _env("GOOGLE_ADS_LOGIN_CUSTOMER_ID"),
+                name="GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+            ),
             google_project_id=_env("GOOGLE_PROJECT_ID") or _env("GOOGLE_CLOUD_PROJECT"),
             api_version=_env("GOOGLE_ADS_API_VERSION", "v24") or "v24",
             host=_env("HOST", "0.0.0.0") or "0.0.0.0",
@@ -165,8 +177,12 @@ class Settings:
             "refresh_token": self.refresh_token,
             "use_proto_plus": True,
         }
-        if self.login_customer_id:
-            config["login_customer_id"] = self.login_customer_id
+        login_customer_id = _normalize_google_ads_customer_id(
+            self.login_customer_id,
+            name="login_customer_id",
+        )
+        if login_customer_id:
+            config["login_customer_id"] = login_customer_id
         return config
 
 

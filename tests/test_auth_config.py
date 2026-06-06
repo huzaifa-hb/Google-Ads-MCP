@@ -141,6 +141,31 @@ class AuthConfigTests(unittest.TestCase):
         self.assertTrue(payload["google_ads_configured"])
         self.assertEqual(payload["missing"], [])
 
+    def test_google_ads_client_config_normalizes_login_customer_id(self) -> None:
+        settings = make_settings(
+            developer_token="dev",
+            oauth_client_id="client",
+            oauth_client_secret="secret",
+            refresh_token="refresh",
+            login_customer_id="123-456-7890",
+        )
+
+        config = settings.google_ads_client_config()
+
+        self.assertEqual(config["login_customer_id"], "1234567890")
+
+    def test_google_ads_client_config_rejects_invalid_login_customer_id(self) -> None:
+        settings = make_settings(
+            developer_token="dev",
+            oauth_client_id="client",
+            oauth_client_secret="secret",
+            refresh_token="refresh",
+            login_customer_id="act_123",
+        )
+
+        with self.assertRaises(ConfigError):
+            settings.google_ads_client_config()
+
     def test_dotenv_file_is_loaded_without_overriding_process_env(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             Path(temp_dir, ".env").write_text(

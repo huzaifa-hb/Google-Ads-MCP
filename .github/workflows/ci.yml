@@ -21,6 +21,9 @@ jobs:
       - name: Compile
         run: python -m compileall src scripts tests
 
+      - name: Ruff
+        run: ruff check .
+
       - name: Unit tests
         run: python -m unittest discover -s tests
 
