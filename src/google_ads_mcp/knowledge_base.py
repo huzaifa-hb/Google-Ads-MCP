@@ -200,8 +200,9 @@ ENTRIES: tuple[KBEntry, ...] = (
         question="How does GAQL pagination work?",
         keywords=("pagination", "page_size", "page_token", "limit", "next"),
         answer=(
-            "Google Ads search supports page_size and page_token for API paging. GAQL has LIMIT "
-            "but no OFFSET clause. This MCP returns has_more and next_page_token when available."
+            "Google Ads search supports page_token for API paging. This MCP maps page_size to "
+            "a GAQL LIMIT because request-level page_size is rejected by newer API versions. "
+            "GAQL has LIMIT but no OFFSET clause."
         ),
         queries=(
             q(

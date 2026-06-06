@@ -159,7 +159,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_campaign` | `query` | `campaign` | Get one campaign by id or resource name. |
 | `create_search_campaign` | `mutate` | `` | Create a Search campaign from Google Ads mutate operations. |
 | `create_display_campaign` | `mutate` | `` | Create a Display campaign from Google Ads mutate operations. |
-| `create_video_campaign` | `mutate` | `` | Create a Video campaign from Google Ads mutate operations. |
+| `create_video_campaign` | `unsupported` | `` | Create a Video campaign from Google Ads mutate operations. |
 | `create_shopping_campaign` | `mutate` | `` | Create a Shopping campaign from Google Ads mutate operations. |
 | `create_pmax_campaign` | `mutate` | `` | Create a Performance Max campaign from mutate operations. |
 | `create_demand_gen_campaign` | `mutate` | `` | Create a Demand Gen campaign from mutate operations. |

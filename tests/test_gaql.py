@@ -35,7 +35,7 @@ class GaqlTests(unittest.TestCase):
         self.assertIn("PARAMETERS omit_unselected_resource_names = true", query)
         self.assertEqual(apply_default_parameters(query), query)
 
-    def test_page_token_does_not_modify_query_text(self) -> None:
+    def test_pagination_adds_limit_before_parameters(self) -> None:
         query = apply_pagination(
             "SELECT campaign.id FROM campaign PARAMETERS include_drafts = true",
             Pagination(page_size=2, page_token="next-token"),
@@ -43,8 +43,16 @@ class GaqlTests(unittest.TestCase):
 
         self.assertEqual(
             query,
-            "SELECT campaign.id FROM campaign PARAMETERS include_drafts = true",
+            "SELECT campaign.id FROM campaign LIMIT 2 PARAMETERS include_drafts = true",
         )
+
+    def test_pagination_preserves_existing_limit(self) -> None:
+        query = apply_pagination(
+            "SELECT campaign.id FROM campaign LIMIT 5",
+            Pagination(page_size=2),
+        )
+
+        self.assertEqual(query, "SELECT campaign.id FROM campaign LIMIT 5")
 
     def test_pagination_shape_is_page_token_only(self) -> None:
         pagination = Pagination(page_size=2, page_token="next-token")

@@ -199,8 +199,13 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         budget = result["operations"][0]["campaign_budget_operation"]["create"]
         campaign = result["operations"][1]["campaign_operation"]["create"]
         self.assertEqual(budget["resource_name"], "customers/1234567890/campaignBudgets/-1")
+        self.assertFalse(budget["explicitly_shared"])
         self.assertEqual(campaign["advertising_channel_type"], "SEARCH")
         self.assertEqual(campaign["campaign_budget"], "customers/1234567890/campaignBudgets/-1")
+        self.assertEqual(
+            campaign["contains_eu_political_advertising"],
+            "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+        )
 
     async def test_create_responsive_search_ad_builds_operation(self) -> None:
         gateway = FakeGateway()
@@ -294,6 +299,7 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
                 "feed_label": "US",
                 "campaign_priority": 2,
                 "url_expansion_opt_out": True,
+                "logo_asset_id": "999",
             },
         )
         campaign = result["operations"][1]["campaign_operation"]["create"]
@@ -304,6 +310,15 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("sales_country", campaign["shopping_setting"])
         self.assertNotIn("url_expansion_opt_out", campaign)
         self.assertIn("maximize_conversion_value", campaign)
+        self.assertEqual(campaign["resource_name"], "customers/1234567890/campaigns/-2")
+        asset = result["operations"][2]["asset_operation"]["create"]
+        campaign_asset = result["operations"][3]["campaign_asset_operation"]["create"]
+        self.assertEqual(asset["text_asset"]["text"], "PMax")
+        self.assertEqual(campaign_asset["field_type"], "BUSINESS_NAME")
+        self.assertEqual(campaign_asset["campaign"], "customers/1234567890/campaigns/-2")
+        logo_campaign_asset = result["operations"][4]["campaign_asset_operation"]["create"]
+        self.assertEqual(logo_campaign_asset["asset"], "customers/1234567890/assets/999")
+        self.assertEqual(logo_campaign_asset["field_type"], "LOGO")
 
     async def test_shopping_campaign_keeps_priority_and_feed_label(self) -> None:
         gateway = FakeGateway()
@@ -323,7 +338,6 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
     async def test_non_search_campaign_defaults_to_compatible_bidding(self) -> None:
         dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
         cases = {
-            "create_video_campaign": "manual_cpv",
             "create_demand_gen_campaign": "maximize_conversions",
             "create_smart_campaign": "maximize_conversions",
         }
@@ -337,6 +351,17 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
                 )
                 campaign = result["operations"][1]["campaign_operation"]["create"]
                 self.assertIn(expected_key, campaign)
+
+    async def test_video_campaign_creation_returns_unsupported_guidance(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "create_video_campaign",
+            customer_id="1234567890",
+            payload={"name": "Video"},
+        )
+
+        self.assertEqual(result["error"], "unsupported_capability")
 
     async def test_target_roas_is_validated_as_ratio(self) -> None:
         dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]

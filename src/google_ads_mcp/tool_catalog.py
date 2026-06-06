@@ -493,6 +493,11 @@ UNSUPPORTED_TOOLS: dict[str, str] = {
         "Auction insight fields are version and account sensitive. Use live metadata and "
         "planning_plan_gaql_query before implementing this report."
     ),
+    "create_video_campaign": (
+        "Direct VIDEO campaign creation is not supported through this MCP's GoogleAdsService "
+        "mutate path in the current Google Ads API surface. Use Demand Gen, Performance Max, "
+        "or the Google Ads UI for video-first campaign setup."
+    ),
     "get_keyword_bid_estimates": (
         "Keyword bid estimates are not mapped to a stable high-level helper. Use Keyword Planner "
         "idea and forecast services directly only after checking live service metadata."
@@ -727,6 +732,10 @@ VALUE_REPORT_METRICS = BASIC_REPORT_METRICS + ("metrics.conversions_value",)
 
 REPORT_METRICS_BY_TOOL = {
     "get_change_history_report": (),
+    "get_ad_group_metrics": VALUE_REPORT_METRICS,
+    "get_ad_metrics": VALUE_REPORT_METRICS,
+    "get_keyword_metrics": VALUE_REPORT_METRICS,
+    "get_search_terms_report": VALUE_REPORT_METRICS,
     "get_ad_schedule_report": BASIC_REPORT_METRICS,
     "get_hour_of_day_performance": BASIC_REPORT_METRICS,
     "get_asset_performance_report": VALUE_REPORT_METRICS,

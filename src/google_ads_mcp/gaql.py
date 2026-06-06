@@ -122,7 +122,18 @@ def ensure_primary_field(query: str, primary_field: str) -> None:
 
 
 def apply_pagination(query: str, pagination: Pagination) -> str:
-    return query
+    if pagination.page_size < 1:
+        raise ValidationError("page_size must be at least 1.")
+    normalized = " ".join(query.lower().split())
+    if re.search(r"\blimit\s+\d+\b", normalized):
+        return query
+    limit = min(pagination.page_size, 10_000)
+    parameters_match = re.search(r"\bparameters\b", query, flags=re.IGNORECASE)
+    if parameters_match:
+        before = query[: parameters_match.start()].rstrip()
+        after = query[parameters_match.start() :].lstrip()
+        return f"{before} LIMIT {limit} {after}"
+    return f"{query.rstrip()} LIMIT {limit}"
 
 
 def apply_default_parameters(query: str) -> str:
@@ -169,6 +180,22 @@ def explain_gaql_error(error_text: str) -> dict[str, object]:
             "explanation": "At least one GAQL field does not exist in this Google Ads API version.",
             "suggested_fix": "Call validate_gaql_fields or get_google_ads_resource_metadata for the resource.",
             "related_tools": ["metadata_validate_gaql_fields", "metadata_suggest_gaql_fields"],
+        }
+    if "prohibited_segment_with_metric_in_select_or_where_clause" in lowered:
+        return {
+            "ok": True,
+            "error_type": "SEGMENT_METRIC_INCOMPATIBILITY",
+            "explanation": "The selected segment cannot be combined with one or more metrics.",
+            "suggested_fix": "Call planning_plan_gaql_query with the desired metrics and segments.",
+            "related_tools": ["planning_plan_gaql_query"],
+        }
+    if "date_range_too_wide" in lowered or "change_event" in lowered:
+        return {
+            "ok": True,
+            "error_type": "DATE_RANGE_LIMIT",
+            "explanation": "Some Google Ads resources, especially change_event, require narrow date ranges.",
+            "suggested_fix": "Use a preset like LAST_14_DAYS or a custom range within the resource limits.",
+            "related_tools": ["reporting_execute_gaql_query"],
         }
     if "field_not_selectable" in lowered:
         return {

@@ -101,7 +101,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 | `create_search_campaign` | `campaigns` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Create a Search campaign from Google Ads mutate operations. |
 | `create_shopping_campaign` | `campaigns` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Create a Shopping campaign from Google Ads mutate operations. |
 | `create_smart_campaign` | `campaigns` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Create a Smart campaign from mutate operations when supported. |
-| `create_video_campaign` | `campaigns` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Create a Video campaign from Google Ads mutate operations. |
+| `create_video_campaign` | `campaigns` | `unsupported` | `unsupported_by_design` | n/a | `read` | no | Direct VIDEO campaign creation is not supported through this MCP's GoogleAdsService mutate path in the current Google Ads API surface. Use Demand Gen, Performance Max, or the Google Ads UI for video-first campaign setup. |
 | `enable_campaign` | `campaigns` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Enable a campaign. |
 | `end_campaign_experiment` | `campaigns` | `mutate` | `operation_template` | GoogleAdsService.Mutate | `write` | no | End an experiment. |
 | `get_campaign` | `campaigns` | `query` | `hand_implemented` | GoogleAdsService.Search FROM campaign | `read` | no | Get one campaign by id or resource name. |

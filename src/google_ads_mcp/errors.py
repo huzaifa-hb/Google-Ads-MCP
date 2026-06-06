@@ -98,7 +98,13 @@ def _suggested_fix(message: str, errors: list[dict[str, Any]] | None = None) -> 
         return "Validate fields with metadata_validate_gaql_fields before retrying."
     if "field_not_selectable" in text or "field_not_filterable" in text:
         return "Check live metadata for selectable and filterable fields."
-    if "quota" in text or "resource_exhausted" in text or "rate" in text:
+    if (
+        "quota" in text
+        or "resource_exhausted" in text
+        or "rate_exceeded" in text
+        or "rate limit" in text
+        or "rate-limit" in text
+    ):
         return "Reduce request volume, use pagination, and retry later."
     if "permission" in text or "authorization" in text:
         return "Check the OAuth user, developer-token access level, and login customer."

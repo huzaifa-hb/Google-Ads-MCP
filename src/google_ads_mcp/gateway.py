@@ -160,7 +160,6 @@ class GoogleAdsGateway:
             request = self.get_type("SearchGoogleAdsRequest")
             request.customer_id = cid
             request.query = query
-            request.page_size = page_size
             if page_token:
                 request.page_token = page_token
             return service.search(request=request)

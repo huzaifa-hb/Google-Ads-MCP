@@ -12,7 +12,6 @@ from .tool_config import CORE_TOOL_DEFS, ToolExposure, ToolRegistry, classify_fr
 DIRECT_MUTATION_TOOLS = {
     "create_search_campaign",
     "create_display_campaign",
-    "create_video_campaign",
     "create_shopping_campaign",
     "create_pmax_campaign",
     "create_demand_gen_campaign",

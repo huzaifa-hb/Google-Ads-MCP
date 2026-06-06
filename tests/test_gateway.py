@@ -259,6 +259,7 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["pagination"]["next_page_token"], "next-token")
         self.assertIsNotNone(service.last_request)
         self.assertEqual(service.last_request.page_token, "existing-token")  # type: ignore[union-attr]
+        self.assertFalse(hasattr(service.last_request, "page_size"))
 
     async def test_committed_mutate_is_not_retried_on_transient_error(self) -> None:
         service = FailingMutateService()

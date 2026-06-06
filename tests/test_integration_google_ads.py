@@ -62,7 +62,6 @@ class GoogleAdsIntegrationTests(unittest.IsolatedAsyncioTestCase):
         cases = {
             "create_search_campaign": _campaign_payload("Search"),
             "create_display_campaign": _campaign_payload("Display"),
-            "create_video_campaign": _campaign_payload("Video"),
             "create_pmax_campaign": _campaign_payload("PMax"),
             "create_demand_gen_campaign": _campaign_payload("Demand Gen"),
         }
@@ -71,6 +70,18 @@ class GoogleAdsIntegrationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(tool_name=tool_name):
                 result = await _validate_only_dispatch(dispatcher, tool_name, customer_id, payload)
                 self.assertTrue(result["validate_only"])
+
+    async def test_video_campaign_create_helper_is_unsupported(self) -> None:
+        customer_id = _required_env("GOOGLE_ADS_MCP_TEST_CUSTOMER_ID")
+        dispatcher = _validation_dispatcher()
+
+        result = await dispatcher.dispatch(
+            "create_video_campaign",
+            customer_id=customer_id,
+            payload=_campaign_payload("Video"),
+        )
+
+        self.assertEqual(result["error"], "unsupported_capability")
 
     async def test_validation_only_shopping_campaign_create_helper(self) -> None:
         customer_id = _required_env("GOOGLE_ADS_MCP_TEST_CUSTOMER_ID")

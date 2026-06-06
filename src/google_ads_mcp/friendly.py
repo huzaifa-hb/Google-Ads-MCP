@@ -980,13 +980,23 @@ class FriendlyDispatcher:
             )
         operations: list[dict[str, Any]] = []
         if campaign_budget == temp_budget_resource:
-            operations.append(self._create_budget_operation(payload, resource_name=temp_budget_resource))
+            operations.append(
+                self._create_budget_operation(
+                    payload,
+                    explicitly_shared=False,
+                    resource_name=temp_budget_resource,
+                )
+            )
 
         campaign: dict[str, Any] = {
             "name": self._required_value(payload, "name"),
             "status": payload.get("status", "PAUSED"),
             "advertising_channel_type": channel_map[name],
             "campaign_budget": campaign_budget,
+            "contains_eu_political_advertising": payload.get(
+                "contains_eu_political_advertising",
+                "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            ),
         }
         if payload.get("start_date"):
             campaign["start_date"] = payload["start_date"]
@@ -1015,7 +1025,52 @@ class FriendlyDispatcher:
                     payload.get("campaign_priority", 0)
                 )
         campaign.update(self._bidding_payload(payload, channel_type=channel_map[name]))
+        pmax_business_name = None
+        if name == "create_pmax_campaign" and payload.get("include_business_name_asset", True):
+            pmax_business_name = str(
+                payload.get("business_name") or payload.get("brand_name") or payload["name"]
+            )[:25]
+            campaign["resource_name"] = self._resource_name(customer_id, "campaigns", "-2")
         operations.append({"campaign_operation": {"create": campaign}})
+        if pmax_business_name:
+            asset_resource = self._resource_name(customer_id, "assets", "-3")
+            operations.append(
+                {
+                    "asset_operation": {
+                        "create": {
+                            "resource_name": asset_resource,
+                            "name": payload.get("business_name_asset_name", "MCP PMax business name"),
+                            "text_asset": {"text": pmax_business_name},
+                        }
+                    }
+                }
+            )
+            operations.append(
+                {
+                    "campaign_asset_operation": {
+                        "create": {
+                            "campaign": campaign["resource_name"],
+                            "asset": asset_resource,
+                            "field_type": "BUSINESS_NAME",
+                        }
+                    }
+                }
+            )
+            logo_asset = payload.get("logo_asset_resource_name")
+            if not logo_asset and payload.get("logo_asset_id"):
+                logo_asset = self._resource_name(customer_id, "assets", payload["logo_asset_id"])
+            if logo_asset:
+                operations.append(
+                    {
+                        "campaign_asset_operation": {
+                            "create": {
+                                "campaign": campaign["resource_name"],
+                                "asset": logo_asset,
+                                "field_type": "LOGO",
+                            }
+                        }
+                    }
+                )
         return operations
 
     def _bidding_payload(

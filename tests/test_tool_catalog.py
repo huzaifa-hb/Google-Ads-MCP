@@ -96,6 +96,10 @@ class ToolCatalogTests(unittest.TestCase):
         }
         video_metrics = {"metrics.video_trueview_views", "metrics.video_trueview_view_rate"}
         report_names = [
+            "get_ad_group_metrics",
+            "get_ad_metrics",
+            "get_keyword_metrics",
+            "get_search_terms_report",
             "get_asset_performance_report",
             "get_asset_performance",
             "get_video_performance_report",

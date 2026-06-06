@@ -48,6 +48,13 @@ class ErrorFormattingTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error_type"], "ValidationError")
 
+    def test_bidding_strategy_error_is_not_treated_as_rate_limit(self) -> None:
+        result = format_google_ads_exception(
+            FakeGoogleAdsException("Bidding strategy type is incompatible with shared budget.")
+        )
+
+        self.assertNotIn("Reduce request volume", result["suggested_fix"])
+
 
 class ToolResponseWrapperTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrapper_returns_structured_validation_error(self) -> None:

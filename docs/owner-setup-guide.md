@@ -163,6 +163,18 @@ python scripts\generate_refresh_token.py `
 The script opens a browser. Sign in as the Google user who can access the ad
 accounts. Copy the printed `GOOGLE_ADS_REFRESH_TOKEN`.
 
+For local smoke tests, you can also have the script update `.env`
+automatically after the Google login succeeds:
+
+```powershell
+python scripts\generate_refresh_token.py --write-env --prompt
+```
+
+The prompt asks for `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`,
+`GOOGLE_ADS_DEVELOPER_TOKEN`, and optional `GOOGLE_ADS_LOGIN_CUSTOMER_ID`.
+Omit the login customer ID for direct single-account access. In `--write-env`
+mode, the script saves `GOOGLE_ADS_REFRESH_TOKEN` locally and does not print it.
+
 If Google does not return a refresh token, remove the app's prior access from
 your Google Account permissions, then run the script again.
 

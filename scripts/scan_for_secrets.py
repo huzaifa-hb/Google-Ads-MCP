@@ -8,10 +8,20 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", "google_ads_mcp.egg-info"}
+SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".codex-run",
+    ".claude",
+    "google_ads_mcp.egg-info",
+}
 SCAN_SUFFIXES = {".py", ".ps1", ".toml", ".yaml", ".yml", ".json", ".env", ".example"}
 SECRET_PATTERNS = {
     "google_api_key": re.compile(r"AIza[0-9A-Za-z_-]{30,}"),
@@ -39,8 +49,30 @@ def main() -> None:
 
 
 def _skip(path: Path) -> bool:
-    parts = set(path.relative_to(ROOT).parts)
+    relative = path.relative_to(ROOT)
+    if relative.as_posix() in IGNORED_PATHS:
+        return True
+    parts = set(relative.parts)
     return bool(parts & SKIP_DIRS)
+
+
+def _git_ignored_paths(root: Path) -> set[str]:
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--others", "-i", "--exclude-standard"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return set()
+    if result.returncode != 0:
+        return set()
+    return {line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()}
+
+
+IGNORED_PATHS = _git_ignored_paths(ROOT)
 
 
 if __name__ == "__main__":
