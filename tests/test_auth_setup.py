@@ -99,6 +99,7 @@ class AuthSetupTests(unittest.TestCase):
                 login_customer_id=None,
                 env_file=str(env_path),
                 write_env=True,
+                print_refresh_token=False,
                 prompt=False,
             )
             credentials = SimpleNamespace(refresh_token="secret-refresh-token")
@@ -119,6 +120,23 @@ class AuthSetupTests(unittest.TestCase):
         self.assertIn("GOOGLE_ADS_REFRESH_TOKEN=secret-refresh-token\n", content)
         self.assertIn("GOOGLE_ADS_CLIENT_ID=client-id\n", content)
         self.assertIn("GOOGLE_ADS_CLIENT_SECRET=client-secret\n", content)
+
+    def test_print_refresh_token_requires_explicit_flag(self) -> None:
+        args = argparse.Namespace(
+            client_secrets=None,
+            client_id="client-id",
+            client_secret="client-secret",
+            developer_token=None,
+            login_customer_id=None,
+            env_file=".env",
+            write_env=False,
+            print_refresh_token=False,
+            prompt=False,
+        )
+        credentials = SimpleNamespace(refresh_token="secret-refresh-token")
+
+        with self.assertRaises(SystemExit):
+            auth_setup._emit_or_store_credentials(args, credentials, auth_setup.build_parser())
 
 
 if __name__ == "__main__":

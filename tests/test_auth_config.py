@@ -50,9 +50,21 @@ class AuthConfigTests(unittest.TestCase):
             mcp_oauth_client_id="client-id",
             mcp_oauth_client_secret="client-secret",
             mcp_base_url="https://example.com",
+            mcp_allowed_emails=("owner@example.com",),
         )
 
         settings.require_mcp_auth()
+
+    def test_oauth_proxy_requires_allowlist(self) -> None:
+        settings = make_settings(
+            auth_mode="oauth_proxy",
+            mcp_oauth_client_id="client-id",
+            mcp_oauth_client_secret="client-secret",
+            mcp_base_url="https://example.com",
+        )
+
+        with self.assertRaises(ConfigError):
+            settings.require_mcp_auth()
 
     def test_oauth_allowlist_env_values_are_normalized(self) -> None:
         previous_email = os.environ.get("GOOGLE_ADS_MCP_ALLOWED_EMAILS")
@@ -122,6 +134,11 @@ class AuthConfigTests(unittest.TestCase):
             )
         )
 
+    def test_oauth_allowlist_rejects_empty_policy(self) -> None:
+        token = SimpleNamespace(claims={"email": "owner@example.com"}, subject="subject")
+
+        self.assertFalse(_oauth_token_allowed(token, allowed_emails=set(), allowed_domains=set()))
+
     def test_google_ads_readiness_payload_reports_missing_credentials(self) -> None:
         payload = _google_ads_readiness_payload(make_settings())
 
@@ -140,6 +157,19 @@ class AuthConfigTests(unittest.TestCase):
 
         self.assertTrue(payload["google_ads_configured"])
         self.assertEqual(payload["missing"], [])
+
+    def test_google_ads_readiness_payload_treats_placeholders_as_missing(self) -> None:
+        payload = _google_ads_readiness_payload(
+            make_settings(
+                developer_token="replace-with-developer-token",
+                oauth_client_id="client",
+                oauth_client_secret="secret",
+                refresh_token="refresh",
+            )
+        )
+
+        self.assertFalse(payload["google_ads_configured"])
+        self.assertIn("GOOGLE_ADS_DEVELOPER_TOKEN", payload["missing"])
 
     def test_google_ads_client_config_normalizes_login_customer_id(self) -> None:
         settings = make_settings(

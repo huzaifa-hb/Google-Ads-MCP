@@ -84,6 +84,7 @@ class ToolCatalogTests(unittest.TestCase):
             FRIENDLY_TOOL_BY_NAME["get_age_range_report"].fields,
         )
         self.assertNotIn("metrics.", " ".join(FRIENDLY_TOOL_BY_NAME["get_change_history_report"].fields))
+        self.assertNotIn("metrics.", " ".join(FRIENDLY_TOOL_BY_NAME["get_call_details_report"].fields))
         self.assertNotIn("segments.hour", FRIENDLY_TOOL_BY_NAME["get_ad_schedule_report"].fields)
 
     def test_sensitive_reports_use_curated_metrics(self) -> None:

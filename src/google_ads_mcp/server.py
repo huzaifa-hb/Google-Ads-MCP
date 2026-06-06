@@ -8,7 +8,7 @@ import inspect
 from typing import Any
 
 from .capability_matrix import capability_matrix_payload
-from .config import ConfigError, get_settings
+from .config import ConfigError, get_settings, value_looks_missing
 from .errors import format_tool_error
 from .friendly import FriendlyDispatcher
 from .gateway import GoogleAdsGateway
@@ -330,9 +330,7 @@ def _build_auth(settings: Any) -> Any:
                 "https://www.googleapis.com/auth/userinfo.profile",
             ],
         )
-        if settings.mcp_allowed_emails or settings.mcp_allowed_domains:
-            return _OAuthAllowlistProvider(provider, settings)
-        return provider
+        return _OAuthAllowlistProvider(provider, settings)
     try:
         from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
     except ImportError as exc:  # pragma: no cover
@@ -377,7 +375,7 @@ def _oauth_token_allowed(
     allowed_domains: set[str],
 ) -> bool:
     if not allowed_emails and not allowed_domains:
-        return True
+        return False
     claims = getattr(access_token, "claims", {}) or {}
     email = str(claims.get("email") or "").strip().lower()
     subject = str(getattr(access_token, "subject", "") or claims.get("sub") or "").strip().lower()
@@ -489,7 +487,7 @@ def _google_ads_readiness_payload(settings: Any) -> dict[str, Any]:
         "GOOGLE_ADS_CLIENT_SECRET": settings.oauth_client_secret,
         "GOOGLE_ADS_REFRESH_TOKEN": settings.refresh_token,
     }
-    missing = [name for name, value in required.items() if not value]
+    missing = [name for name, value in required.items() if value_looks_missing(value)]
     return {
         "status": "ready" if not missing else "not_ready",
         "service": "google-ads-mcp",

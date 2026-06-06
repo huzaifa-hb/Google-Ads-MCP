@@ -1,14 +1,25 @@
-# Owner Setup Guide: Host Your Own Google Ads MCP
+# Owner Setup Guide
 
 Last reviewed: 2026-06-05.
 
-This guide is for a private owner deployment where you clone this repo, connect
-your own Google Ads access, deploy to Cloud Run, and attach the MCP URL to AI
-agents. It is not a SaaS multi-tenant OAuth guide.
+This guide helps you connect your own Google Ads account to an AI assistant.
+
+It is written for private use: one owner, one agency, or one team that wants its
+own Google Ads connection. It is not a SaaS setup for many outside customers.
+
+Some Google steps are still technical because Google requires API credentials.
+If you have never worked with code before, you can still follow the guide, but
+you may want a technical helper for the Google Cloud steps.
 
 ## What You Are Building
 
-The final setup has these runtime values:
+You are building a private bridge:
+
+```text
+Your AI app -> Your private MCP server -> Your Google Ads account
+```
+
+The server needs these private values:
 
 | Credential | Where it comes from | What it does |
 |---|---|---|
@@ -22,32 +33,48 @@ The final setup has these runtime values:
 The developer token and OAuth token are separate. A developer token alone does
 not grant account access. An OAuth token alone cannot call Google Ads API.
 
+In plain English:
+
+- The developer token says your tool is allowed to use the Google Ads API.
+- The Google sign-in says which ad accounts the tool can access.
+- The MCP bearer token protects your private MCP server from random visitors.
+
 ## Before You Start
 
 You need:
 
-- A Google account with access to the Google Ads account you want to manage.
-- A Google Ads manager account if you need a developer token or MCC hierarchy.
+- A Google account that can access the ad account.
+- A Google Ads manager account if you need a developer token.
 - A Google Cloud project with billing enabled.
-- Google Cloud CLI installed and authenticated.
-- Python 3.12 or newer.
-- Git.
-- PowerShell. The examples use PowerShell because this repo's deploy helper is
-  a PowerShell script.
+- Node.js for the easy setup command.
+- PowerShell on Windows.
+
+Optional, but helpful:
+
+- A technical helper who can create the Google Cloud OAuth client.
+- Google Cloud CLI if you want to deploy to Cloud Run.
+- Python 3.12 or newer if you use the manual setup path.
 
 Use a leaf Google Ads customer ID for reporting and writes. Customer IDs are 10
 digits with no dashes, for example `1234567890`.
 
-## Step 1: Clone And Test The Repo
+## Step 1: Use The Easy Setup
+
+```powershell
+npx @huzaifa-hb/google-ads-mcp setup
+```
+
+This creates the local files, asks for credentials, opens Google sign-in, and
+checks whether the server is ready.
+
+Use the manual repo setup only if you are developing or changing the project:
 
 ```powershell
 git clone https://github.com/YOUR_ORG/google-ads-mcp.git
 cd google-ads-mcp
-
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev,setup]"
-
 python -m unittest discover -s tests
 ```
 
@@ -56,6 +83,9 @@ to the Python path. Editable install is still recommended because it installs
 runtime dependencies.
 
 ## Step 2: Get A Google Ads Developer Token
+
+This is the part most non-developers find confusing. It happens inside Google
+Ads, not inside this repo.
 
 1. Sign in to the Google Ads manager account that owns the API access.
 2. Open the API Center: `https://ads.google.com/aw/apicenter`.
@@ -78,6 +108,10 @@ Important details:
 Store the token as `GOOGLE_ADS_DEVELOPER_TOKEN`.
 
 ## Step 3: Create Or Select A GCP Project
+
+This is where Google stores the OAuth app and, for Cloud Run, the server
+deployment. If you only want a local test, you still need OAuth credentials, but
+you do not need to deploy Cloud Run yet.
 
 ```powershell
 gcloud auth login
@@ -149,7 +183,7 @@ and `oauth*.json`.
 Generate the Google Ads refresh token with the packaged setup helper:
 
 ```powershell
-google-ads-mcp-auth --client-secrets .\client_secret_YOUR_APP.json
+google-ads-mcp-auth --client-secrets .\client_secret_YOUR_APP.json --print-refresh-token
 ```
 
 Or use direct values:
@@ -157,11 +191,13 @@ Or use direct values:
 ```powershell
 google-ads-mcp-auth `
   --client-id "YOUR_CLIENT_ID.apps.googleusercontent.com" `
-  --client-secret "YOUR_CLIENT_SECRET"
+  --client-secret "YOUR_CLIENT_SECRET" `
+  --print-refresh-token
 ```
 
 The helper opens a browser. Sign in as the Google user who can access the ad
-accounts. Copy the printed `GOOGLE_ADS_REFRESH_TOKEN` for Secret Manager.
+accounts. Copy the printed `GOOGLE_ADS_REFRESH_TOKEN` for Secret Manager. The
+helper prints the token only when `--print-refresh-token` is explicitly set.
 
 For local smoke tests, you can also have the script update `.env`
 automatically after the Google login succeeds:
@@ -178,7 +214,7 @@ mode, the helper saves `GOOGLE_ADS_REFRESH_TOKEN` locally and does not print it.
 The old script path still works as a compatibility wrapper:
 
 ```powershell
-python scripts\generate_refresh_token.py --client-secrets .\client_secret_YOUR_APP.json
+python scripts\generate_refresh_token.py --client-secrets .\client_secret_YOUR_APP.json --print-refresh-token
 ```
 
 If Google does not return a refresh token, remove the app's prior access from

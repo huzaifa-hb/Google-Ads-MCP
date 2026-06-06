@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 import unittest
 
 import _bootstrap  # noqa: F401
@@ -8,6 +8,12 @@ from google_ads_mcp.capability_matrix import build_full_capability_matrix
 from google_ads_mcp.friendly import FriendlyDispatcher
 from google_ads_mcp.safety import ValidationError
 from google_ads_mcp.tool_catalog import FRIENDLY_TOOL_SPECS
+try:
+    from google.ads.googleads.v24.services.types.google_ads_service import MutateOperation
+    from google.protobuf.json_format import ParseDict
+except ImportError:  # pragma: no cover - project dependency may be absent in minimal envs
+    MutateOperation = None  # type: ignore[assignment]
+    ParseDict = None  # type: ignore[assignment]
 
 
 class FakeGateway:
@@ -235,6 +241,46 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         update = result["operations"][0]["ad_group_criterion_operation"]["update"]
         self.assertEqual(update["cpc_bid_micros"], 2_000_000)
         self.assertEqual(update["resource_name"], "customers/1234567890/adGroupCriteria/321~999")
+        self.assertEqual(
+            result["operations"][0]["ad_group_criterion_operation"]["update_mask"],
+            "cpcBidMicros",
+        )
+
+    @unittest.skipUnless(MutateOperation is not None and ParseDict is not None, "google-ads package is not installed")
+    async def test_update_helpers_emit_json_field_masks_that_parse(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+        cases = [
+            (
+                "link_budget_to_campaign",
+                {"campaign_id": "111", "budget_id": "222"},
+            ),
+            (
+                "update_network_settings",
+                {"campaign_id": "111", "target_google_search": True},
+            ),
+            (
+                "update_budget",
+                {"budget_id": "222", "amount_micros": 2_000_000, "delivery_method": "STANDARD"},
+            ),
+            (
+                "update_ad_group",
+                {"ad_group_id": "333", "cpc_bid_micros": 1_000_000},
+            ),
+            (
+                "update_keyword_bid",
+                {"ad_group_id": "333", "criterion_ids": ["666"], "cpc_bid_micros": 1_000_000},
+            ),
+            (
+                "update_label",
+                {"label_id": "555", "background_color": "#4285F4"},
+            ),
+        ]
+
+        for tool_name, payload in cases:
+            with self.subTest(tool_name=tool_name):
+                result = await dispatcher.dispatch(tool_name, customer_id="1234567890", payload=payload)
+                for operation in result["operations"]:
+                    ParseDict(operation, MutateOperation()._pb, ignore_unknown_fields=False)
 
     async def test_get_keyword_ideas_uses_default_service_mapping(self) -> None:
         gateway = FakeGateway()
@@ -438,6 +484,29 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("FROM change_event", result["query"])
         self.assertIn("change_event.change_date_time DURING LAST_30_DAYS", result["query"])
+        self.assertNotIn("metrics.", result["query"])
+
+    async def test_change_history_rejects_custom_ranges_outside_lookback(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+        old_start = (date.today() - timedelta(days=45)).isoformat()
+        old_end = (date.today() - timedelta(days=44)).isoformat()
+
+        with self.assertRaises(ValidationError):
+            await dispatcher.dispatch(
+                "get_change_history_report",
+                customer_id="1234567890",
+                start_date=old_start,
+                end_date=old_end,
+            )
+
+    async def test_call_details_report_does_not_add_default_metrics(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch("get_call_details_report", customer_id="1234567890")
+
+        self.assertIn("FROM call_view", result["query"])
+        self.assertIn("call_view.start_call_date_time DURING LAST_30_DAYS", result["query"])
+        self.assertNotIn("segments.date", result["query"])
         self.assertNotIn("metrics.", result["query"])
 
     async def test_ad_schedule_report_uses_single_segment_and_curated_metrics(self) -> None:

@@ -1,0 +1,38 @@
+{
+  "name": "@huzaifa-hb/google-ads-mcp",
+  "version": "0.1.0",
+  "description": "NPM-friendly wrapper CLI for the Python Google Ads MCP server.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "google-ads-mcp": "dist/node-cli/index.js"
+  },
+  "main": "dist/node-cli/index.js",
+  "files": [
+    "dist/node-cli",
+    "src/google_ads_mcp/*.py",
+    "src/google_ads_mcp/*.yaml",
+    "scripts/*.py",
+    "scripts/*.ps1",
+    "deploy/*.ps1",
+    "docs/*.md",
+    "pyproject.toml",
+    "README.md",
+    "tools_config.yaml",
+    "Dockerfile",
+    "LICENSE",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "test:node": "npm run build && node --test tests/node/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

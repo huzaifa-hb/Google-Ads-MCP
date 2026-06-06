@@ -74,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write local .env values instead of printing the refresh token.",
     )
     parser.add_argument(
+        "--print-refresh-token",
+        action="store_true",
+        help="Print the refresh token to stdout for manual Secret Manager entry.",
+    )
+    parser.add_argument(
         "--prompt",
         action="store_true",
         help="Prompt locally for missing client and token values.",
@@ -137,6 +142,9 @@ def _emit_or_store_credentials(
         print(f"Updated {Path(args.env_file)} with Google Ads OAuth values.")
         print("Refresh token was saved locally and was not printed.")
         return
+
+    if not args.print_refresh_token:
+        parser.error("Use --write-env to save locally, or --print-refresh-token to print the token.")
 
     print("\nGOOGLE_ADS_REFRESH_TOKEN")
     print(refresh_token)

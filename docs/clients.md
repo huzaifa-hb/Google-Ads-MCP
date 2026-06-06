@@ -1,37 +1,19 @@
-# Client Configuration
+# Connect Your AI App
 
-Replace the URL and bearer token with your Cloud Run service values.
+This page shows how to connect an AI app after the Google Ads MCP server is
+running.
 
-For platform-by-platform setup, including Codex, Claude Code, Antigravity,
-ChatGPT Developer Mode, Claude custom connectors, and stdio-only clients, see
-`docs/owner-setup-guide.md`.
+You need two things:
 
-## Header-Capable Remote MCP Clients
+- the MCP URL, usually something like `https://YOUR-CLOUD-RUN-URL/mcp`,
+- the private bearer token stored as `MCP_BEARER_TOKEN`.
 
-```json
-{
-  "mcpServers": {
-    "google-ads-mcp": {
-      "httpUrl": "https://YOUR-CLOUD-RUN-URL/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_MCP_BEARER_TOKEN"
-      }
-    }
-  }
-}
-```
+Do not paste the real token into public docs, screenshots, support tickets, or
+chat messages.
 
-Some clients call the field `url` instead of `httpUrl`; use the field your client expects.
+## Codex
 
-Cloud chatbots that do not support static bearer headers need an OAuth front
-door, an auth-injecting gateway, or a separate private test deployment. Do not
-expose a no-auth service connected to a real Google Ads account.
-
-For the built-in OAuth proxy mode, see `docs/oauth-front-door.md`.
-
-## Codex-Style Config
-
-If the client supports remote MCP URLs with bearer tokens:
+If Codex supports remote MCP URLs, use:
 
 ```toml
 [mcp_servers.google-ads-mcp]
@@ -39,43 +21,90 @@ url = "https://YOUR-CLOUD-RUN-URL/mcp"
 bearer_token_env_var = "MCP_BEARER_TOKEN"
 ```
 
-## Stdio-Only Clients
+You can generate this with:
 
-Use the included relay when a client supports stdio only and cannot attach HTTP headers:
+```powershell
+npx @huzaifa-hb/google-ads-mcp config --client codex --transport remote --url https://YOUR-CLOUD-RUN-URL/mcp
+```
+
+## Claude Desktop Or Apps That Launch Local Tools
+
+Some apps launch tools through a local command instead of connecting directly to
+a remote URL. Use the npm relay for those apps:
 
 ```json
 {
   "mcpServers": {
     "google-ads-mcp": {
-      "command": "google-ads-mcp-stdio-relay",
-      "env": {
-        "MCP_URL": "https://YOUR-CLOUD-RUN-URL/mcp",
-        "MCP_BEARER_TOKEN": "YOUR_MCP_BEARER_TOKEN"
+      "command": "npx",
+      "args": [
+        "-y",
+        "@huzaifa-hb/google-ads-mcp",
+        "relay",
+        "--url",
+        "https://YOUR-CLOUD-RUN-URL/mcp",
+        "--token-env",
+        "MCP_BEARER_TOKEN"
+      ]
+    }
+  }
+}
+```
+
+Generate it with:
+
+```powershell
+npx @huzaifa-hb/google-ads-mcp config --client claude-desktop --transport stdio --url https://YOUR-CLOUD-RUN-URL/mcp
+```
+
+The relay reads the token from the environment. It does not put the token in a
+`--token` argument.
+
+## Generic Remote MCP Clients
+
+If your AI app lets you add headers, use:
+
+```json
+{
+  "mcpServers": {
+    "google-ads-mcp": {
+      "httpUrl": "https://YOUR-CLOUD-RUN-URL/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
       }
     }
   }
 }
 ```
 
-The relay forwards JSON-RPC stdio messages to Streamable HTTP and carries the MCP session id between requests.
+Some apps use `url` instead of `httpUrl`. Use the field name your app expects.
 
-## Smoke Test
+## Test The Connection
 
-Call:
+In your AI app, ask it to call:
 
 ```text
 get_tool_catalog
 ```
 
-Then test a read:
+Then try a read-only request:
 
 ```text
-account_list_customers
+List my accessible Google Ads accounts.
 ```
 
-For writes, use validation mode first. Real writes require:
+If the app cannot connect, check:
+
+- Is the MCP URL correct?
+- Is `MCP_BEARER_TOKEN` set in the same place where the AI app runs?
+- Did you restart the AI app after changing its config?
+- Is the Cloud Run service awake and healthy?
+
+## Writes Are Still Locked Down
+
+The server starts in read-only mode. Real campaign changes require write mode
+and the confirmation phrase:
 
 ```text
-execute=true
-confirmation_phrase=CONFIRM_GOOGLE_ADS_WRITE
+CONFIRM_GOOGLE_ADS_WRITE
 ```

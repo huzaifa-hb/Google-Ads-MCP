@@ -9,6 +9,7 @@ __pycache__/
 venv/
 dist/
 build/
+node_modules/
 
 # Secrets and local credentials
 .env

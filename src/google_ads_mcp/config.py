@@ -15,12 +15,22 @@ class ConfigError(ValueError):
     """Raised when required runtime configuration is missing or invalid."""
 
 
+PLACEHOLDER_PREFIXES = ("replace-with", "YOUR_", "YOUR-", "set-in-")
+
+
 def _env(name: str, default: str | None = None) -> str | None:
     value = os.environ.get(name, default)
     if value is None:
         return None
     value = value.strip()
     return value or None
+
+
+def value_looks_missing(value: str | None) -> bool:
+    if value is None or not value.strip():
+        return True
+    normalized = value.strip()
+    return any(normalized.startswith(prefix) for prefix in PLACEHOLDER_PREFIXES)
 
 
 def _env_int(name: str, default: str) -> int:
@@ -141,6 +151,8 @@ class Settings:
                 "MCP_BEARER_TOKEN is required. Set ALLOW_UNAUTHENTICATED_MCP=true only "
                 "for local development."
             )
+        if self.auth_mode == "bearer" and value_looks_missing(self.mcp_bearer_token):
+            raise ConfigError("MCP_BEARER_TOKEN is missing or still set to a placeholder value.")
         if self.auth_mode == "oauth_proxy":
             missing = [
                 name
@@ -153,6 +165,11 @@ class Settings:
             ]
             if missing:
                 raise ConfigError(f"Missing OAuth MCP auth values: {', '.join(missing)}")
+            if not self.mcp_allowed_emails and not self.mcp_allowed_domains:
+                raise ConfigError(
+                    "OAuth proxy mode requires GOOGLE_ADS_MCP_ALLOWED_EMAILS or "
+                    "GOOGLE_ADS_MCP_ALLOWED_DOMAINS."
+                )
 
     def require_google_ads(self) -> None:
         missing = [
@@ -163,7 +180,7 @@ class Settings:
                 "GOOGLE_ADS_CLIENT_SECRET": self.oauth_client_secret,
                 "GOOGLE_ADS_REFRESH_TOKEN": self.refresh_token,
             }.items()
-            if not value
+            if value_looks_missing(value)
         ]
         if missing:
             raise ConfigError(f"Missing required Google Ads environment values: {', '.join(missing)}")

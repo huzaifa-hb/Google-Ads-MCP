@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from .gaql import GAQL_FIELD_RE, TIME_SEGMENTS, date_where_clause, select_clause
@@ -187,7 +187,7 @@ class FriendlyDispatcher:
             date_range=date_range,
             start_date=start_date,
             end_date=end_date,
-            field="change_event.change_date_time" if spec.resource == "change_event" else "segments.date",
+            field=self._report_date_field(spec.resource),
         )
         if date_clause:
             clauses.append(date_clause)
@@ -918,13 +918,6 @@ class FriendlyDispatcher:
                 }
                 for criterion_id in self._ids(payload, "criterion_ids")
             ]
-        if name == "bulk_add_negative_keywords":
-            level = payload.get("level", "campaign")
-            if level == "ad_group":
-                return self._negative_keyword_operations(
-                    "add_negative_keywords_ad_group", customer_id, payload
-                )
-            return self._negative_keyword_operations("add_negative_keywords_campaign", customer_id, payload)
         if name in {"create_sitelink", "create_callout", "create_text_asset", "create_video_asset"}:
             return [self._create_asset_operation(name, payload)]
         if name in {"create_label", "update_label", "remove_label"}:
@@ -1153,7 +1146,7 @@ class FriendlyDispatcher:
             mask.append("name")
         if not mask:
             raise ValidationError("Budget update requires amount_micros, delivery_method, or name.")
-        return {"campaign_budget_operation": {"update": update, "update_mask": ",".join(mask)}}
+        return {"campaign_budget_operation": {"update": update, "update_mask": self._field_mask(mask)}}
 
     def _campaign_update_operation(
         self,
@@ -1165,7 +1158,7 @@ class FriendlyDispatcher:
         if not updates:
             raise ValidationError("Campaign update requires at least one changed field.")
         update = {"resource_name": self._resource_name(customer_id, "campaigns", campaign_id), **updates}
-        return {"campaign_operation": {"update": update, "update_mask": ",".join(mask)}}
+        return {"campaign_operation": {"update": update, "update_mask": self._field_mask(mask)}}
 
     def _create_ad_group_operation(self, customer_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         campaign = payload.get("campaign_resource_name") or self._resource_name(
@@ -1195,7 +1188,7 @@ class FriendlyDispatcher:
                 mask.append(field)
         if not mask:
             raise ValidationError("Ad group update requires at least one changed field.")
-        return {"ad_group_operation": {"update": update, "update_mask": ",".join(mask)}}
+        return {"ad_group_operation": {"update": update, "update_mask": self._field_mask(mask)}}
 
     def _create_responsive_search_ad_operation(
         self,
@@ -1255,7 +1248,7 @@ class FriendlyDispatcher:
                             "resource_name": f"customers/{customer_id}/adGroupCriteria/{ad_group_id}~{item['criterion_id']}",
                             "cpc_bid_micros": int(item["cpc_bid_micros"]),
                         },
-                        "update_mask": "cpc_bid_micros",
+                        "update_mask": self._field_mask(["cpc_bid_micros"]),
                     }
                 }
             )
@@ -1323,7 +1316,7 @@ class FriendlyDispatcher:
             mask.append("text_label.background_color")
         if not mask:
             raise ValidationError("Label update requires name or background_color.")
-        return {"label_operation": {"update": update, "update_mask": ",".join(mask)}}
+        return {"label_operation": {"update": update, "update_mask": self._field_mask(mask)}}
 
     def _status_operation(
         self,
@@ -1536,11 +1529,20 @@ class FriendlyDispatcher:
             end = date.fromisoformat(validate_date(end_date, "end_date"))
             if (end - start).days > 30:
                 raise ValidationError("change_event supports a maximum 30-day lookback.")
+            if start < date.today() - timedelta(days=30):
+                raise ValidationError("change_event custom ranges must start within the last 30 days.")
             return
         allowed = {"TODAY", "YESTERDAY", "LAST_7_DAYS", "LAST_14_DAYS", "LAST_30_DAYS"}
         selected = (date_range or "LAST_30_DAYS").upper()
         if selected not in allowed:
             raise ValidationError("change_event supports only up to LAST_30_DAYS.")
+
+    def _report_date_field(self, resource: str | None) -> str:
+        if resource == "change_event":
+            return "change_event.change_date_time"
+        if resource == "call_view":
+            return "call_view.start_call_date_time"
+        return "segments.date"
 
     def _required_value(self, payload: dict[str, Any], field: str) -> str:
         value = payload.get(field)
@@ -1587,3 +1589,13 @@ class FriendlyDispatcher:
             return str(value)
         escaped = str(value).replace("\\", "\\\\").replace("'", "\\'")
         return f"'{escaped}'"
+
+    def _field_mask(self, paths: list[str]) -> str:
+        return ",".join(self._json_field_path(path) for path in paths)
+
+    def _json_field_path(self, path: str) -> str:
+        return ".".join(self._lower_camel(part) for part in path.split("."))
+
+    def _lower_camel(self, value: str) -> str:
+        parts = value.split("_")
+        return parts[0] + "".join(part[:1].upper() + part[1:] for part in parts[1:])

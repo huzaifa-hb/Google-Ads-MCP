@@ -655,7 +655,15 @@ REPORT_RESOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "get_call_details_report": (
         "call_view",
-        ("call_view.resource_name", "call_view.call_duration_seconds", "campaign.id"),
+        (
+            "call_view.resource_name",
+            "call_view.start_call_date_time",
+            "call_view.end_call_date_time",
+            "call_view.call_duration_seconds",
+            "call_view.call_status",
+            "call_view.call_tracking_display_location",
+            "campaign.id",
+        ),
         "call_view.resource_name",
     ),
     "get_change_history_report": (
@@ -732,6 +740,7 @@ VALUE_REPORT_METRICS = BASIC_REPORT_METRICS + ("metrics.conversions_value",)
 
 REPORT_METRICS_BY_TOOL = {
     "get_change_history_report": (),
+    "get_call_details_report": (),
     "get_ad_group_metrics": VALUE_REPORT_METRICS,
     "get_ad_metrics": VALUE_REPORT_METRICS,
     "get_keyword_metrics": VALUE_REPORT_METRICS,
