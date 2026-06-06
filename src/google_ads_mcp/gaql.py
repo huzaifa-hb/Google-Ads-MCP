@@ -121,19 +121,24 @@ def ensure_primary_field(query: str, primary_field: str) -> None:
         )
 
 
+def _query_without_string_literals(query: str) -> str:
+    return re.sub(r"'(?:\\.|''|[^'\\])*'", "''", query)
+
+
+def ensure_no_offset_clause(query: str) -> None:
+    scrubbed = _query_without_string_literals(query)
+    if re.search(r"\boffset\b", scrubbed, flags=re.IGNORECASE):
+        raise ValidationError(
+            "GAQL does not support OFFSET. Use pagination.next_page_token as page_token "
+            "to fetch the next page."
+        )
+
+
 def apply_pagination(query: str, pagination: Pagination) -> str:
     if pagination.page_size < 1:
         raise ValidationError("page_size must be at least 1.")
-    normalized = " ".join(query.lower().split())
-    if re.search(r"\blimit\s+\d+\b", normalized):
-        return query
-    limit = min(pagination.page_size, 10_000)
-    parameters_match = re.search(r"\bparameters\b", query, flags=re.IGNORECASE)
-    if parameters_match:
-        before = query[: parameters_match.start()].rstrip()
-        after = query[parameters_match.start() :].lstrip()
-        return f"{before} LIMIT {limit} {after}"
-    return f"{query.rstrip()} LIMIT {limit}"
+    ensure_no_offset_clause(query)
+    return query
 
 
 def apply_default_parameters(query: str) -> str:
@@ -153,6 +158,8 @@ def summarize_page(
         "row_count": len(rows),
         "has_more": has_more,
         "next_page_token": page_token,
+        "requested_page_size": page_size,
+        "google_ads_fixed_page_size": 10_000,
     }
 
 
@@ -163,6 +170,25 @@ def suggest_fields(field: str, candidates: Iterable[str], limit: int = 5) -> lis
 def explain_gaql_error(error_text: str) -> dict[str, object]:
     text = error_text or ""
     lowered = text.lower()
+    if "page_size_not_supported" in lowered or "setting the page size is not supported" in lowered:
+        return {
+            "ok": True,
+            "error_type": "PAGE_SIZE_NOT_SUPPORTED",
+            "explanation": "Google Ads Search uses a fixed 10,000-row page size.",
+            "suggested_fix": (
+                "Do not set SearchGoogleAdsRequest.page_size. Use next_page_token/page_token "
+                "for pages after the first, and use GAQL LIMIT only to cap the total result set."
+            ),
+            "related_tools": ["google_ads_search"],
+        }
+    if "offset" in lowered:
+        return {
+            "ok": True,
+            "error_type": "UNSUPPORTED_OFFSET",
+            "explanation": "GAQL does not support OFFSET-based pagination.",
+            "suggested_fix": "Use pagination.next_page_token as page_token to fetch the next page.",
+            "related_tools": ["google_ads_search", "google_ads_search_stream"],
+        }
     if "expected_referenced_field_in_select_clause" in lowered:
         return {
             "ok": True,

@@ -31,7 +31,8 @@ class RecordingService:
 
 
 class SearchRequest:
-    pass
+    def __init__(self) -> None:
+        self.page_size: int | None = None
 
 
 class SearchPager:
@@ -257,9 +258,24 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["rows"], SearchPager.results)
         self.assertEqual(result["pagination"]["next_page_token"], "next-token")
+        self.assertEqual(result["pagination"]["requested_page_size"], 2)
+        self.assertEqual(result["pagination"]["google_ads_fixed_page_size"], 10_000)
         self.assertIsNotNone(service.last_request)
         self.assertEqual(service.last_request.page_token, "existing-token")  # type: ignore[union-attr]
-        self.assertFalse(hasattr(service.last_request, "page_size"))
+        self.assertIsNone(service.last_request.page_size)  # type: ignore[union-attr]
+        self.assertNotIn("LIMIT", service.last_request.query)  # type: ignore[union-attr]
+
+    async def test_search_rejects_offset_before_service_call(self) -> None:
+        service = SearchService()
+        gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
+
+        with self.assertRaisesRegex(ValidationError, "OFFSET"):
+            await gateway.search(
+                customer_id="1234567890",
+                query="SELECT campaign.id FROM campaign LIMIT 10 OFFSET 10",
+            )
+
+        self.assertIsNone(service.last_request)
 
     async def test_committed_mutate_is_not_retried_on_transient_error(self) -> None:
         service = FailingMutateService()
@@ -302,6 +318,15 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
                 customer_id="1234567890",
                 query="SELECT campaign.id FROM campaign",
                 max_rows=0,
+            )
+
+    async def test_search_stream_rejects_offset_clause(self) -> None:
+        gateway = ParsingGateway(client=StreamClient(StreamService()), mode="safe_read_only")
+
+        with self.assertRaisesRegex(ValidationError, "OFFSET"):
+            await gateway.search_stream(
+                customer_id="1234567890",
+                query="SELECT campaign.id FROM campaign LIMIT 10 OFFSET 10",
             )
 
     async def test_retry_count_means_retries_after_first_attempt(self) -> None:

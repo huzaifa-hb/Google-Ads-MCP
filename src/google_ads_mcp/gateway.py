@@ -24,6 +24,7 @@ from .gaql import (
     apply_default_parameters,
     apply_pagination,
     date_where_clause,
+    ensure_no_offset_clause,
     ensure_primary_field,
     explain_gaql_error,
     normalize_field_list,
@@ -193,6 +194,7 @@ class GoogleAdsGateway:
             raise ValidationError("max_rows must be at least 1.")
         if primary_field:
             ensure_primary_field(query, primary_field)
+        ensure_no_offset_clause(query)
         query = apply_default_parameters(query)
 
         def call() -> Any:
