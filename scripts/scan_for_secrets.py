@@ -20,7 +20,12 @@ SKIP_DIRS = {
     ".ruff_cache",
     ".codex-run",
     ".claude",
+    ".next",
+    ".turbo",
+    "coverage",
+    "dist",
     "google_ads_mcp.egg-info",
+    "node_modules",
 }
 SCAN_SUFFIXES = {".py", ".ps1", ".toml", ".yaml", ".yml", ".json", ".env", ".example"}
 SECRET_PATTERNS = {

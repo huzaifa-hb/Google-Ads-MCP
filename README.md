@@ -12,6 +12,11 @@ private way to read Google Ads data, plan reports, inspect campaigns, and prepar
 safe changes. It starts in read-only mode by default, so it cannot change your
 campaigns unless you deliberately turn that on.
 
+The server exposes a broad Google Ads MCP catalog with mixed implementation
+levels: hand-built helpers, guarded generic service routes, operation templates,
+and explicitly unsupported or eligibility-gated capabilities. Check the
+capability matrix before relying on a specific write helper.
+
 ## Who This Is For
 
 Use this if you are a marketer, agency owner, media buyer, or PPC operator who
@@ -73,9 +78,9 @@ npx @huzaifa-hb/google-ads-mcp smoke
 ```
 
 If the smoke check passes, your AI app can connect.
-It also makes a read-only Google Ads `list_accessible_customers` call, so OAuth,
-developer-token, and account-access problems fail before you hand the server to
-an agent.
+It also discovers and calls the registered read-only
+`list_accessible_customers` tool, so OAuth, developer-token, and account-access
+problems fail before you hand the server to an agent.
 
 ## Connect Your AI App
 

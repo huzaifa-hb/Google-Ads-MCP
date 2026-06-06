@@ -38,7 +38,7 @@ google-ads-mcp-stdio-relay = "google_ads_mcp.stdio_relay:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-google_ads_mcp = ["default_tools_config.yaml"]
+google_ads_mcp = ["default_tools_config.yaml", "resources_data/*.md"]
 
 [tool.ruff]
 line-length = 100

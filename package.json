@@ -12,6 +12,7 @@
     "dist/node-cli",
     "src/google_ads_mcp/*.py",
     "src/google_ads_mcp/*.yaml",
+    "src/google_ads_mcp/resources_data/*.md",
     "scripts/*.py",
     "scripts/*.ps1",
     "deploy/*.ps1",

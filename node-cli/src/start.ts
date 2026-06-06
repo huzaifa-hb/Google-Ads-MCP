@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { readEnvFile } from "./env.js";
 import { healthUrlForMcpUrl, requestText } from "./http.js";
-import { venvPythonPath } from "./python.js";
+import { resolvePythonCommand, venvPythonPath } from "./python.js";
 
 export async function runStart(rootDir: string, options: {
   envFile: string;
@@ -25,10 +25,16 @@ export async function runStart(rootDir: string, options: {
     GOOGLE_ADS_MCP_MODE: options.mode || "safe_read_only",
     PORT: port
   };
-  const python = venvPythonPath(rootDir) || "python";
+  const venvPython = venvPythonPath(rootDir);
+  const python = venvPython
+    ? { command: venvPython, args: [] }
+    : await resolvePythonCommand();
+  if (!python) {
+    throw new Error("Python 3.12+ was not found via PYTHON, python, python3, or py.");
+  }
   const mcpUrl = `http://localhost:${env.PORT}/mcp`;
   console.log(`Starting Google Ads MCP at ${mcpUrl}`);
-  const child = spawn(python, ["-m", "google_ads_mcp"], {
+  const child = spawn(python.command, [...python.args, "-m", "google_ads_mcp"], {
     cwd: rootDir,
     env,
     stdio: "inherit",

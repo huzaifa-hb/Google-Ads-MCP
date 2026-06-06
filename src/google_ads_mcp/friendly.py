@@ -771,7 +771,6 @@ class FriendlyDispatcher:
         if name in {
             "create_search_campaign",
             "create_display_campaign",
-            "create_video_campaign",
             "create_shopping_campaign",
             "create_pmax_campaign",
             "create_demand_gen_campaign",
@@ -955,7 +954,6 @@ class FriendlyDispatcher:
         channel_map = {
             "create_search_campaign": "SEARCH",
             "create_display_campaign": "DISPLAY",
-            "create_video_campaign": "VIDEO",
             "create_shopping_campaign": "SHOPPING",
             "create_pmax_campaign": "PERFORMANCE_MAX",
             "create_demand_gen_campaign": "DEMAND_GEN",

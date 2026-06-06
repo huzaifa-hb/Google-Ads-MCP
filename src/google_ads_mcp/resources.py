@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +90,7 @@ def release_notes_resource(api_version: str, alias_of: str | None = None) -> str
 
 
 def tool_catalog_resource() -> str:
-    return _read_doc("tool-catalog.md") or _tool_catalog_markdown()
+    return _read_packaged_doc("tool-catalog.md") or _read_doc("tool-catalog.md") or _tool_catalog_markdown()
 
 
 def capability_matrix_resource(registry: ToolRegistry) -> str:
@@ -97,10 +98,21 @@ def capability_matrix_resource(registry: ToolRegistry) -> str:
 
 
 def gaql_knowledge_base_resource() -> str:
-    path = _docs_dir() / "gaql-knowledge-base.md"
-    if path.exists():
-        return path.read_text(encoding="utf-8")
-    return _gaql_knowledge_base_markdown()
+    return (
+        _read_packaged_doc("gaql-knowledge-base.md")
+        or _read_doc("gaql-knowledge-base.md")
+        or _gaql_knowledge_base_markdown()
+    )
+
+
+def _read_packaged_doc(filename: str) -> str:
+    try:
+        doc = resources.files("google_ads_mcp").joinpath("resources_data", filename)
+        if doc.is_file():
+            return doc.read_text(encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError, OSError):
+        return ""
+    return ""
 
 
 def _read_doc(filename: str) -> str:
