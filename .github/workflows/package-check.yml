@@ -21,3 +21,12 @@ jobs:
 
       - name: Install built wheel
         run: python -m pip install dist/*.whl
+
+      - name: Verify installed package resources
+        run: |
+          python - <<'PY'
+          from google_ads_mcp.resources import gaql_knowledge_base_resource, tool_catalog_resource
+
+          assert "Google Ads MCP Tool Catalog" in tool_catalog_resource()
+          assert "GAQL Knowledge Base" in gaql_knowledge_base_resource()
+          PY

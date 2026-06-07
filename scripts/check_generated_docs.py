@@ -18,8 +18,11 @@ from scripts.generate_tool_catalog import build_markdown as build_tool_catalog  
 
 GENERATED_DOCS = {
     Path("docs/tool-catalog.md"): build_tool_catalog,
+    Path("src/google_ads_mcp/resources_data/tool-catalog.md"): build_tool_catalog,
     Path("docs/gaql-knowledge-base.md"): build_knowledge_base,
+    Path("src/google_ads_mcp/resources_data/gaql-knowledge-base.md"): build_knowledge_base,
     Path("docs/capability-matrix.md"): build_capability_matrix,
+    Path("src/google_ads_mcp/resources_data/capability-matrix.md"): build_capability_matrix,
 }
 
 
