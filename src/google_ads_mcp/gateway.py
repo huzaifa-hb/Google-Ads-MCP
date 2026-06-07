@@ -8,13 +8,17 @@ logic without live credentials or installed Google Ads packages.
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from collections.abc import Callable
 from copy import deepcopy
 import inspect
+import json
 import logging
+from pathlib import Path
 import pkgutil
 import random
 import re
+import time
 from typing import Any
 
 from .config import Settings, get_settings
@@ -106,7 +110,10 @@ class GoogleAdsGateway:
         self._client = client
         self.mode = mode or self.settings.mcp_mode or "safe_read_only"
         self.audit_sink = audit_sink
-        self._resource_metadata_cache: dict[tuple[str, str], dict[str, Any]] = {}
+        self._resource_metadata_cache: OrderedDict[
+            tuple[str, str], tuple[float, dict[str, Any]]
+        ] = OrderedDict()
+        self._metadata_snapshot: dict[str, Any] | None = None
 
     @property
     def client(self) -> Any:
@@ -421,10 +428,10 @@ class GoogleAdsGateway:
     ) -> dict[str, Any]:
         resource = normalize_resource_name(resource_name)
         cache_key = (self.settings.api_version, resource)
-        if not force_refresh and cache_key in self._resource_metadata_cache:
-            cached = deepcopy(self._resource_metadata_cache[cache_key])
-            cached["cached"] = True
-            return cached
+        if not force_refresh:
+            cached = self._cached_resource_metadata(cache_key)
+            if cached is not None:
+                return cached
 
         cache_label = f"{self.settings.api_version}:{resource}"
         warnings: list[str] = []
@@ -445,6 +452,16 @@ class GoogleAdsGateway:
             try:
                 attributes = await self._search_google_ads_fields(fallback_query)
             except Exception as fallback_exc:
+                snapshot = self._metadata_from_snapshot(
+                    resource=resource,
+                    cache_key=cache_label,
+                    exc=fallback_exc,
+                    warnings=warnings,
+                    original_error=exc,
+                )
+                if snapshot is not None:
+                    self._store_resource_metadata(cache_key, snapshot)
+                    return snapshot
                 return self._metadata_error(
                     resource=resource,
                     cache_key=cache_label,
@@ -474,7 +491,7 @@ class GoogleAdsGateway:
             compatible=compatible,
             warnings=warnings,
         )
-        self._resource_metadata_cache[cache_key] = deepcopy(metadata)
+        self._store_resource_metadata(cache_key, metadata)
         return metadata
 
     async def validate_gaql_fields(
@@ -704,6 +721,97 @@ class GoogleAdsGateway:
             "error_summary": " | ".join(errors),
         }
 
+    def _cached_resource_metadata(self, cache_key: tuple[str, str]) -> dict[str, Any] | None:
+        if self.settings.metadata_cache_ttl_seconds <= 0:
+            return None
+        entry = self._resource_metadata_cache.get(cache_key)
+        if entry is None:
+            return None
+        created_at, metadata = entry
+        age = time.monotonic() - created_at
+        if age > self.settings.metadata_cache_ttl_seconds:
+            self._resource_metadata_cache.pop(cache_key, None)
+            return None
+        self._resource_metadata_cache.move_to_end(cache_key)
+        cached = deepcopy(metadata)
+        cached["cached"] = True
+        cached["cache_age_seconds"] = round(age, 3)
+        cached["cache_ttl_seconds"] = self.settings.metadata_cache_ttl_seconds
+        return cached
+
+    def _store_resource_metadata(
+        self,
+        cache_key: tuple[str, str],
+        metadata: dict[str, Any],
+    ) -> None:
+        if (
+            self.settings.metadata_cache_ttl_seconds <= 0
+            or self.settings.metadata_cache_max_entries <= 0
+        ):
+            return
+        self._resource_metadata_cache[cache_key] = (time.monotonic(), deepcopy(metadata))
+        self._resource_metadata_cache.move_to_end(cache_key)
+        while len(self._resource_metadata_cache) > self.settings.metadata_cache_max_entries:
+            self._resource_metadata_cache.popitem(last=False)
+
+    def _metadata_from_snapshot(
+        self,
+        *,
+        resource: str,
+        cache_key: str,
+        exc: Exception,
+        warnings: list[str],
+        original_error: Exception | None = None,
+    ) -> dict[str, Any] | None:
+        snapshot = self._load_metadata_snapshot()
+        resources = snapshot.get("resources", snapshot)
+        if not isinstance(resources, dict):
+            return None
+        raw_metadata = resources.get(resource)
+        if not isinstance(raw_metadata, dict):
+            return None
+        snapshot_warnings = [
+            *warnings,
+            "Live GoogleAdsFieldService unavailable; returned configured metadata snapshot.",
+        ]
+        errors = [str(exc)]
+        if original_error:
+            errors.insert(0, str(original_error))
+        if "attributes" in raw_metadata or "compatible" in raw_metadata:
+            metadata = self._build_resource_metadata(
+                resource=resource,
+                cache_key=cache_key,
+                attributes=list(raw_metadata.get("attributes", [])),
+                compatible=list(raw_metadata.get("compatible", [])),
+                warnings=snapshot_warnings,
+            )
+        else:
+            metadata = deepcopy(raw_metadata)
+            metadata.setdefault("ok", True)
+            metadata.setdefault("resource", resource)
+            metadata.setdefault("api_version", self.settings.api_version)
+            metadata.setdefault("cache_key", cache_key)
+            metadata["cached"] = False
+            metadata["warnings"] = snapshot_warnings + list(metadata.get("warnings", []))
+        metadata["source"] = "metadata_snapshot"
+        metadata["live_error_summary"] = " | ".join(errors)
+        return metadata
+
+    def _load_metadata_snapshot(self) -> dict[str, Any]:
+        if self._metadata_snapshot is not None:
+            return self._metadata_snapshot
+        path = self.settings.metadata_snapshot_path
+        if not path:
+            self._metadata_snapshot = {}
+            return self._metadata_snapshot
+        try:
+            snapshot_path = Path(path).expanduser()
+            self._metadata_snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            LOGGER.warning("Failed to load Google Ads metadata snapshot: %s", exc)
+            self._metadata_snapshot = {}
+        return self._metadata_snapshot
+
     def _build_resource_metadata(
         self,
         *,
@@ -738,6 +846,7 @@ class GoogleAdsGateway:
             "api_version": self.settings.api_version,
             "cache_key": cache_key,
             "cached": False,
+            "cache_ttl_seconds": self.settings.metadata_cache_ttl_seconds,
             "field_count": len(fields),
             "selectable": selectable,
             "filterable": filterable,

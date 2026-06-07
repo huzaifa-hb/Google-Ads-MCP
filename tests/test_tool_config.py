@@ -38,6 +38,10 @@ def make_settings(**overrides: object) -> Settings:
         "mcp_allowed_domains": (),
         "max_retries": 0,
         "retry_base_seconds": 0.0,
+        "audit_log_path": None,
+        "metadata_cache_ttl_seconds": 3600,
+        "metadata_cache_max_entries": 64,
+        "metadata_snapshot_path": None,
     }
     values.update(overrides)
     return Settings(**values)

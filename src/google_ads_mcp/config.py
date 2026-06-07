@@ -96,12 +96,22 @@ class Settings:
     mcp_allowed_domains: tuple[str, ...]
     max_retries: int
     retry_base_seconds: float
+    audit_log_path: str | None
+    metadata_cache_ttl_seconds: int
+    metadata_cache_max_entries: int
+    metadata_snapshot_path: str | None
 
     @classmethod
     def from_env(cls) -> "Settings":
         port = _env_int("PORT", "8080")
         max_retries = _env_int("GOOGLE_ADS_MAX_RETRIES", "3")
         retry_base_seconds = _env_float("GOOGLE_ADS_RETRY_BASE_SECONDS", "0.5")
+        metadata_cache_ttl_seconds = _env_int("GOOGLE_ADS_METADATA_CACHE_TTL_SECONDS", "3600")
+        metadata_cache_max_entries = _env_int("GOOGLE_ADS_METADATA_CACHE_MAX_ENTRIES", "64")
+        if metadata_cache_ttl_seconds < 0:
+            raise ConfigError("GOOGLE_ADS_METADATA_CACHE_TTL_SECONDS must be zero or greater.")
+        if metadata_cache_max_entries < 0:
+            raise ConfigError("GOOGLE_ADS_METADATA_CACHE_MAX_ENTRIES must be zero or greater.")
         allow_unauthenticated = (_env("ALLOW_UNAUTHENTICATED_MCP", "false") or "").lower()
         allow_legacy_write_defaults = (
             _env("GOOGLE_ADS_MCP_ALLOW_LEGACY_WRITE_DEFAULTS", "false") or ""
@@ -137,6 +147,10 @@ class Settings:
             mcp_allowed_domains=_env_csv("GOOGLE_ADS_MCP_ALLOWED_DOMAINS"),
             max_retries=max_retries,
             retry_base_seconds=retry_base_seconds,
+            audit_log_path=_env("GOOGLE_ADS_AUDIT_LOG_PATH"),
+            metadata_cache_ttl_seconds=metadata_cache_ttl_seconds,
+            metadata_cache_max_entries=metadata_cache_max_entries,
+            metadata_snapshot_path=_env("GOOGLE_ADS_METADATA_SNAPSHOT_PATH"),
         )
 
     def require_mcp_auth(self) -> None:

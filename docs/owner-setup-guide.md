@@ -584,23 +584,32 @@ OAuth front-door pattern described for ChatGPT.
 
 ### Stdio-Only Clients
 
-Some older clients can only launch local stdio MCP servers. Use the relay:
+Some older clients can only launch local stdio MCP servers. Use the npm relay:
 
 ```json
 {
   "mcpServers": {
     "google-ads-mcp": {
-      "command": "google-ads-mcp-stdio-relay",
-      "env": {
-        "MCP_URL": "https://YOUR-CLOUD-RUN-SERVICE-URL/mcp",
-        "MCP_BEARER_TOKEN": "YOUR_MCP_BEARER_TOKEN"
-      }
+      "command": "npx",
+      "args": [
+        "-y",
+        "@huzaifa-hb/google-ads-mcp",
+        "relay",
+        "--url",
+        "https://YOUR-CLOUD-RUN-SERVICE-URL/mcp",
+        "--token-env",
+        "MCP_BEARER_TOKEN",
+        "--env-file",
+        ".env"
+      ]
     }
   }
 }
 ```
 
-The relay forwards stdio JSON-RPC to the hosted Streamable HTTP endpoint.
+The relay forwards stdio JSON-RPC to the hosted Streamable HTTP endpoint. The
+older `google-ads-mcp-stdio-relay` Python entrypoint remains for existing
+pip-based installs, but new configs should use the npm relay.
 
 ## Step 13: First Useful Prompts
 

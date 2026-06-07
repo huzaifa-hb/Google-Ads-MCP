@@ -20,7 +20,18 @@ Call `metadata_get_google_ads_resource_metadata` to return:
 - compatible segments
 - cached status
 
-The metadata cache is keyed by API version and resource name.
+The metadata cache is keyed by API version and resource name. By default, cached
+entries live for one hour and the process keeps up to 64 resources:
+
+```env
+GOOGLE_ADS_METADATA_CACHE_TTL_SECONDS=3600
+GOOGLE_ADS_METADATA_CACHE_MAX_ENTRIES=64
+```
+
+Set either value to `0` to disable that part of caching. If you have a reviewed
+offline metadata snapshot, set `GOOGLE_ADS_METADATA_SNAPSHOT_PATH` to its JSON
+file path; the planner will use it only when live GoogleAdsFieldService metadata
+is unavailable.
 
 ## Validate Fields
 

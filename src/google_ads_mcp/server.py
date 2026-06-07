@@ -21,6 +21,7 @@ from .resources import (
     segments_resource,
     tool_catalog_resource,
 )
+from .safety import build_jsonl_audit_sink
 from .tool_config import ToolExposure, ToolRegistry, load_tool_registry
 from .tool_catalog import FRIENDLY_TOOL_SPECS
 
@@ -37,7 +38,11 @@ def build_mcp() -> Any:
     registry = load_tool_registry(settings)
     auth = _build_auth(settings)
     mcp = FastMCP("Google Ads Full API MCP", auth=auth)
-    gateway = GoogleAdsGateway(settings=settings, mode=registry.mode)
+    gateway = GoogleAdsGateway(
+        settings=settings,
+        mode=registry.mode,
+        audit_sink=build_jsonl_audit_sink(settings.audit_log_path),
+    )
     dispatcher = FriendlyDispatcher(gateway=gateway)
 
     @mcp.custom_route("/healthz", methods=["GET"])
@@ -474,6 +479,10 @@ def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, A
         "exposed_tool_count": len(registry.exposures),
         "legacy_aliases_enabled": registry.legacy_aliases_enabled,
         "generic_service_bridge_enabled": bool(settings.enable_generic_service_bridge),
+        "audit_log_enabled": bool(settings.audit_log_path),
+        "metadata_cache_ttl_seconds": settings.metadata_cache_ttl_seconds,
+        "metadata_cache_max_entries": settings.metadata_cache_max_entries,
+        "metadata_snapshot_enabled": bool(settings.metadata_snapshot_path),
         "oauth_allowlist_configured": bool(
             settings.mcp_allowed_emails or settings.mcp_allowed_domains
         ),

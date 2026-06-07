@@ -8,6 +8,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
@@ -186,6 +187,21 @@ def emit_write_audit_event(
         audit_sink(dict(event))
         return
     AUDIT_LOGGER.info(json.dumps(event, sort_keys=True))
+
+
+def build_jsonl_audit_sink(path: str | None) -> Callable[[dict[str, Any]], None] | None:
+    if not path:
+        return None
+    audit_path = Path(path).expanduser()
+    if audit_path.parent != Path("."):
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def sink(event: dict[str, Any]) -> None:
+        with audit_path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(event, sort_keys=True) + "\n")
+        AUDIT_LOGGER.info(json.dumps(event, sort_keys=True))
+
+    return sink
 
 
 def _audit_result(decision: WriteDecision) -> str:

@@ -39,6 +39,10 @@ operation count, result, and a hashed customer ID. Audit events must not include
 developer tokens, refresh tokens, bearer tokens, raw payloads, audience upload
 data, invoice files, or raw customer data.
 
+Set `GOOGLE_ADS_AUDIT_LOG_PATH` to append redacted audit events to a JSONL file
+in production. If it is unset, events are emitted through the
+`google_ads_mcp.audit` logger only.
+
 Bulk writes can set:
 
 - `partial_failure=false` to roll back the whole request when one operation fails

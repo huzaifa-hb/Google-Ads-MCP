@@ -17,6 +17,22 @@ from .gateway import GoogleAdsGateway
 from .geo_targets import resolve_geo_target
 from .safety import CONFIRMATION_PHRASE, ValidationError, normalize_customer_id, validate_date
 from .tool_catalog import FriendlyToolSpec, FRIENDLY_TOOL_BY_NAME
+from .tool_implementation import (
+    AD_GROUP_STATUS_TOOLS,
+    AD_STATUS_TOOLS,
+    APPLY_LABEL_TOOLS,
+    ASSET_MUTATION_TOOLS,
+    BUDGET_CREATE_TOOLS,
+    BUDGET_UPDATE_TOOLS,
+    CAMPAIGN_BULK_STATUS_TOOLS,
+    CAMPAIGN_CHANNEL_BY_CREATE_TOOL,
+    CAMPAIGN_CREATE_TOOLS,
+    CAMPAIGN_STATUS_TOOLS,
+    KEYWORD_BID_TOOLS,
+    KEYWORD_CREATE_TOOLS,
+    KEYWORD_STATUS_TOOLS,
+    REMOVE_LABEL_FROM_TOOLS,
+)
 
 
 class FriendlyDispatcher:
@@ -779,16 +795,9 @@ class FriendlyDispatcher:
     ) -> list[dict[str, Any]]:
         if name == "batch_mutate":
             return payload.get("operations", [])
-        if name in {
-            "create_search_campaign",
-            "create_display_campaign",
-            "create_shopping_campaign",
-            "create_pmax_campaign",
-            "create_demand_gen_campaign",
-            "create_app_campaign",
-        }:
+        if name in CAMPAIGN_CREATE_TOOLS:
             return self._create_campaign_operations(name, customer_id, payload)
-        if name in {"create_budget", "create_shared_budget"}:
+        if name in BUDGET_CREATE_TOOLS:
             return [
                 self._create_budget_operation(
                     payload,
@@ -796,7 +805,7 @@ class FriendlyDispatcher:
                     require_explicit=True,
                 )
             ]
-        if name in {"update_budget", "update_shared_budget"}:
+        if name in BUDGET_UPDATE_TOOLS:
             return [self._update_budget_operation(customer_id, payload)]
         if name == "remove_budget":
             return [
@@ -853,13 +862,13 @@ class FriendlyDispatcher:
                     ["network_settings"],
                 )
             ]
-        if name in {"bulk_pause_campaigns", "bulk_enable_campaigns"}:
+        if name in CAMPAIGN_BULK_STATUS_TOOLS:
             status = "PAUSED" if name == "bulk_pause_campaigns" else "ENABLED"
             return [
                 self._status_operation("campaign", customer_id, item, status)
                 for item in self._campaign_ids(payload)
             ]
-        if name in {"pause_campaign", "enable_campaign"}:
+        if name in CAMPAIGN_STATUS_TOOLS:
             status = "PAUSED" if name == "pause_campaign" else "ENABLED"
             return [
                 self._status_operation(
@@ -874,7 +883,7 @@ class FriendlyDispatcher:
             return [self._create_ad_group_operation(customer_id, payload)]
         if name == "update_ad_group":
             return [self._update_ad_group_operation(customer_id, payload)]
-        if name in {"pause_ad_group", "enable_ad_group"}:
+        if name in AD_GROUP_STATUS_TOOLS:
             status = "PAUSED" if name == "pause_ad_group" else "ENABLED"
             return [
                 self._status_operation("ad_group", customer_id, self._required_id(payload, "ad_group_id"), status)
@@ -885,7 +894,7 @@ class FriendlyDispatcher:
             ]
         if name == "create_responsive_search_ad":
             return [self._create_responsive_search_ad_operation(customer_id, payload)]
-        if name in {"pause_ad", "enable_ad"}:
+        if name in AD_STATUS_TOOLS:
             status = "PAUSED" if name == "pause_ad" else "ENABLED"
             return [self._ad_status_operation(customer_id, payload, status)]
         if name == "remove_ad":
@@ -896,7 +905,7 @@ class FriendlyDispatcher:
                     }
                 }
             ]
-        if name == "add_keywords" or name == "bulk_add_keywords":
+        if name in KEYWORD_CREATE_TOOLS:
             ad_group_id = self._required_id(payload, "ad_group_id")
             return [
                 {
@@ -913,9 +922,9 @@ class FriendlyDispatcher:
                 }
                 for item in self._keyword_items(payload)
             ]
-        if name == "update_keyword_bid" or name == "bulk_update_bids":
+        if name in KEYWORD_BID_TOOLS:
             return self._keyword_bid_operations(customer_id, payload)
-        if name in {"pause_keyword", "enable_keyword"}:
+        if name in KEYWORD_STATUS_TOOLS:
             status = "PAUSED" if name == "pause_keyword" else "ENABLED"
             return self._keyword_status_operations(customer_id, payload, status)
         if name == "remove_keywords":
@@ -927,31 +936,13 @@ class FriendlyDispatcher:
                 }
                 for criterion_id in self._ids(payload, "criterion_ids")
             ]
-        if name in {"create_sitelink", "create_callout", "create_text_asset", "create_video_asset"}:
+        if name in ASSET_MUTATION_TOOLS:
             return [self._create_asset_operation(name, payload)]
         if name in {"create_label", "update_label", "remove_label"}:
             return [self._label_operation(name, customer_id, payload)]
-        if name in {
-            "apply_label_to_campaign",
-            "apply_label_to_ad_group",
-            "apply_label_to_ad",
-            "apply_label_to_keyword",
-            "apply_campaign_label",
-            "apply_ad_group_label",
-            "apply_ad_label",
-            "apply_keyword_label",
-        }:
+        if name in APPLY_LABEL_TOOLS:
             return self._apply_label_operations(name, customer_id, payload)
-        if name in {
-            "remove_label_from_campaign",
-            "remove_label_from_ad_group",
-            "remove_label_from_ad",
-            "remove_label_from_keyword",
-            "remove_campaign_label",
-            "remove_ad_group_label",
-            "remove_ad_label",
-            "remove_keyword_label",
-        }:
+        if name in REMOVE_LABEL_FROM_TOOLS:
             return self._remove_label_operations(name, customer_id, payload)
         return []
 
@@ -961,14 +952,7 @@ class FriendlyDispatcher:
         customer_id: str,
         payload: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        channel_map = {
-            "create_search_campaign": "SEARCH",
-            "create_display_campaign": "DISPLAY",
-            "create_shopping_campaign": "SHOPPING",
-            "create_pmax_campaign": "PERFORMANCE_MAX",
-            "create_demand_gen_campaign": "DEMAND_GEN",
-            "create_app_campaign": "MULTI_CHANNEL",
-        }
+        channel_map = CAMPAIGN_CHANNEL_BY_CREATE_TOOL
         temp_budget_resource = self._resource_name(customer_id, "campaignBudgets", "-1")
         campaign_budget = payload.get("campaign_budget_resource_name")
         if not campaign_budget:

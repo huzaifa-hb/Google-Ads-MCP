@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 import _bootstrap  # noqa: F401
 from google_ads_mcp.gateway import GoogleAdsGateway
 from google_ads_mcp.safety import ValidationError
+from test_tool_config import make_settings
 
 
 FIELD_ROWS = [
@@ -120,6 +124,63 @@ class LiveMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("campaign.name", first["resource_fields"])
         self.assertIn("metrics.clicks", first["metrics"])
         self.assertIn("segments.date", first["segments"])
+
+    async def test_resource_metadata_cache_can_be_disabled(self) -> None:
+        service = MetadataService()
+        gateway = GoogleAdsGateway(
+            client=FakeClient(service),
+            settings=make_settings(metadata_cache_ttl_seconds=0),
+        )
+
+        first = await gateway.get_resource_metadata("campaign")
+        second = await gateway.get_resource_metadata("campaign")
+
+        self.assertFalse(first["cached"])
+        self.assertFalse(second["cached"])
+        self.assertEqual(len(service.queries), 4)
+
+    async def test_resource_metadata_cache_evicts_oldest_entry(self) -> None:
+        service = MetadataService()
+        gateway = GoogleAdsGateway(
+            client=FakeClient(service),
+            settings=make_settings(metadata_cache_max_entries=1),
+        )
+
+        await gateway.get_resource_metadata("campaign")
+        await gateway.get_resource_metadata("ad_group")
+        result = await gateway.get_resource_metadata("campaign")
+
+        self.assertFalse(result["cached"])
+        self.assertEqual(len(service.queries), 6)
+
+    async def test_metadata_snapshot_fallback_when_field_service_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            snapshot_path = Path(temp_dir) / "metadata.json"
+            snapshot_path.write_text(
+                json.dumps(
+                    {
+                        "resources": {
+                            "campaign": {
+                                "attributes": FIELD_ROWS,
+                                "compatible": COMPATIBLE_ROWS,
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            gateway = GoogleAdsGateway(
+                client=FakeClient(FailingMetadataService()),
+                settings=make_settings(metadata_snapshot_path=str(snapshot_path)),
+            )
+
+            result = await gateway.get_resource_metadata("campaign")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["source"], "metadata_snapshot")
+        self.assertIn("campaign.name", result["resource_fields"])
+        self.assertIn("metrics.clicks", result["metrics"])
+        self.assertIn("Live GoogleAdsFieldService unavailable", " ".join(result["warnings"]))
 
     async def test_invalid_resource_name_is_rejected(self) -> None:
         gateway = GoogleAdsGateway(client=FakeClient(MetadataService()))

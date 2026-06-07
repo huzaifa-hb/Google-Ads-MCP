@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 import _bootstrap  # noqa: F401
 from google_ads_mcp.safety import (
     CONFIRMATION_PHRASE,
     ValidationError,
+    build_jsonl_audit_sink,
     ensure_write_allowed,
     guard_google_ads_write,
     hash_customer_id,
@@ -107,6 +111,29 @@ class SafetyTests(unittest.TestCase):
                 audit_sink=events.append,
             )
         self.assertEqual(events[0]["result"], "denied")
+
+    def test_jsonl_audit_sink_appends_redacted_event(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "audit" / "writes.jsonl"
+            sink = build_jsonl_audit_sink(str(path))
+            self.assertIsNotNone(sink)
+
+            guard_google_ads_write(
+                mode="validation_only",
+                tool_name="pause_campaign",
+                customer_id="1234567890",
+                validate_only=False,
+                execute=True,
+                confirmation_phrase=CONFIRMATION_PHRASE,
+                audit_sink=sink,
+            )
+
+            lines = path.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(len(lines), 1)
+        event = json.loads(lines[0])
+        self.assertEqual(event["result"], "validated")
+        self.assertNotIn("1234567890", lines[0])
 
 
 if __name__ == "__main__":

@@ -78,6 +78,14 @@ Every write attempt logs a JSON audit event with:
 Audit events do not include raw payloads, secrets, audience upload data, invoice
 files, or raw customer data.
 
+By default, audit events go to the `google_ads_mcp.audit` logger. For production,
+set `GOOGLE_ADS_AUDIT_LOG_PATH` to append the same redacted events to a JSONL
+file:
+
+```env
+GOOGLE_ADS_AUDIT_LOG_PATH=/var/log/google-ads-mcp/write-audit.jsonl
+```
+
 ## Production Warning
 
 Do not expose a production Cloud Run endpoint with

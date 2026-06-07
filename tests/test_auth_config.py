@@ -15,7 +15,9 @@ from google_ads_mcp.server import (
     _OAuthAllowlistProvider,
     _google_ads_readiness_payload,
     _oauth_token_allowed,
+    _server_status_payload,
 )
+from google_ads_mcp.tool_config import build_tool_registry
 from test_tool_config import make_settings
 
 
@@ -214,6 +216,23 @@ class AuthConfigTests(unittest.TestCase):
         self.assertFalse(payload["google_ads_configured"])
         self.assertIn("GOOGLE_ADS_DEVELOPER_TOKEN", payload["missing"])
 
+    def test_server_status_reports_operational_settings_without_paths(self) -> None:
+        settings = make_settings(
+            audit_log_path="C:/private/audit.jsonl",
+            metadata_cache_ttl_seconds=120,
+            metadata_cache_max_entries=7,
+            metadata_snapshot_path="C:/private/metadata.json",
+        )
+        registry = build_tool_registry({"mode": "safe_read_only"})
+
+        payload = _server_status_payload(settings, registry)
+
+        self.assertTrue(payload["audit_log_enabled"])
+        self.assertEqual(payload["metadata_cache_ttl_seconds"], 120)
+        self.assertEqual(payload["metadata_cache_max_entries"], 7)
+        self.assertTrue(payload["metadata_snapshot_enabled"])
+        self.assertNotIn("C:/private", str(payload))
+
     def test_google_ads_client_config_normalizes_login_customer_id(self) -> None:
         settings = make_settings(
             developer_token="dev",
@@ -284,6 +303,29 @@ class AuthConfigTests(unittest.TestCase):
                 os.environ.pop("PORT", None)
             else:
                 os.environ["PORT"] = previous
+
+    def test_operational_env_settings_are_loaded(self) -> None:
+        names = {
+            "GOOGLE_ADS_AUDIT_LOG_PATH": "C:/logs/google-ads-audit.jsonl",
+            "GOOGLE_ADS_METADATA_CACHE_TTL_SECONDS": "120",
+            "GOOGLE_ADS_METADATA_CACHE_MAX_ENTRIES": "7",
+            "GOOGLE_ADS_METADATA_SNAPSHOT_PATH": "C:/snapshots/metadata.json",
+        }
+        previous = {name: os.environ.get(name) for name in names}
+        try:
+            os.environ.update(names)
+            settings = Settings.from_env()
+        finally:
+            for name, value in previous.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+        self.assertEqual(settings.audit_log_path, "C:/logs/google-ads-audit.jsonl")
+        self.assertEqual(settings.metadata_cache_ttl_seconds, 120)
+        self.assertEqual(settings.metadata_cache_max_entries, 7)
+        self.assertEqual(settings.metadata_snapshot_path, "C:/snapshots/metadata.json")
 
 
 if __name__ == "__main__":

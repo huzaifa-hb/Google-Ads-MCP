@@ -1,6 +1,6 @@
 # Google Ads MCP Capability Matrix
 
-This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ads_mcp/tool_config.py`, and `src/google_ads_mcp/capability_matrix.py`.
+This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ads_mcp/tool_config.py`, `src/google_ads_mcp/tool_implementation.py`, and `src/google_ads_mcp/capability_matrix.py`.
 
 | Tool | Namespace | Mode | Implementation Status | Backend | Read/Write | Requires Eligibility | Notes |
 |---|---|---|---|---|---|---|---|

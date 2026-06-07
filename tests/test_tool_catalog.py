@@ -18,6 +18,7 @@ from google_ads_mcp.tool_catalog import (
     REPORT_RESOURCES,
     build_tool_specs,
 )
+from google_ads_mcp.tool_implementation import DIRECT_MUTATION_GROUPS, WRITE_BUILDER_TOOLS
 
 
 class ToolCatalogTests(unittest.TestCase):
@@ -50,6 +51,12 @@ class ToolCatalogTests(unittest.TestCase):
             "batch_mutate",
         ]:
             self.assertIn(name, FRIENDLY_TOOL_BY_NAME)
+
+    def test_implementation_registry_names_exist_in_catalog(self) -> None:
+        grouped_names = frozenset().union(*DIRECT_MUTATION_GROUPS.values())
+        for name in WRITE_BUILDER_TOOLS | grouped_names:
+            with self.subTest(name=name):
+                self.assertIn(name, FRIENDLY_TOOL_BY_NAME)
 
     def test_similar_audience_is_explicitly_unsupported(self) -> None:
         self.assertEqual(FRIENDLY_TOOL_BY_NAME["create_similar_audience"].mode, "unsupported")

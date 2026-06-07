@@ -1,4 +1,8 @@
-"""Small stdio-to-Streamable-HTTP relay for clients that cannot send headers."""
+"""Legacy stdio-to-Streamable-HTTP relay.
+
+The npm `google-ads-mcp relay` command is the canonical relay for user-facing
+client configs. This Python entrypoint remains for existing pip-based installs.
+"""
 
 from __future__ import annotations
 

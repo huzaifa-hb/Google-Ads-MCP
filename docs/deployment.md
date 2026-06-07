@@ -31,6 +31,13 @@ Optional:
 The deploy script includes the optional login customer secret only when that
 secret exists in Secret Manager.
 
+Optional runtime environment values:
+
+- `GOOGLE_ADS_AUDIT_LOG_PATH`
+- `GOOGLE_ADS_METADATA_CACHE_TTL_SECONDS`
+- `GOOGLE_ADS_METADATA_CACHE_MAX_ENTRIES`
+- `GOOGLE_ADS_METADATA_SNAPSHOT_PATH`
+
 Use `scripts/set_gcp_secret.ps1` to create or rotate secrets without trailing
 newlines:
 
