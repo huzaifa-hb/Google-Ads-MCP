@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 import subprocess
@@ -10,8 +11,24 @@ import unittest
 
 import _bootstrap  # noqa: F401
 from google_ads_mcp.config import ConfigError, Settings, get_settings, reset_settings_cache
-from google_ads_mcp.server import _google_ads_readiness_payload, _oauth_token_allowed
+from google_ads_mcp.server import (
+    _OAuthAllowlistProvider,
+    _google_ads_readiness_payload,
+    _oauth_token_allowed,
+)
 from test_tool_config import make_settings
+
+
+class FakeOAuthProvider:
+    issuer = "https://accounts.google.com"
+
+    def __init__(self, token: object | None) -> None:
+        self.token = token
+        self.seen_token: str | None = None
+
+    async def verify_token(self, token: str) -> object | None:
+        self.seen_token = token
+        return self.token
 
 
 class AuthConfigTests(unittest.TestCase):
@@ -138,6 +155,32 @@ class AuthConfigTests(unittest.TestCase):
         token = SimpleNamespace(claims={"email": "owner@example.com"}, subject="subject")
 
         self.assertFalse(_oauth_token_allowed(token, allowed_emails=set(), allowed_domains=set()))
+
+    def test_oauth_allowlist_provider_filters_and_proxies_attributes(self) -> None:
+        token = SimpleNamespace(claims={"email": "owner@example.com"}, subject="subject")
+        provider = FakeOAuthProvider(token)
+        wrapper = _OAuthAllowlistProvider(
+            provider,
+            make_settings(mcp_allowed_emails=("owner@example.com",)),
+        )
+
+        result = asyncio.run(wrapper.verify_token("raw-token"))
+
+        self.assertIs(result, token)
+        self.assertEqual(provider.seen_token, "raw-token")
+        self.assertEqual(wrapper.issuer, "https://accounts.google.com")
+
+    def test_oauth_allowlist_provider_rejects_unknown_identity(self) -> None:
+        token = SimpleNamespace(claims={"email": "stranger@example.net"}, subject="subject")
+        provider = FakeOAuthProvider(token)
+        wrapper = _OAuthAllowlistProvider(
+            provider,
+            make_settings(mcp_allowed_emails=("owner@example.com",)),
+        )
+
+        result = asyncio.run(wrapper.verify_token("raw-token"))
+
+        self.assertIsNone(result)
 
     def test_google_ads_readiness_payload_reports_missing_credentials(self) -> None:
         payload = _google_ads_readiness_payload(make_settings())

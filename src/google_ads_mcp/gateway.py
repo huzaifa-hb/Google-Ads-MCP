@@ -14,6 +14,7 @@ import inspect
 import logging
 import pkgutil
 import random
+import re
 from typing import Any
 
 from .config import Settings, get_settings
@@ -27,6 +28,8 @@ from .gaql import (
     ensure_no_offset_clause,
     ensure_primary_field,
     explain_gaql_error,
+    gaql_filter_clause,
+    gaql_literal,
     normalize_field_list,
     normalize_resource_name,
     select_clause,
@@ -44,8 +47,16 @@ TRANSIENT_ERROR_MARKERS = (
     "DEADLINE_EXCEEDED",
     "INTERNAL",
     "RATE_EXCEEDED",
-    "quota",
-    "rate",
+    "QUOTA_EXCEEDED",
+)
+TRANSIENT_ERROR_RE = re.compile(
+    r"\b(resource[_ ]exhausted|unavailable|deadline[_ ]exceeded|internal|"
+    r"rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
+    flags=re.IGNORECASE,
+)
+QUOTA_OR_RATE_RE = re.compile(
+    r"\b(resource[_ ]exhausted|rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
+    flags=re.IGNORECASE,
 )
 
 MUTATING_METHOD_PREFIXES = (
@@ -290,7 +301,7 @@ class GoogleAdsGateway:
         confirmation_phrase: str | None = None,
         tool_name: str = "google_ads_call_service",
     ) -> dict[str, Any]:
-        payload = payload or {}
+        payload = dict(payload or {})
         method_looks_mutating = method_name.startswith(MUTATING_METHOD_PREFIXES)
         effective_is_write = bool(is_write) or method_looks_mutating
         read_allowed = (service_name, method_name) in READ_ONLY_SERVICE_METHODS
@@ -323,9 +334,6 @@ class GoogleAdsGateway:
                 operation_count=1,
                 audit_sink=self.audit_sink,
             )
-            payload = dict(payload)
-            payload["validate_only"] = write_decision.validate_only
-
         inferred_type = request_type or f"{snake_to_pascal(method_name)}Request"
 
         def call() -> Any:
@@ -334,7 +342,21 @@ class GoogleAdsGateway:
                 raise ValidationError(f"{service_name}.{method_name} is not available.")
             method = getattr(service, method_name)
             request = self.get_type(inferred_type)
-            self._parse_dict(payload, request)
+            request_payload = dict(payload)
+            if write_decision is not None:
+                supports_validate_only = self._message_has_field(request, "validate_only")
+                if supports_validate_only:
+                    request_payload["validate_only"] = write_decision.validate_only
+                elif write_decision.validate_only:
+                    raise ValidationError(
+                        f"{inferred_type} does not support validate_only. "
+                        "This service method cannot be previewed safely through "
+                        "google_ads_call_service; use a native validation-capable mutate path "
+                        "or confirm a real write explicitly."
+                    )
+                else:
+                    request_payload.pop("validate_only", None)
+            self._parse_dict(request_payload, request)
             return method(request=request)
 
         response = await self._retry(
@@ -824,42 +846,10 @@ class GoogleAdsGateway:
         raw_value: Any,
         data_type: str,
     ) -> str | None:
-        if isinstance(raw_value, dict):
-            operator = str(raw_value.get("operator", "=")).strip().upper()
-            value = raw_value.get("value")
-        else:
-            operator = "="
-            value = raw_value
-        allowed_operators = {"=", "!=", ">", ">=", "<", "<=", "LIKE", "IN", "NOT IN"}
-        if operator not in allowed_operators:
-            raise ValidationError(f"Unsupported GAQL filter operator '{operator}'.")
-        if value is None:
-            return None
-        if operator in {"IN", "NOT IN"}:
-            values = value if isinstance(value, list) else [value]
-            return (
-                f"{field_name} {operator} "
-                f"({', '.join(self._gaql_literal(item, data_type) for item in values)})"
-            )
-        return f"{field_name} {operator} {self._gaql_literal(value, data_type)}"
+        return gaql_filter_clause(field_name, raw_value, data_type)
 
     def _gaql_literal(self, value: Any, data_type: str = "") -> str:
-        if isinstance(value, bool):
-            return "TRUE" if value else "FALSE"
-        normalized_type = data_type.upper()
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return str(value)
-        text = str(value)
-        if normalized_type in {"INT32", "INT64", "UINT64", "DOUBLE", "FLOAT"}:
-            number_text = text.strip()
-            if number_text.replace(".", "", 1).isdigit():
-                return number_text
-        if normalized_type == "ENUM":
-            enum_text = text.strip().upper()
-            if enum_text.replace("_", "").isalnum():
-                return enum_text
-        text = str(value).replace("\\", "\\\\").replace("'", "\\'")
-        return f"'{text}'"
+        return gaql_literal(value, data_type)
 
     def _set_request_value(self, request: Any, name: str, value: Any) -> None:
         if isinstance(request, dict):
@@ -871,7 +861,9 @@ class GoogleAdsGateway:
         attempt = 0
         while True:
             try:
-                return fn()
+                return await asyncio.to_thread(fn)
+            except ValidationError:
+                raise
             except Exception as exc:  # pragma: no cover - exact Google exception classes vary by version.
                 attempt += 1
                 if not retryable or attempt > self.settings.max_retries or not self._is_transient(exc):
@@ -882,13 +874,15 @@ class GoogleAdsGateway:
 
     def _is_transient(self, exc: Exception) -> bool:
         text = str(exc)
-        return any(marker in text for marker in TRANSIENT_ERROR_MARKERS)
+        upper = text.upper()
+        return any(marker in upper for marker in TRANSIENT_ERROR_MARKERS) or bool(
+            TRANSIENT_ERROR_RE.search(text)
+        )
 
     def _format_exception(self, exc: Exception) -> RuntimeError:
         formatted = format_google_ads_exception(exc)
         message = str(exc)
-        lowered = message.lower()
-        if "quota" in lowered or "rate" in lowered or "resource_exhausted" in lowered:
+        if QUOTA_OR_RATE_RE.search(message):
             message = (
                 "Google Ads quota or rate limit was reached. Reduce request volume, use "
                 "pagination or batching, and check the developer-token access level. Raw detail: "
@@ -897,6 +891,14 @@ class GoogleAdsGateway:
         elif formatted.get("error_type") == "GoogleAdsException":
             message = str(formatted)
         return RuntimeError(message)
+
+    def _message_has_field(self, message: Any, field_name: str) -> bool:
+        if isinstance(message, dict):
+            return True
+        target = getattr(message, "_pb", message)
+        descriptor = getattr(target, "DESCRIPTOR", None)
+        fields = getattr(descriptor, "fields_by_name", {})
+        return field_name in fields
 
     def _parse_dict(self, payload: dict[str, Any], message: Any) -> Any:
         try:

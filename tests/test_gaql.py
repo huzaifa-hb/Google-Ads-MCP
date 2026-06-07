@@ -96,6 +96,23 @@ class GaqlTests(unittest.TestCase):
         self.assertEqual(result["error_type"], "PAGE_SIZE_NOT_SUPPORTED")
         self.assertIn("10,000", result["explanation"])
 
+    def test_explain_gaql_error_does_not_match_rate_inside_word(self) -> None:
+        result = explain_gaql_error("Bidding strategy type is incompatible.")
+
+        self.assertEqual(result["error_type"], "UNKNOWN_GAQL_ERROR")
+
+    def test_explain_gaql_error_matches_rate_limit_phrase(self) -> None:
+        result = explain_gaql_error("RATE_LIMIT exceeded by request.")
+
+        self.assertEqual(result["error_type"], "QUOTA_OR_RATE_LIMIT")
+
+    def test_default_parameters_ignores_word_inside_string_literal(self) -> None:
+        query = "SELECT campaign.id FROM campaign WHERE campaign.name = 'has parameters text'"
+
+        result = apply_default_parameters(query)
+
+        self.assertTrue(result.endswith("PARAMETERS omit_unselected_resource_names = true"))
+
 
 if __name__ == "__main__":
     unittest.main()

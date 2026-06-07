@@ -5,13 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from difflib import get_close_matches
 import re
-from typing import Iterable
+from typing import Any, Iterable
 
 from .safety import ValidationError, validate_date
 
 
 GAQL_FIELD_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$")
 GAQL_RESOURCE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+QUOTA_OR_RATE_RE = re.compile(
+    r"\b(resource[_ ]exhausted|rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
+    flags=re.IGNORECASE,
+)
+ALLOWED_FILTER_OPERATORS = {"=", "!=", ">", ">=", "<", "<=", "LIKE", "IN", "NOT IN"}
 
 PRESET_DATE_RANGES = {
     "TODAY",
@@ -142,9 +147,52 @@ def apply_pagination(query: str, pagination: Pagination) -> str:
 
 
 def apply_default_parameters(query: str) -> str:
-    if " parameters " in f" {query.lower()} ":
+    scrubbed = _query_without_string_literals(query)
+    if re.search(r"\bparameters\b", scrubbed, flags=re.IGNORECASE):
         return query
     return f"{query} PARAMETERS omit_unselected_resource_names = true"
+
+
+def gaql_literal(value: object, data_type: str = "") -> str:
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    normalized_type = data_type.upper()
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    text = str(value)
+    if normalized_type in {"INT32", "INT64", "UINT64", "DOUBLE", "FLOAT"}:
+        number_text = text.strip()
+        if number_text.replace(".", "", 1).isdigit():
+            return number_text
+    if normalized_type == "ENUM":
+        enum_text = text.strip().upper()
+        if enum_text.replace("_", "").isalnum():
+            return enum_text
+    escaped = text.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+
+def gaql_filter_clause(field_name: str, raw_value: Any, data_type: str = "") -> str | None:
+    if isinstance(raw_value, dict):
+        operator = str(raw_value.get("operator", "=")).strip().upper()
+        value = raw_value.get("value")
+    elif isinstance(raw_value, (list, tuple, set)):
+        operator = "IN"
+        value = raw_value
+    else:
+        operator = "="
+        value = raw_value
+    if operator not in ALLOWED_FILTER_OPERATORS:
+        raise ValidationError(f"Unsupported GAQL filter operator '{operator}'.")
+    if value is None:
+        return None
+    if operator in {"IN", "NOT IN"}:
+        values = value if isinstance(value, (list, tuple, set)) else [value]
+        return (
+            f"{field_name} {operator} "
+            f"({', '.join(gaql_literal(item, data_type) for item in values)})"
+        )
+    return f"{field_name} {operator} {gaql_literal(value, data_type)}"
 
 
 def summarize_page(
@@ -156,6 +204,7 @@ def summarize_page(
     has_more = bool(page_token)
     return {
         "row_count": len(rows),
+        "fetched_count": fetched_count if fetched_count is not None else len(rows),
         "has_more": has_more,
         "next_page_token": page_token,
         "requested_page_size": page_size,
@@ -239,7 +288,7 @@ def explain_gaql_error(error_text: str) -> dict[str, object]:
             "suggested_fix": "Plan the query again with fewer metrics or segments, then add fields gradually.",
             "related_tools": ["planning_plan_gaql_query"],
         }
-    if "resource_exhausted" in lowered or "quota" in lowered or "rate" in lowered:
+    if QUOTA_OR_RATE_RE.search(error_text):
         return {
             "ok": True,
             "error_type": "QUOTA_OR_RATE_LIMIT",

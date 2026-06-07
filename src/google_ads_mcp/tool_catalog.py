@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from .tool_implementation import DIRECT_MUTATION_TOOLS
+
 ToolMode = Literal[
     "query",
     "report",
@@ -51,12 +53,12 @@ TOOL_GROUPS: dict[str, list[tuple[str, str]]] = {
         ("get_campaign", "Get one campaign by id or resource name."),
         ("create_search_campaign", "Create a Search campaign from Google Ads mutate operations."),
         ("create_display_campaign", "Create a Display campaign from Google Ads mutate operations."),
-        ("create_video_campaign", "Create a Video campaign from Google Ads mutate operations."),
+        ("create_video_campaign", "Direct Video campaign creation is not supported by this MCP."),
         ("create_shopping_campaign", "Create a Shopping campaign from Google Ads mutate operations."),
         ("create_pmax_campaign", "Create a Performance Max campaign from mutate operations."),
         ("create_demand_gen_campaign", "Create a Demand Gen campaign from mutate operations."),
         ("create_app_campaign", "Create an App campaign from mutate operations."),
-        ("create_smart_campaign", "Create a Smart campaign from mutate operations when supported."),
+        ("create_smart_campaign", "Smart campaign creation is not supported by this MCP."),
         ("update_campaign", "Update campaign name, status, dates, tracking, or URL options."),
         ("pause_campaign", "Pause a campaign."),
         ("enable_campaign", "Enable a campaign."),
@@ -498,6 +500,11 @@ UNSUPPORTED_TOOLS: dict[str, str] = {
         "mutate path in the current Google Ads API surface. Use Demand Gen, Performance Max, "
         "or the Google Ads UI for video-first campaign setup."
     ),
+    "create_smart_campaign": (
+        "Direct Smart campaign creation is not exposed because SmartCampaignSetting cannot be "
+        "validated with validate_only in the current Google Ads API surface. Use the Google Ads "
+        "UI or a raw API flow only after explicit real-write approval."
+    ),
     "get_keyword_bid_estimates": (
         "Keyword bid estimates are not mapped to a stable high-level helper. Use Keyword Planner "
         "idea and forecast services directly only after checking live service metadata."
@@ -778,6 +785,23 @@ def _query_definition_for(name: str) -> tuple[str | None, tuple[str, ...], str |
     return resource, fields, primary
 
 
+def _surface_description(
+    name: str,
+    *,
+    mode: ToolMode,
+    description: str,
+    notes: str | None,
+) -> str:
+    if mode == "unsupported":
+        return f"Unsupported by this MCP: {notes or description}"
+    if mode == "mutate" and name != "batch_mutate" and name not in DIRECT_MUTATION_TOOLS:
+        return (
+            f"Template only: {description} Supply raw GoogleAdsService "
+            "MutateOperation payloads in payload.operations."
+        )
+    return description
+
+
 def build_tool_specs() -> tuple[FriendlyToolSpec, ...]:
     specs: list[FriendlyToolSpec] = []
     seen: set[str] = set()
@@ -810,7 +834,12 @@ def build_tool_specs() -> tuple[FriendlyToolSpec, ...]:
                 FriendlyToolSpec(
                     name=name,
                     category=category,
-                    description=description,
+                    description=_surface_description(
+                        name,
+                        mode=mode,
+                        description=description,
+                        notes=notes,
+                    ),
                     mode=mode,
                     resource=resource,
                     primary_field=primary_field,

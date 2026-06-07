@@ -71,6 +71,36 @@ class GoogleAdsIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 result = await _validate_only_dispatch(dispatcher, tool_name, customer_id, payload)
                 self.assertTrue(result["validate_only"])
 
+    async def test_validation_only_app_campaign_create_helper(self) -> None:
+        customer_id = _required_env("GOOGLE_ADS_MCP_TEST_CUSTOMER_ID")
+        app_id = _required_env("GOOGLE_ADS_MCP_TEST_APP_ID")
+        dispatcher = _validation_dispatcher()
+
+        result = await _validate_only_dispatch(
+            dispatcher,
+            "create_app_campaign",
+            customer_id,
+            {
+                **_campaign_payload("App"),
+                "app_id": app_id,
+                "app_store": os.environ.get("GOOGLE_ADS_MCP_TEST_APP_STORE", "GOOGLE_APP_STORE"),
+            },
+        )
+
+        self.assertTrue(result["validate_only"])
+
+    async def test_smart_campaign_create_helper_is_unsupported(self) -> None:
+        customer_id = _required_env("GOOGLE_ADS_MCP_TEST_CUSTOMER_ID")
+        dispatcher = _validation_dispatcher()
+
+        result = await dispatcher.dispatch(
+            "create_smart_campaign",
+            customer_id=customer_id,
+            payload=_campaign_payload("Smart"),
+        )
+
+        self.assertEqual(result["error"], "unsupported_capability")
+
     async def test_video_campaign_create_helper_is_unsupported(self) -> None:
         customer_id = _required_env("GOOGLE_ADS_MCP_TEST_CUSTOMER_ID")
         dispatcher = _validation_dispatcher()

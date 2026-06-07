@@ -114,6 +114,69 @@ class BranchingGateway(FakeGateway):
         return {"rows": [], "query": kwargs["query"]}
 
 
+class PaginatedHierarchyGateway(FakeGateway):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[tuple[str, str | None]] = []
+
+    async def search(self, **kwargs):
+        customer_id = kwargs["customer_id"]
+        page_token = kwargs["page_token"]
+        self.calls.append((customer_id, page_token))
+        if customer_id == "1000000000":
+            return {
+                "rows": [
+                    {
+                        "customer_client": {
+                            "id": "2000000000",
+                            "descriptive_name": "Manager",
+                            "manager": True,
+                            "level": "1",
+                            "status": "ENABLED",
+                            "client_customer": "customers/2000000000",
+                        }
+                    }
+                ],
+                "query": kwargs["query"],
+                "pagination": {"next_page_token": None},
+            }
+        if customer_id == "2000000000" and page_token is None:
+            return {
+                "rows": [
+                    {
+                        "customer_client": {
+                            "id": "2010000000",
+                            "descriptive_name": "Leaf first page",
+                            "manager": False,
+                            "level": "1",
+                            "status": "ENABLED",
+                            "client_customer": "customers/2010000000",
+                        }
+                    }
+                ],
+                "query": kwargs["query"],
+                "pagination": {"next_page_token": "child-page-2"},
+            }
+        if customer_id == "2000000000" and page_token == "child-page-2":
+            return {
+                "rows": [
+                    {
+                        "customer_client": {
+                            "id": "2020000000",
+                            "descriptive_name": "Leaf second page",
+                            "manager": False,
+                            "level": "1",
+                            "status": "ENABLED",
+                            "client_customer": "customers/2020000000",
+                        }
+                    }
+                ],
+                "query": kwargs["query"],
+                "pagination": {"next_page_token": None},
+            }
+        return {"rows": [], "query": kwargs["query"], "pagination": {"next_page_token": None}}
+
+
 class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_friendly_tools_have_dispatch_behavior_matching_capability_status(self) -> None:
         status_by_name = {
@@ -315,6 +378,19 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(managers["2000000000"]["children"][0]["id"], "2010000000")
         self.assertEqual(managers["3000000000"]["children"][0]["id"], "3010000000")
 
+    async def test_get_mcc_hierarchy_paginates_child_managers(self) -> None:
+        gateway = PaginatedHierarchyGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch("get_mcc_hierarchy", customer_id="1000000000")
+
+        manager = result["tree"]["children"][0]
+        self.assertEqual(
+            [child["id"] for child in manager["children"]],
+            ["2010000000", "2020000000"],
+        )
+        self.assertIn(("2000000000", "child-page-2"), gateway.calls)
+
     async def test_list_invoices_defaults_to_current_year(self) -> None:
         gateway = FakeGateway()
         dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
@@ -385,7 +461,6 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
         cases = {
             "create_demand_gen_campaign": "maximize_conversions",
-            "create_smart_campaign": "maximize_conversions",
         }
 
         for tool_name, expected_key in cases.items():
@@ -397,6 +472,71 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
                 )
                 campaign = result["operations"][1]["campaign_operation"]["create"]
                 self.assertIn(expected_key, campaign)
+
+    @unittest.skipUnless(MutateOperation is not None and ParseDict is not None, "google-ads package is not installed")
+    async def test_app_campaign_sets_required_app_fields_and_parses(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "create_app_campaign",
+            customer_id="1234567890",
+            payload={
+                "name": "App",
+                "app_id": "com.example.app",
+                "app_store": "GOOGLE_APP_STORE",
+            },
+        )
+        campaign = result["operations"][1]["campaign_operation"]["create"]
+
+        self.assertEqual(campaign["advertising_channel_type"], "MULTI_CHANNEL")
+        self.assertEqual(campaign["advertising_channel_sub_type"], "APP_CAMPAIGN")
+        self.assertEqual(campaign["app_campaign_setting"]["app_id"], "com.example.app")
+        for operation in result["operations"]:
+            ParseDict(operation, MutateOperation()._pb, ignore_unknown_fields=False)
+
+    async def test_smart_campaign_creation_returns_unsupported_guidance(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "create_smart_campaign",
+            customer_id="1234567890",
+            payload={"name": "Smart"},
+        )
+
+        self.assertEqual(result["error"], "unsupported_capability")
+        self.assertIn("validate_only", result["reason"])
+
+    async def test_friendly_filter_quotes_numeric_strings(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "list_campaigns",
+            customer_id="1234567890",
+            filters={"campaign.name": "12345"},
+        )
+
+        self.assertIn("campaign.name = '12345'", result["query"])
+
+    async def test_friendly_filter_supports_operator_dict(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "get_campaign_metrics",
+            customer_id="1234567890",
+            filters={"metrics.clicks": {"operator": ">", "value": 100}},
+        )
+
+        self.assertIn("metrics.clicks > 100", result["query"])
+
+    async def test_friendly_filter_rejects_unsupported_operator(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        with self.assertRaisesRegex(ValidationError, "Unsupported GAQL filter operator"):
+            await dispatcher.dispatch(
+                "get_campaign_metrics",
+                customer_id="1234567890",
+                filters={"metrics.clicks": {"operator": "BETWEEN", "value": 100}},
+            )
 
     async def test_video_campaign_creation_returns_unsupported_guidance(self) -> None:
         dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
@@ -706,6 +846,10 @@ def _dispatcher_smoke_payload(tool_name: str) -> dict:
         "keywords_to_add": ["smoke"],
         "language": "languageConstants/1000",
         "url": "https://example.com",
+        "final_url": "https://example.com",
+        "business_name": "Example",
+        "app_id": "com.example.app",
+        "app_store": "GOOGLE_APP_STORE",
         "service_name": "GoogleAdsService",
         "method_name": "search",
         "request_type": "SearchGoogleAdsRequest",

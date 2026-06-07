@@ -25,6 +25,10 @@ class RecordingService:
         self.last_request = dict(request)
         return {"ok": True, "request": self.last_request}
 
+    def apply_recommendation(self, request: object) -> dict[str, object]:
+        self.last_request = {"request_class": request.__class__.__name__}
+        return {"ok": True, "request_class": request.__class__.__name__}
+
     def list_accessible_customers(self, request: dict[str, object]) -> dict[str, object]:
         self.last_request = dict(request)
         return {"resource_names": ["customers/1234567890", "customers/2223334444"]}
@@ -120,6 +124,19 @@ class FakeClient:
         return {}
 
 
+class RealTypeClient(FakeClient):
+    def get_type(self, type_name: str) -> object:
+        if type_name == "ApplyRecommendationRequest":
+            try:
+                from google.ads.googleads.v24.services.types.recommendation_service import (
+                    ApplyRecommendationRequest,
+                )
+            except ImportError as exc:  # pragma: no cover - dependency is part of project env
+                raise unittest.SkipTest("google-ads package is not installed") from exc
+            return ApplyRecommendationRequest()
+        return super().get_type(type_name)
+
+
 class ParsingGateway(GoogleAdsGateway):
     def _parse_dict(self, payload: dict[str, object], message: dict[str, object]) -> dict[str, object]:
         message.update(payload)
@@ -179,6 +196,41 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["is_write"])
         self.assertIsNotNone(service.last_request)
         self.assertFalse(service.last_request["validate_only"])  # type: ignore[index]
+
+    async def test_validation_only_service_write_requires_request_validate_field(self) -> None:
+        service = RecordingService()
+        gateway = GoogleAdsGateway(client=RealTypeClient(service), mode="validation_only")
+
+        with self.assertRaisesRegex(ValidationError, "does not support validate_only"):
+            await gateway.call_service(
+                service_name="RecommendationService",
+                method_name="apply_recommendation",
+                request_type="ApplyRecommendationRequest",
+                payload={"customer_id": "1234567890", "operations": []},
+                is_write=True,
+                validate_only=True,
+                execute=False,
+            )
+
+        self.assertIsNone(service.last_request)
+
+    async def test_confirmed_service_write_without_validate_field_does_not_inject_it(self) -> None:
+        service = RecordingService()
+        gateway = GoogleAdsGateway(client=RealTypeClient(service), mode="write_enabled")
+
+        result = await gateway.call_service(
+            service_name="RecommendationService",
+            method_name="apply_recommendation",
+            request_type="ApplyRecommendationRequest",
+            payload={"customer_id": "1234567890", "operations": []},
+            is_write=True,
+            validate_only=False,
+            execute=True,
+            confirmation_phrase=CONFIRMATION_PHRASE,
+        )
+
+        self.assertTrue(result["is_write"])
+        self.assertEqual(service.last_request, {"request_class": "ApplyRecommendationRequest"})
 
     async def test_unlisted_service_read_is_denied_by_default(self) -> None:
         service = RecordingService()
@@ -296,6 +348,12 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(service.calls, 1)
+
+    def test_transient_detection_does_not_match_rate_inside_words(self) -> None:
+        gateway = GoogleAdsGateway(mode="safe_read_only")
+
+        self.assertFalse(gateway._is_transient(Exception("accurate validation error")))
+        self.assertTrue(gateway._is_transient(Exception("RATE_EXCEEDED")))
 
     async def test_search_stream_caps_rows_and_marks_truncated(self) -> None:
         gateway = ParsingGateway(client=StreamClient(StreamService()), mode="safe_read_only")

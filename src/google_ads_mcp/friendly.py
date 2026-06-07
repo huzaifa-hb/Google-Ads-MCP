@@ -5,7 +5,14 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from .gaql import GAQL_FIELD_RE, TIME_SEGMENTS, date_where_clause, select_clause
+from .gaql import (
+    GAQL_FIELD_RE,
+    TIME_SEGMENTS,
+    date_where_clause,
+    gaql_filter_clause,
+    gaql_literal,
+    select_clause,
+)
 from .gateway import GoogleAdsGateway
 from .geo_targets import resolve_geo_target
 from .safety import CONFIRMATION_PHRASE, ValidationError, normalize_customer_id, validate_date
@@ -509,11 +516,9 @@ class FriendlyDispatcher:
             if value is None:
                 continue
             field = self._filter_field(field)
-            if isinstance(value, (list, tuple, set)):
-                values = ", ".join(self._literal(item) for item in value)
-                clauses.append(f"{field} IN ({values})")
-            else:
-                clauses.append(f"{field} = {self._literal(value)}")
+            clause = gaql_filter_clause(field, value)
+            if clause:
+                clauses.append(clause)
         return clauses
 
     def _filter_field(self, field: str) -> str:
@@ -546,45 +551,51 @@ class FriendlyDispatcher:
                 "FROM customer_client "
                 "WHERE customer_client.level <= 1"
             )
-            result = await self.gateway.search(
-                customer_id=customer_id,
-                query=query,
-                page_size=page_size,
-                page_token=page_token if depth == 0 else None,
-                primary_field="customer_client.id",
-            )
-            for row in result.get("rows", []):
-                client = row.get("customer_client", {})
-                child_id = str(client.get("id", "")).replace("-", "")
-                if not child_id or child_id == customer_id:
-                    if child_id == customer_id:
-                        node.update(
-                            {
-                                "name": client.get("descriptive_name"),
-                                "manager": client.get("manager", True),
-                                "status": client.get("status"),
-                                "resource_name": client.get("client_customer"),
-                            }
-                        )
-                    continue
-                row_with_parent = {**row, "parent_customer_id": customer_id}
-                rows.append(row_with_parent)
-                child = {
-                    "id": child_id,
-                    "name": client.get("descriptive_name"),
-                    "manager": client.get("manager"),
-                    "status": client.get("status"),
-                    "resource_name": client.get("client_customer"),
-                    "children": [],
-                }
-                if client.get("manager") and child_id not in seen and depth < max_depth:
-                    child = await visit(child_id, depth + 1)
-                    child.setdefault("id", child_id)
-                    child.setdefault("name", client.get("descriptive_name"))
-                    child.setdefault("manager", client.get("manager"))
-                    child.setdefault("status", client.get("status"))
-                    child.setdefault("resource_name", client.get("client_customer"))
-                node["children"].append(child)
+            current_page_token = page_token if depth == 0 else None
+            while True:
+                result = await self.gateway.search(
+                    customer_id=customer_id,
+                    query=query,
+                    page_size=page_size,
+                    page_token=current_page_token,
+                    primary_field="customer_client.id",
+                )
+                for row in result.get("rows", []):
+                    client = row.get("customer_client", {})
+                    child_id = str(client.get("id", "")).replace("-", "")
+                    if not child_id or child_id == customer_id:
+                        if child_id == customer_id:
+                            node.update(
+                                {
+                                    "name": client.get("descriptive_name"),
+                                    "manager": client.get("manager", True),
+                                    "status": client.get("status"),
+                                    "resource_name": client.get("client_customer"),
+                                }
+                            )
+                        continue
+                    row_with_parent = {**row, "parent_customer_id": customer_id}
+                    rows.append(row_with_parent)
+                    child = {
+                        "id": child_id,
+                        "name": client.get("descriptive_name"),
+                        "manager": client.get("manager"),
+                        "status": client.get("status"),
+                        "resource_name": client.get("client_customer"),
+                        "children": [],
+                    }
+                    if client.get("manager") and child_id not in seen and depth < max_depth:
+                        child = await visit(child_id, depth + 1)
+                        child.setdefault("id", child_id)
+                        child.setdefault("name", client.get("descriptive_name"))
+                        child.setdefault("manager", client.get("manager"))
+                        child.setdefault("status", client.get("status"))
+                        child.setdefault("resource_name", client.get("client_customer"))
+                    node["children"].append(child)
+                next_page_token = result.get("pagination", {}).get("next_page_token")
+                if not next_page_token or next_page_token == current_page_token:
+                    break
+                current_page_token = next_page_token
             return node
 
         tree = await visit(root_customer_id, 0)
@@ -775,7 +786,6 @@ class FriendlyDispatcher:
             "create_pmax_campaign",
             "create_demand_gen_campaign",
             "create_app_campaign",
-            "create_smart_campaign",
         }:
             return self._create_campaign_operations(name, customer_id, payload)
         if name in {"create_budget", "create_shared_budget"}:
@@ -958,7 +968,6 @@ class FriendlyDispatcher:
             "create_pmax_campaign": "PERFORMANCE_MAX",
             "create_demand_gen_campaign": "DEMAND_GEN",
             "create_app_campaign": "MULTI_CHANNEL",
-            "create_smart_campaign": "SMART",
         }
         temp_budget_resource = self._resource_name(customer_id, "campaignBudgets", "-1")
         campaign_budget = payload.get("campaign_budget_resource_name")
@@ -997,6 +1006,22 @@ class FriendlyDispatcher:
             campaign["tracking_url_template"] = payload["tracking_template"]
         if payload.get("final_url_suffix"):
             campaign["final_url_suffix"] = payload["final_url_suffix"]
+        if name == "create_app_campaign":
+            campaign["advertising_channel_sub_type"] = payload.get(
+                "advertising_channel_sub_type",
+                "APP_CAMPAIGN",
+            )
+            campaign["app_campaign_setting"] = {
+                "app_id": self._required_value(payload, "app_id"),
+                "app_store": payload.get("app_store", "GOOGLE_APP_STORE"),
+                "bidding_strategy_goal_type": payload.get(
+                    "app_bidding_strategy_goal_type",
+                    payload.get(
+                        "bidding_strategy_goal_type",
+                        "OPTIMIZE_INSTALLS_WITHOUT_TARGET_INSTALL_COST",
+                    ),
+                ),
+            }
         if name == "create_search_campaign":
             campaign["network_settings"] = {
                 "target_google_search": payload.get("target_google_search", True),
@@ -1074,8 +1099,8 @@ class FriendlyDispatcher:
             return {"bidding_strategy": payload["bidding_strategy"]}
         default_by_channel = {
             "PERFORMANCE_MAX": "MAXIMIZE_CONVERSION_VALUE",
+            "MULTI_CHANNEL": "MAXIMIZE_CONVERSIONS",
             "VIDEO": "MANUAL_CPV",
-            "SMART": "MAXIMIZE_CONVERSIONS",
             "DEMAND_GEN": "MAXIMIZE_CONVERSIONS",
         }
         strategy = payload.get("bidding_strategy_type") or default_by_channel.get(
@@ -1581,12 +1606,7 @@ class FriendlyDispatcher:
         return f"customers/{customer_id}/adGroupAds/{ad_group_id}~{ad_id}"
 
     def _literal(self, value: Any) -> str:
-        if isinstance(value, bool):
-            return "TRUE" if value else "FALSE"
-        if isinstance(value, (int, float)) or str(value).isdigit():
-            return str(value)
-        escaped = str(value).replace("\\", "\\\\").replace("'", "\\'")
-        return f"'{escaped}'"
+        return gaql_literal(value)
 
     def _field_mask(self, paths: list[str]) -> str:
         return ",".join(self._json_field_path(path) for path in paths)

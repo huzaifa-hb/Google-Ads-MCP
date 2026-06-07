@@ -35,7 +35,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_account_settings` | `query` | `customer` | Account-level tracking and conversion settings. |
 | `list_linked_accounts` | `service` | `` | List Analytics, Merchant Center, Search Console, and product links. |
 | `get_account_budget` | `service` | `` | Read account-level budgets and proposals. |
-| `create_account_budget_proposal` | `mutate` | `` | Create an account-level budget proposal. |
+| `create_account_budget_proposal` | `mutate` | `` | Template only: Create an account-level budget proposal. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `list_invoices` | `service` | `` | List billing invoices. Requires payload.billing_setup; call get_billing_setup first. |
 | `download_invoice_pdf` | `service` | `` | Return invoice PDF metadata or URL when available from the API. |
 | `get_billing_setup` | `service` | `` | Read billing setup details. |
@@ -61,14 +61,14 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `list_ads` | `query` | `ad_group_ad` | List ads by campaign, ad group, status, or type. |
 | `get_ad` | `query` | `ad_group_ad` | Get one ad with approval status. |
 | `create_responsive_search_ad` | `mutate` | `` | Create a responsive search ad. |
-| `create_responsive_display_ad` | `mutate` | `` | Create a responsive display ad. |
-| `create_call_ad` | `mutate` | `` | Create a call ad. |
-| `create_app_ad` | `mutate` | `` | Create an app ad. |
-| `create_video_ad` | `mutate` | `` | Create a video ad. |
-| `create_demand_gen_ad` | `mutate` | `` | Create a Demand Gen ad. |
-| `create_dynamic_search_ad` | `mutate` | `` | Create a dynamic search ad. |
-| `create_shopping_product_ad` | `mutate` | `` | Create a Shopping product ad. |
-| `create_hotel_ad` | `mutate` | `` | Create a Hotel ad when supported. |
+| `create_responsive_display_ad` | `mutate` | `` | Template only: Create a responsive display ad. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_call_ad` | `mutate` | `` | Template only: Create a call ad. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_app_ad` | `mutate` | `` | Template only: Create an app ad. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_video_ad` | `mutate` | `` | Template only: Create a video ad. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_demand_gen_ad` | `mutate` | `` | Template only: Create a Demand Gen ad. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_dynamic_search_ad` | `mutate` | `` | Template only: Create a dynamic search ad. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_shopping_product_ad` | `mutate` | `` | Template only: Create a Shopping product ad. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_hotel_ad` | `mutate` | `` | Template only: Create a Hotel ad when supported. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `pause_ad` | `mutate` | `` | Pause an ad. |
 | `enable_ad` | `mutate` | `` | Enable an ad. |
 | `remove_ad` | `mutate` | `` | Remove an ad. |
@@ -83,12 +83,12 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 |---|---|---|---|
 | `list_assets` | `query` | `asset` | List reusable assets. |
 | `get_asset` | `query` | `asset` | Get one asset with policy and performance data. |
-| `upload_image_asset` | `mutate` | `` | Upload or create an image asset. |
+| `upload_image_asset` | `mutate` | `` | Template only: Upload or create an image asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `create_text_asset` | `mutate` | `` | Create a text asset. |
 | `create_video_asset` | `mutate` | `` | Create a YouTube video asset. |
 | `get_asset_performance` | `report` | `asset_group_asset` | Get asset serving performance. |
 | `get_asset_approval_status` | `service` | `` | Get asset policy approval status. |
-| `remove_asset` | `mutate` | `` | Remove an asset. |
+| `remove_asset` | `mutate` | `` | Template only: Remove an asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 
 ## Audiences
 
@@ -96,18 +96,18 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 |---|---|---|---|
 | `list_audiences` | `query` | `user_list` | List user lists and audience resources. |
 | `get_audience` | `query` | `user_list` | Get one audience or user list. |
-| `create_customer_match_audience` | `mutate` | `` | Create a Customer Match audience. |
-| `append_to_customer_match_audience` | `mutate` | `` | Append hashed members to Customer Match. |
-| `remove_from_customer_match_audience` | `mutate` | `` | Remove members from Customer Match. |
-| `create_website_remarketing_list` | `mutate` | `` | Create website remarketing list. |
-| `create_youtube_remarketing_list` | `mutate` | `` | Create YouTube remarketing list. |
-| `create_app_remarketing_list` | `mutate` | `` | Create app remarketing list. |
-| `create_similar_audience` | `unsupported` | `` | Similar audiences are deprecated; returns replacement guidance. |
-| `create_combined_audience` | `mutate` | `` | Create a combined audience. |
-| `create_custom_segment` | `mutate` | `` | Create a custom segment. |
+| `create_customer_match_audience` | `mutate` | `` | Template only: Create a Customer Match audience. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `append_to_customer_match_audience` | `mutate` | `` | Template only: Append hashed members to Customer Match. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_from_customer_match_audience` | `mutate` | `` | Template only: Remove members from Customer Match. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_website_remarketing_list` | `mutate` | `` | Template only: Create website remarketing list. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_youtube_remarketing_list` | `mutate` | `` | Template only: Create YouTube remarketing list. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_app_remarketing_list` | `mutate` | `` | Template only: Create app remarketing list. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_similar_audience` | `unsupported` | `` | Unsupported by this MCP: Similar audiences are no longer a generally available creation path in Google Ads. Use audience signals, optimized targeting, Customer Match, or custom segments. |
+| `create_combined_audience` | `mutate` | `` | Template only: Create a combined audience. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_custom_segment` | `mutate` | `` | Template only: Create a custom segment. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `get_audience_size_estimate` | `service` | `` | Estimate audience reach when available. |
-| `update_audience` | `mutate` | `` | Update audience or user list. |
-| `remove_audience` | `mutate` | `` | Remove audience or user list. |
+| `update_audience` | `mutate` | `` | Template only: Update audience or user list. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_audience` | `mutate` | `` | Template only: Remove audience or user list. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 
 ## Bidding
 
@@ -115,16 +115,16 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 |---|---|---|---|
 | `list_bidding_strategies` | `query` | `bidding_strategy` | List portfolio bidding strategies. |
 | `get_bidding_strategy` | `query` | `bidding_strategy` | Get one bidding strategy. |
-| `create_bidding_strategy` | `mutate` | `` | Create a portfolio bidding strategy. |
-| `update_bidding_strategy` | `mutate` | `` | Update a portfolio bidding strategy. |
-| `remove_bidding_strategy` | `mutate` | `` | Remove an unused portfolio bidding strategy. |
-| `attach_bidding_strategy_to_campaign` | `mutate` | `` | Attach portfolio strategy to campaign. |
-| `set_campaign_inline_bid_strategy` | `mutate` | `` | Set campaign-level inline bid strategy. |
+| `create_bidding_strategy` | `mutate` | `` | Template only: Create a portfolio bidding strategy. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `update_bidding_strategy` | `mutate` | `` | Template only: Update a portfolio bidding strategy. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_bidding_strategy` | `mutate` | `` | Template only: Remove an unused portfolio bidding strategy. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `attach_bidding_strategy_to_campaign` | `mutate` | `` | Template only: Attach portfolio strategy to campaign. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_campaign_inline_bid_strategy` | `mutate` | `` | Template only: Set campaign-level inline bid strategy. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `get_bidding_strategy_report` | `report` | `bidding_strategy` | Report performance by bidding strategy. |
-| `set_audience_bid_adjustments` | `mutate` | `` | Set audience bid modifiers. |
-| `set_demographic_bid_adjustments` | `mutate` | `` | Set demographic bid modifiers. |
-| `set_ad_schedule_bid_adjustments` | `mutate` | `` | Set ad schedule bid modifiers. |
-| `create_seasonal_bid_adjustment` | `mutate` | `` | Create a seasonal conversion rate adjustment. |
+| `set_audience_bid_adjustments` | `mutate` | `` | Template only: Set audience bid modifiers. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_demographic_bid_adjustments` | `mutate` | `` | Template only: Set demographic bid modifiers. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_ad_schedule_bid_adjustments` | `mutate` | `` | Template only: Set ad schedule bid modifiers. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_seasonal_bid_adjustment` | `mutate` | `` | Template only: Create a seasonal conversion rate adjustment. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 
 ## Budgets
 
@@ -159,28 +159,28 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_campaign` | `query` | `campaign` | Get one campaign by id or resource name. |
 | `create_search_campaign` | `mutate` | `` | Create a Search campaign from Google Ads mutate operations. |
 | `create_display_campaign` | `mutate` | `` | Create a Display campaign from Google Ads mutate operations. |
-| `create_video_campaign` | `unsupported` | `` | Create a Video campaign from Google Ads mutate operations. |
+| `create_video_campaign` | `unsupported` | `` | Unsupported by this MCP: Direct VIDEO campaign creation is not supported through this MCP's GoogleAdsService mutate path in the current Google Ads API surface. Use Demand Gen, Performance Max, or the Google Ads UI for video-first campaign setup. |
 | `create_shopping_campaign` | `mutate` | `` | Create a Shopping campaign from Google Ads mutate operations. |
 | `create_pmax_campaign` | `mutate` | `` | Create a Performance Max campaign from mutate operations. |
 | `create_demand_gen_campaign` | `mutate` | `` | Create a Demand Gen campaign from mutate operations. |
 | `create_app_campaign` | `mutate` | `` | Create an App campaign from mutate operations. |
-| `create_smart_campaign` | `mutate` | `` | Create a Smart campaign from mutate operations when supported. |
+| `create_smart_campaign` | `unsupported` | `` | Unsupported by this MCP: Direct Smart campaign creation is not exposed because SmartCampaignSetting cannot be validated with validate_only in the current Google Ads API surface. Use the Google Ads UI or a raw API flow only after explicit real-write approval. |
 | `update_campaign` | `mutate` | `` | Update campaign name, status, dates, tracking, or URL options. |
 | `pause_campaign` | `mutate` | `` | Pause a campaign. |
 | `enable_campaign` | `mutate` | `` | Enable a campaign. |
 | `remove_campaign` | `mutate` | `` | Remove a campaign. |
 | `update_network_settings` | `mutate` | `` | Update search/display/search partner network settings. |
-| `set_geo_targeting` | `mutate` | `` | Add or remove targeted and excluded campaign locations. |
-| `set_language_targeting` | `mutate` | `` | Add or remove campaign language criteria. |
-| `set_ad_scheduling` | `mutate` | `` | Set campaign dayparting criteria and bid modifiers. |
-| `set_device_bid_adjustments` | `mutate` | `` | Set campaign device bid modifiers. |
+| `set_geo_targeting` | `mutate` | `` | Template only: Add or remove targeted and excluded campaign locations. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_language_targeting` | `mutate` | `` | Template only: Add or remove campaign language criteria. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_ad_scheduling` | `mutate` | `` | Template only: Set campaign dayparting criteria and bid modifiers. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_device_bid_adjustments` | `mutate` | `` | Template only: Set campaign device bid modifiers. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `apply_campaign_label` | `mutate` | `` | Attach a label to a campaign. |
 | `remove_campaign_label` | `mutate` | `` | Detach a label from a campaign. |
-| `create_campaign_draft` | `mutate` | `` | Create a campaign draft. |
-| `promote_campaign_draft` | `mutate` | `` | Promote a campaign draft. |
-| `create_campaign_experiment` | `mutate` | `` | Create a campaign experiment. |
-| `graduate_campaign_experiment` | `mutate` | `` | Graduate an experiment. |
-| `end_campaign_experiment` | `mutate` | `` | End an experiment. |
+| `create_campaign_draft` | `mutate` | `` | Template only: Create a campaign draft. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `promote_campaign_draft` | `mutate` | `` | Template only: Promote a campaign draft. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_campaign_experiment` | `mutate` | `` | Template only: Create a campaign experiment. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `graduate_campaign_experiment` | `mutate` | `` | Template only: Graduate an experiment. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `end_campaign_experiment` | `mutate` | `` | Template only: End an experiment. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 
 ## Conversions
 
@@ -188,16 +188,16 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 |---|---|---|---|
 | `list_conversion_actions` | `query` | `conversion_action` | List conversion actions. |
 | `get_conversion_action` | `query` | `conversion_action` | Get one conversion action. |
-| `create_conversion_action` | `mutate` | `` | Create a conversion action. |
-| `update_conversion_action` | `mutate` | `` | Update conversion action settings. |
-| `pause_conversion_action` | `mutate` | `` | Pause conversion action. |
-| `remove_conversion_action` | `mutate` | `` | Remove conversion action. |
-| `upload_offline_conversions` | `mutate` | `` | Upload GCLID-based offline conversions. |
-| `upload_call_conversions` | `mutate` | `` | Upload call conversions. |
-| `upload_store_visit_conversions` | `unsupported` | `` | Upload store visit conversions when eligible. |
-| `upload_enhanced_conversions` | `mutate` | `` | Upload enhanced conversion user data. |
+| `create_conversion_action` | `mutate` | `` | Template only: Create a conversion action. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `update_conversion_action` | `mutate` | `` | Template only: Update conversion action settings. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `pause_conversion_action` | `mutate` | `` | Template only: Pause conversion action. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_conversion_action` | `mutate` | `` | Template only: Remove conversion action. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `upload_offline_conversions` | `mutate` | `` | Template only: Upload GCLID-based offline conversions. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `upload_call_conversions` | `mutate` | `` | Template only: Upload call conversions. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `upload_store_visit_conversions` | `unsupported` | `` | Unsupported by this MCP: Store visit conversion uploads are eligibility-gated and not available for most API users. Use google_ads_call_service if your account has the required service access. |
+| `upload_enhanced_conversions` | `mutate` | `` | Template only: Upload enhanced conversion user data. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `get_conversion_attribution_settings` | `service` | `` | Get attribution settings. |
-| `update_conversion_attribution_model` | `mutate` | `` | Update conversion attribution model. |
+| `update_conversion_attribution_model` | `mutate` | `` | Template only: Update conversion attribution model. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 
 ## Extensions
 
@@ -207,28 +207,28 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_extension` | `service` | `` | Get one extension or asset. |
 | `create_sitelink` | `mutate` | `` | Create a sitelink asset. |
 | `create_callout` | `mutate` | `` | Create a callout asset. |
-| `create_structured_snippet` | `mutate` | `` | Create a structured snippet asset. |
-| `create_call_extension` | `mutate` | `` | Create a call asset. |
-| `create_price_extension` | `mutate` | `` | Create a price asset. |
-| `create_promotion_extension` | `mutate` | `` | Create a promotion asset. |
-| `create_app_extension` | `mutate` | `` | Create an app asset. |
-| `create_image_extension` | `mutate` | `` | Create an image asset extension. |
-| `create_lead_form_extension` | `mutate` | `` | Create a lead form asset. |
-| `set_extension_scheduling` | `mutate` | `` | Set extension scheduling. |
-| `update_extension_status` | `mutate` | `` | Pause or enable an extension asset. |
-| `remove_extension` | `mutate` | `` | Remove an extension asset. |
+| `create_structured_snippet` | `mutate` | `` | Template only: Create a structured snippet asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_call_extension` | `mutate` | `` | Template only: Create a call asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_price_extension` | `mutate` | `` | Template only: Create a price asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_promotion_extension` | `mutate` | `` | Template only: Create a promotion asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_app_extension` | `mutate` | `` | Template only: Create an app asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_image_extension` | `mutate` | `` | Template only: Create an image asset extension. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `create_lead_form_extension` | `mutate` | `` | Template only: Create a lead form asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_extension_scheduling` | `mutate` | `` | Template only: Set extension scheduling. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `update_extension_status` | `mutate` | `` | Template only: Pause or enable an extension asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_extension` | `mutate` | `` | Template only: Remove an extension asset. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `get_extension_approval_status` | `service` | `` | Get extension policy approval status. |
 
 ## Feeds
 
 | Tool | Mode | Resource | Description |
 |---|---|---|---|
-| `create_dsa_page_feed` | `mutate` | `` | Create a Dynamic Search Ads page feed. |
-| `update_dsa_page_feed` | `mutate` | `` | Update DSA page feed rows. |
+| `create_dsa_page_feed` | `mutate` | `` | Template only: Create a Dynamic Search Ads page feed. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `update_dsa_page_feed` | `mutate` | `` | Template only: Update DSA page feed rows. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `list_dsa_page_feeds` | `service` | `` | List DSA page feeds. |
-| `create_ad_customizer_feed` | `mutate` | `` | Create ad customizer feed or attributes. |
-| `update_ad_customizer_feed` | `mutate` | `` | Update ad customizer rows. |
-| `set_custom_parameters` | `mutate` | `` | Set URL custom parameters. |
+| `create_ad_customizer_feed` | `mutate` | `` | Template only: Create ad customizer feed or attributes. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `update_ad_customizer_feed` | `mutate` | `` | Template only: Update ad customizer rows. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_custom_parameters` | `mutate` | `` | Template only: Set URL custom parameters. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 
 ## Keywords
 
@@ -255,7 +255,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `remove_keywords_from_shared_list` | `negative_keyword` | `` | Remove keywords from a shared negative list. |
 | `apply_shared_list_to_campaign` | `negative_keyword` | `` | Attach a shared negative list to a campaign. |
 | `remove_shared_list_from_campaign` | `negative_keyword` | `` | Detach a shared negative list from a campaign. |
-| `get_keyword_bid_estimates` | `unsupported` | `` | Get keyword CPC and traffic estimates when supported. |
+| `get_keyword_bid_estimates` | `unsupported` | `` | Unsupported by this MCP: Keyword bid estimates are not mapped to a stable high-level helper. Use Keyword Planner idea and forecast services directly only after checking live service metadata. |
 | `get_keyword_ideas` | `service` | `` | Get Keyword Planner ideas. |
 
 ## Labels
@@ -280,16 +280,16 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | Tool | Mode | Resource | Description |
 |---|---|---|---|
 | `get_reach_forecast` | `service` | `` | Get Reach Planner forecast where available. |
-| `get_ad_preview` | `unsupported` | `` | Get ad preview or serving simulation data when available. |
-| `get_ad_diagnosis` | `unsupported` | `` | Diagnose why an ad is not serving when API surface allows. |
+| `get_ad_preview` | `unsupported` | `` | Unsupported by this MCP: Ad preview is not mapped to a stable Google Ads API service method in this MCP. Use Google Ads UI preview tools or live metadata before adding an API helper. |
+| `get_ad_diagnosis` | `unsupported` | `` | Unsupported by this MCP: Ad diagnosis is not mapped to a stable Google Ads API service method in this MCP. Use policy and approval report tools plus live metadata for account-specific diagnosis. |
 
 ## Recommendations
 
 | Tool | Mode | Resource | Description |
 |---|---|---|---|
 | `list_recommendations` | `query` | `recommendation` | List pending Google recommendations. |
-| `apply_recommendation` | `mutate` | `` | Apply a recommendation. |
-| `dismiss_recommendation` | `mutate` | `` | Dismiss a recommendation. |
+| `apply_recommendation` | `mutate` | `` | Template only: Apply a recommendation. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `dismiss_recommendation` | `mutate` | `` | Template only: Dismiss a recommendation. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `get_recommendation_types` | `service` | `` | List supported recommendation type metadata. |
 
 ## Reporting
@@ -301,7 +301,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_ad_metrics` | `report` | `ad_group_ad` | Ad metrics with preset or custom date ranges. |
 | `get_keyword_metrics` | `report` | `keyword_view` | Keyword metrics plus quality score fields. |
 | `get_search_terms_report` | `report` | `search_term_view` | Search query performance report. |
-| `get_auction_insights` | `unsupported` | `` | Auction insight metrics. |
+| `get_auction_insights` | `unsupported` | `` | Unsupported by this MCP: Auction insight fields are version and account sensitive. Use live metadata and planning_plan_gaql_query before implementing this report. |
 | `get_device_performance` | `report` | `campaign` | Performance by device. |
 | `get_geo_performance` | `report` | `geographic_view` | Performance by geographic target id and readable name. |
 | `get_hour_of_day_performance` | `report` | `campaign` | Performance by hour of day. |
@@ -312,7 +312,7 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_household_income_report` | `report` | `income_range_view` | Performance by household income. |
 | `get_audience_performance_report` | `report` | `ad_group_audience_view` | Performance by audience segment. |
 | `get_placement_report` | `report` | `group_placement_view` | Display placement performance. |
-| `get_topic_report` | `unsupported` | `` | GDN topic performance. |
+| `get_topic_report` | `unsupported` | `` | Unsupported by this MCP: Topic performance fields are version and campaign-type sensitive. Use live metadata and planning_plan_gaql_query to build a topic-compatible GAQL query for the target account. |
 | `get_ad_schedule_report` | `report` | `campaign` | Performance by scheduled time block. |
 | `get_asset_performance_report` | `report` | `asset_group_asset` | Asset performance for RSA and PMax. |
 | `get_video_performance_report` | `report` | `video` | Video performance report. |
@@ -321,8 +321,8 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | `get_landing_page_report` | `report` | `landing_page_view` | Landing page performance. |
 | `get_call_details_report` | `report` | `call_view` | Call details report. |
 | `get_change_history_report` | `report` | `change_event` | Change history report. |
-| `get_reach_frequency_report` | `unsupported` | `` | Reach and frequency report. |
-| `get_paid_organic_report` | `unsupported` | `` | Paid and organic report when Search Console is linked. |
+| `get_reach_frequency_report` | `unsupported` | `` | Unsupported by this MCP: Reach and frequency reporting is not a universal GAQL view. Use live metadata to confirm compatible reach/frequency fields before querying. |
+| `get_paid_organic_report` | `unsupported` | `` | Unsupported by this MCP: Paid and organic reporting depends on Search Console linkage and version-specific fields. Use live metadata before building this report. |
 | `execute_gaql_query` | `raw_gaql` | `` | Execute raw GAQL for uncovered reporting needs. |
 
 ## Shopping Pmax
@@ -330,15 +330,15 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 | Tool | Mode | Resource | Description |
 |---|---|---|---|
 | `get_shopping_campaign_settings` | `service` | `` | Get Merchant Center and Shopping campaign settings. |
-| `create_listing_group_tree` | `mutate` | `` | Create a Shopping listing group tree. |
-| `update_listing_group` | `mutate` | `` | Update a listing group node. |
-| `remove_listing_group` | `mutate` | `` | Remove a listing group node. |
+| `create_listing_group_tree` | `mutate` | `` | Template only: Create a Shopping listing group tree. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `update_listing_group` | `mutate` | `` | Template only: Update a listing group node. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_listing_group` | `mutate` | `` | Template only: Remove a listing group node. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `list_pmax_asset_groups` | `query` | `asset_group` | List PMax asset groups. |
 | `get_pmax_asset_group` | `query` | `asset_group` | Get one PMax asset group. |
-| `create_pmax_asset_group` | `mutate` | `` | Create a PMax asset group. |
-| `update_pmax_asset_group` | `mutate` | `` | Update a PMax asset group. |
-| `remove_pmax_asset_group` | `mutate` | `` | Remove a PMax asset group. |
-| `set_pmax_audience_signals` | `mutate` | `` | Set PMax audience signals and search themes. |
+| `create_pmax_asset_group` | `mutate` | `` | Template only: Create a PMax asset group. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `update_pmax_asset_group` | `mutate` | `` | Template only: Update a PMax asset group. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_pmax_asset_group` | `mutate` | `` | Template only: Remove a PMax asset group. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_pmax_audience_signals` | `mutate` | `` | Template only: Set PMax audience signals and search themes. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
 | `get_pmax_search_term_themes` | `service` | `` | Get PMax search term themes where exposed. |
 | `get_pmax_asset_group_performance` | `report` | `asset_group` | Report PMax asset group performance. |
 | `get_pmax_campaign_insights` | `service` | `` | Report PMax campaign insights. |
@@ -347,13 +347,13 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py` and `src/google
 
 | Tool | Mode | Resource | Description |
 |---|---|---|---|
-| `add_audience_to_campaign` | `mutate` | `` | Add campaign audience targeting or observation. |
-| `add_audience_to_ad_group` | `mutate` | `` | Add ad group audience targeting or observation. |
-| `remove_audience_from_campaign` | `mutate` | `` | Remove campaign audience targeting. |
-| `remove_audience_from_ad_group` | `mutate` | `` | Remove ad group audience targeting. |
-| `set_demographic_targeting` | `mutate` | `` | Set age, gender, parental, or household targeting. |
-| `add_topic_targeting` | `mutate` | `` | Add GDN topic targeting. |
-| `remove_topic_targeting` | `mutate` | `` | Remove GDN topic targeting. |
-| `add_placement_targeting` | `mutate` | `` | Add placement targeting. |
-| `add_placement_exclusions` | `mutate` | `` | Add placement exclusions. |
-| `add_content_label_exclusions` | `mutate` | `` | Add sensitive content exclusions. |
+| `add_audience_to_campaign` | `mutate` | `` | Template only: Add campaign audience targeting or observation. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `add_audience_to_ad_group` | `mutate` | `` | Template only: Add ad group audience targeting or observation. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_audience_from_campaign` | `mutate` | `` | Template only: Remove campaign audience targeting. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_audience_from_ad_group` | `mutate` | `` | Template only: Remove ad group audience targeting. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `set_demographic_targeting` | `mutate` | `` | Template only: Set age, gender, parental, or household targeting. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `add_topic_targeting` | `mutate` | `` | Template only: Add GDN topic targeting. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `remove_topic_targeting` | `mutate` | `` | Template only: Remove GDN topic targeting. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `add_placement_targeting` | `mutate` | `` | Template only: Add placement targeting. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `add_placement_exclusions` | `mutate` | `` | Template only: Add placement exclusions. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
+| `add_content_label_exclusions` | `mutate` | `` | Template only: Add sensitive content exclusions. Supply raw GoogleAdsService MutateOperation payloads in payload.operations. |
