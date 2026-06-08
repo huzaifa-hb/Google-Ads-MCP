@@ -13,6 +13,7 @@ import _bootstrap  # noqa: F401
 from google_ads_mcp.config import ConfigError, Settings, get_settings, reset_settings_cache
 from google_ads_mcp.server import (
     _OAuthAllowlistProvider,
+    _google_ads_access_token_value,
     _google_ads_readiness_payload,
     _oauth_discovery_payload,
     _oauth_token_allowed,
@@ -58,6 +59,12 @@ class AuthConfigTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             settings.require_mcp_auth()
 
+    def test_invalid_google_ads_auth_mode_fails_fast(self) -> None:
+        settings = make_settings(google_ads_auth_mode="magic")
+
+        with self.assertRaises(ConfigError):
+            settings.require_mcp_auth()
+
     def test_oauth_proxy_requires_oauth_values(self) -> None:
         settings = make_settings(auth_mode="oauth_proxy")
 
@@ -81,6 +88,30 @@ class AuthConfigTests(unittest.TestCase):
             mcp_oauth_client_id="client-id",
             mcp_oauth_client_secret="client-secret",
             mcp_base_url="https://example.com",
+        )
+
+        with self.assertRaises(ConfigError):
+            settings.require_mcp_auth()
+
+    def test_per_user_oauth_proxy_accepts_no_server_allowlist(self) -> None:
+        settings = make_settings(
+            auth_mode="oauth_proxy",
+            google_ads_auth_mode="per_user_oauth",
+            mcp_oauth_client_id="client-id",
+            mcp_oauth_client_secret="client-secret",
+            mcp_base_url="https://example.com",
+        )
+
+        settings.require_mcp_auth()
+
+    def test_firestore_token_storage_requires_project_id(self) -> None:
+        settings = make_settings(
+            auth_mode="oauth_proxy",
+            google_ads_auth_mode="per_user_oauth",
+            mcp_oauth_client_id="client-id",
+            mcp_oauth_client_secret="client-secret",
+            mcp_base_url="https://example.com",
+            mcp_token_storage="firestore",
         )
 
         with self.assertRaises(ConfigError):
@@ -185,6 +216,18 @@ class AuthConfigTests(unittest.TestCase):
 
         self.assertIsNone(result)
 
+    def test_per_user_oauth_provider_allows_google_test_user_gate_to_decide(self) -> None:
+        token = SimpleNamespace(claims={"email": "stranger@example.net"}, subject="subject")
+        provider = FakeOAuthProvider(token)
+        wrapper = _OAuthAllowlistProvider(
+            provider,
+            make_settings(google_ads_auth_mode="per_user_oauth"),
+        )
+
+        result = asyncio.run(wrapper.verify_token("raw-token"))
+
+        self.assertIs(result, token)
+
     def test_google_ads_readiness_payload_reports_missing_credentials(self) -> None:
         payload = _google_ads_readiness_payload(make_settings())
 
@@ -203,6 +246,21 @@ class AuthConfigTests(unittest.TestCase):
 
         self.assertTrue(payload["google_ads_configured"])
         self.assertEqual(payload["missing"], [])
+
+    def test_per_user_google_ads_readiness_does_not_require_shared_refresh_token(self) -> None:
+        payload = _google_ads_readiness_payload(
+            make_settings(
+                google_ads_auth_mode="per_user_oauth",
+                developer_token="dev",
+                mcp_oauth_client_id="client",
+                mcp_oauth_client_secret="secret",
+                mcp_base_url="https://example.run.app",
+            )
+        )
+
+        self.assertTrue(payload["google_ads_configured"])
+        self.assertEqual(payload["missing"], [])
+        self.assertEqual(payload["google_ads_auth_mode"], "per_user_oauth")
 
     def test_google_ads_readiness_payload_treats_placeholders_as_missing(self) -> None:
         payload = _google_ads_readiness_payload(
@@ -250,6 +308,30 @@ class AuthConfigTests(unittest.TestCase):
         self.assertEqual(payload["response_types_supported"], ["code"])
         self.assertIn("authorization_code", payload["grant_types_supported"])
         self.assertTrue(payload["client_id_metadata_document_supported"])
+
+    def test_per_user_oauth_discovery_advertises_google_ads_scope(self) -> None:
+        settings = make_settings(
+            mcp_base_url="https://example.run.app/",
+            google_ads_auth_mode="per_user_oauth",
+        )
+
+        payload = _oauth_discovery_payload(settings)
+
+        self.assertIn("https://www.googleapis.com/auth/adwords", payload["scopes_supported"])
+
+    def test_per_user_access_token_helper_requires_ads_scope(self) -> None:
+        token = SimpleNamespace(token="google-access-token", scopes=["openid"])
+
+        with self.assertRaises(ConfigError):
+            _google_ads_access_token_value(token)
+
+    def test_per_user_access_token_helper_returns_token_value(self) -> None:
+        token = SimpleNamespace(
+            token="google-access-token",
+            scopes=["openid", "https://www.googleapis.com/auth/adwords"],
+        )
+
+        self.assertEqual(_google_ads_access_token_value(token), "google-access-token")
 
     def test_google_ads_client_config_normalizes_login_customer_id(self) -> None:
         settings = make_settings(

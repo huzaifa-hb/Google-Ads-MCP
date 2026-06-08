@@ -16,6 +16,9 @@ class ConfigError(ValueError):
 
 
 PLACEHOLDER_PREFIXES = ("replace-with", "YOUR_", "YOUR-", "set-in-")
+GOOGLE_ADS_OAUTH_SCOPE = "https://www.googleapis.com/auth/adwords"
+GOOGLE_ADS_AUTH_MODES = {"shared_refresh_token", "per_user_oauth"}
+MCP_TOKEN_STORAGE_MODES = {"local", "firestore"}
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -81,6 +84,7 @@ class Settings:
     login_customer_id: str | None
     google_project_id: str | None
     api_version: str
+    google_ads_auth_mode: str
     host: str
     port: int
     auth_mode: str
@@ -94,6 +98,8 @@ class Settings:
     mcp_base_url: str | None
     mcp_allowed_emails: tuple[str, ...]
     mcp_allowed_domains: tuple[str, ...]
+    mcp_token_storage: str
+    mcp_firestore_database: str | None
     google_ads_oauth_bootstrap_token: str | None
     max_retries: int
     retry_base_seconds: float
@@ -121,6 +127,10 @@ class Settings:
             _env("GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE", "false") or ""
         ).lower()
         auth_mode = (_env("GOOGLE_ADS_MCP_AUTH_MODE", "bearer") or "bearer").lower()
+        google_ads_auth_mode = (
+            _env("GOOGLE_ADS_AUTH_MODE", "shared_refresh_token") or "shared_refresh_token"
+        ).lower()
+        mcp_token_storage = (_env("GOOGLE_ADS_MCP_TOKEN_STORAGE", "local") or "local").lower()
         return cls(
             mcp_bearer_token=_env("MCP_BEARER_TOKEN"),
             developer_token=_env("GOOGLE_ADS_DEVELOPER_TOKEN"),
@@ -133,6 +143,7 @@ class Settings:
             ),
             google_project_id=_env("GOOGLE_PROJECT_ID") or _env("GOOGLE_CLOUD_PROJECT"),
             api_version=_env("GOOGLE_ADS_API_VERSION", "v24") or "v24",
+            google_ads_auth_mode=google_ads_auth_mode,
             host=_env("HOST", "0.0.0.0") or "0.0.0.0",
             port=port,
             auth_mode=auth_mode,
@@ -146,6 +157,8 @@ class Settings:
             mcp_base_url=_env("GOOGLE_ADS_MCP_BASE_URL"),
             mcp_allowed_emails=_env_csv("GOOGLE_ADS_MCP_ALLOWED_EMAILS"),
             mcp_allowed_domains=_env_csv("GOOGLE_ADS_MCP_ALLOWED_DOMAINS"),
+            mcp_token_storage=mcp_token_storage,
+            mcp_firestore_database=_env("GOOGLE_ADS_MCP_FIRESTORE_DATABASE"),
             google_ads_oauth_bootstrap_token=_env("GOOGLE_ADS_OAUTH_BOOTSTRAP_TOKEN"),
             max_retries=max_retries,
             retry_base_seconds=retry_base_seconds,
@@ -160,6 +173,7 @@ class Settings:
             raise ConfigError(
                 "GOOGLE_ADS_MCP_AUTH_MODE must be 'bearer' or 'oauth_proxy'."
             )
+        self.require_google_ads_auth_mode()
         if self.allow_unauthenticated_mcp:
             return
         if self.auth_mode == "bearer" and not self.mcp_bearer_token:
@@ -181,13 +195,36 @@ class Settings:
             ]
             if missing:
                 raise ConfigError(f"Missing OAuth MCP auth values: {', '.join(missing)}")
-            if not self.mcp_allowed_emails and not self.mcp_allowed_domains:
+            if (
+                self.google_ads_auth_mode != "per_user_oauth"
+                and not self.mcp_allowed_emails
+                and not self.mcp_allowed_domains
+            ):
                 raise ConfigError(
                     "OAuth proxy mode requires GOOGLE_ADS_MCP_ALLOWED_EMAILS or "
                     "GOOGLE_ADS_MCP_ALLOWED_DOMAINS."
                 )
+            self.require_mcp_token_storage()
+
+    def require_google_ads_auth_mode(self) -> None:
+        if self.google_ads_auth_mode not in GOOGLE_ADS_AUTH_MODES:
+            raise ConfigError(
+                "GOOGLE_ADS_AUTH_MODE must be 'shared_refresh_token' or 'per_user_oauth'."
+            )
+
+    def require_mcp_token_storage(self) -> None:
+        if self.mcp_token_storage not in MCP_TOKEN_STORAGE_MODES:
+            raise ConfigError("GOOGLE_ADS_MCP_TOKEN_STORAGE must be 'local' or 'firestore'.")
+        if self.mcp_token_storage == "firestore" and not self.google_project_id:
+            raise ConfigError(
+                "GOOGLE_PROJECT_ID is required when GOOGLE_ADS_MCP_TOKEN_STORAGE=firestore."
+            )
 
     def require_google_ads(self) -> None:
+        self.require_google_ads_auth_mode()
+        if self.google_ads_auth_mode == "per_user_oauth":
+            self.require_google_ads_per_user()
+            return
         missing = [
             name
             for name, value in {
@@ -201,6 +238,17 @@ class Settings:
         if missing:
             raise ConfigError(f"Missing required Google Ads environment values: {', '.join(missing)}")
 
+    def require_google_ads_per_user(self) -> None:
+        missing = [
+            name
+            for name, value in {
+                "GOOGLE_ADS_DEVELOPER_TOKEN": self.developer_token,
+            }.items()
+            if value_looks_missing(value)
+        ]
+        if missing:
+            raise ConfigError(f"Missing required Google Ads environment values: {', '.join(missing)}")
+
     def google_ads_client_config(self) -> dict[str, object]:
         self.require_google_ads()
         config: dict[str, object] = {
@@ -208,6 +256,20 @@ class Settings:
             "client_id": self.oauth_client_id,
             "client_secret": self.oauth_client_secret,
             "refresh_token": self.refresh_token,
+            "use_proto_plus": True,
+        }
+        login_customer_id = _normalize_google_ads_customer_id(
+            self.login_customer_id,
+            name="login_customer_id",
+        )
+        if login_customer_id:
+            config["login_customer_id"] = login_customer_id
+        return config
+
+    def google_ads_access_token_client_config(self) -> dict[str, object]:
+        self.require_google_ads_per_user()
+        config: dict[str, object] = {
+            "developer_token": self.developer_token,
             "use_proto_plus": True,
         }
         login_customer_id = _normalize_google_ads_customer_id(

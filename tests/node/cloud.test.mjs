@@ -44,10 +44,10 @@ test("deploy command passes OAuth proxy base URL", () => {
     region: "us-central1",
     mode: "safe_read_only",
     authMode: "oauth_proxy",
+    googleAdsAuthMode: "per_user_oauth",
     mcpBaseUrl: "https://example.run.app",
-    googleAdsClientId: "google-ads-client.apps.googleusercontent.com",
     mcpOAuthClientId: "mcp-client.apps.googleusercontent.com",
-    mcpAllowedDomains: "gmail.com,example.com",
+    mcpTokenStorage: "firestore",
     minInstances: "0",
     maxInstances: "1",
     memory: "512Mi",
@@ -55,12 +55,12 @@ test("deploy command passes OAuth proxy base URL", () => {
   });
   assert.ok(command.args.includes("-McpBaseUrl"));
   assert.ok(command.args.includes("https://example.run.app"));
-  assert.ok(command.args.includes("-GoogleAdsClientId"));
-  assert.ok(command.args.includes("google-ads-client.apps.googleusercontent.com"));
+  assert.ok(command.args.includes("-GoogleAdsAuthMode"));
+  assert.ok(command.args.includes("per_user_oauth"));
   assert.ok(command.args.includes("-McpOAuthClientId"));
   assert.ok(command.args.includes("mcp-client.apps.googleusercontent.com"));
-  assert.ok(command.args.includes("-McpAllowedDomains"));
-  assert.ok(command.args.includes("gmail.com,example.com"));
+  assert.ok(command.args.includes("-McpTokenStorage"));
+  assert.ok(command.args.includes("firestore"));
   assert.ok(command.args.includes("-MinInstances"));
   assert.ok(command.args.includes("0"));
   assert.ok(command.args.includes("-MaxInstances"));
@@ -99,6 +99,24 @@ test("OAuth proxy secrets skip bearer token and non-sensitive client IDs", () =>
       GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET: "oauth-secret"
     },
     "oauth_proxy"
+  );
+  assert.deepEqual(missing, []);
+});
+
+test("per-user OAuth proxy secrets skip shared Google Ads refresh token", () => {
+  assert.deepEqual(requiredSecretsForAuthMode("oauth_proxy", "per_user_oauth"), [
+    "GOOGLE_ADS_DEVELOPER_TOKEN",
+    "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"
+  ]);
+  const missing = missingRequiredSecrets(
+    {
+      GOOGLE_ADS_DEVELOPER_TOKEN: "dev",
+      GOOGLE_ADS_CLIENT_SECRET: "",
+      GOOGLE_ADS_REFRESH_TOKEN: "",
+      GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET: "oauth-secret"
+    },
+    "oauth_proxy",
+    "per_user_oauth"
   );
   assert.deepEqual(missing, []);
 });

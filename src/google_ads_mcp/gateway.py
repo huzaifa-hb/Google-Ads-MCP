@@ -21,7 +21,7 @@ import re
 import time
 from typing import Any
 
-from .config import Settings, get_settings
+from .config import GOOGLE_ADS_OAUTH_SCOPE, Settings, get_settings
 from .errors import format_google_ads_exception
 from .gaql import (
     GAQL_FIELD_RE,
@@ -105,9 +105,11 @@ class GoogleAdsGateway:
         client: Any | None = None,
         mode: str | None = None,
         audit_sink: Callable[[dict[str, Any]], None] | None = None,
+        access_token: str | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self._client = client
+        self.access_token = access_token
         self.mode = mode or self.settings.mcp_mode or "safe_read_only"
         self.audit_sink = audit_sink
         self._resource_metadata_cache: OrderedDict[
@@ -124,11 +126,32 @@ class GoogleAdsGateway:
                 raise RuntimeError(
                     "google-ads is not installed. Install the package or deploy the Docker image."
                 ) from exc
-            self._client = GoogleAdsClient.load_from_dict(
-                self.settings.google_ads_client_config(),
-                version=self.settings.api_version,
-            )
+            if self.access_token:
+                self._client = self._load_client_from_access_token(GoogleAdsClient)
+            else:
+                self._client = GoogleAdsClient.load_from_dict(
+                    self.settings.google_ads_client_config(),
+                    version=self.settings.api_version,
+                )
         return self._client
+
+    def _load_client_from_access_token(self, google_ads_client_cls: Any) -> Any:
+        try:
+            from google.oauth2.credentials import Credentials
+        except ImportError as exc:
+            raise RuntimeError("google-auth is required for per-user Google Ads OAuth.") from exc
+        config = self.settings.google_ads_access_token_client_config()
+        credentials = Credentials(
+            token=self.access_token,
+            scopes=[GOOGLE_ADS_OAUTH_SCOPE],
+        )
+        return google_ads_client_cls(
+            credentials=credentials,
+            developer_token=config["developer_token"],
+            login_customer_id=config.get("login_customer_id"),
+            version=self.settings.api_version,
+            use_proto_plus=True,
+        )
 
     def get_service(self, service_name: str) -> Any:
         return self.client.get_service(service_name)

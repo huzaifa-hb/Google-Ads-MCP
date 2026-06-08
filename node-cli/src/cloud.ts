@@ -19,31 +19,47 @@ const OAUTH_PROXY_REQUIRED_SECRETS = [
   "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"
 ];
 
+const PER_USER_OAUTH_PROXY_REQUIRED_SECRETS = [
+  "GOOGLE_ADS_DEVELOPER_TOKEN",
+  "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"
+];
+
 export type GcloudCommand = {
   command: string;
   args: string[];
 };
 
 export type AuthMode = "bearer" | "oauth_proxy";
+export type GoogleAdsAuthMode = "shared_refresh_token" | "per_user_oauth";
 
 export type DeployOptions = {
   projectId: string;
   region: string;
   mode: string;
   authMode: string;
+  googleAdsAuthMode?: string;
   mcpBaseUrl?: string;
   googleAdsClientId?: string;
   googleAdsLoginCustomerId?: string;
   mcpOAuthClientId?: string;
+  mcpAllowedEmails?: string;
   mcpAllowedDomains?: string;
+  mcpTokenStorage?: string;
+  mcpFirestoreDatabase?: string;
   minInstances?: string;
   maxInstances?: string;
   memory?: string;
   cpu?: string;
 };
 
-export function requiredSecretsForAuthMode(authMode = "bearer"): string[] {
+export function requiredSecretsForAuthMode(
+  authMode = "bearer",
+  googleAdsAuthMode = "shared_refresh_token"
+): string[] {
   if (authMode === "oauth_proxy") {
+    if (googleAdsAuthMode === "per_user_oauth") {
+      return [...PER_USER_OAUTH_PROXY_REQUIRED_SECRETS];
+    }
     return [...OAUTH_PROXY_REQUIRED_SECRETS];
   }
   if (authMode === "bearer") {
@@ -72,23 +88,27 @@ export function buildSecretVersionCommand(
 
 export function missingRequiredSecrets(
   env: Record<string, string | undefined>,
-  authMode = "bearer"
+  authMode = "bearer",
+  googleAdsAuthMode = "shared_refresh_token"
 ): string[] {
-  return requiredSecretsForAuthMode(authMode).filter((name) => valueLooksMissing(env[name]));
+  return requiredSecretsForAuthMode(authMode, googleAdsAuthMode).filter((name) =>
+    valueLooksMissing(env[name])
+  );
 }
 
 export async function syncSecrets(
   rootDir: string,
   projectId: string,
   envFile = ".env",
-  authMode = "bearer"
+  authMode = "bearer",
+  googleAdsAuthMode = "shared_refresh_token"
 ): Promise<void> {
   if (!projectId) {
     throw new Error("--project is required.");
   }
   const env = await readEnvFile(path.resolve(rootDir, envFile));
-  const requiredSecrets = requiredSecretsForAuthMode(authMode);
-  const missing = missingRequiredSecrets(env, authMode);
+  const requiredSecrets = requiredSecretsForAuthMode(authMode, googleAdsAuthMode);
+  const missing = missingRequiredSecrets(env, authMode, googleAdsAuthMode);
   if (missing.length > 0) {
     throw new Error(`Missing or placeholder .env values: ${missing.join(", ")}`);
   }
@@ -138,6 +158,9 @@ export function buildDeployCommand(rootDir: string, options: DeployOptions): Gcl
     "-McpAuthMode",
     options.authMode
   ];
+  if (options.googleAdsAuthMode) {
+    args.push("-GoogleAdsAuthMode", options.googleAdsAuthMode);
+  }
   if (options.mcpBaseUrl) {
     args.push("-McpBaseUrl", options.mcpBaseUrl);
   }
@@ -150,8 +173,17 @@ export function buildDeployCommand(rootDir: string, options: DeployOptions): Gcl
   if (options.mcpOAuthClientId) {
     args.push("-McpOAuthClientId", options.mcpOAuthClientId);
   }
+  if (options.mcpAllowedEmails) {
+    args.push("-McpAllowedEmails", options.mcpAllowedEmails);
+  }
   if (options.mcpAllowedDomains) {
     args.push("-McpAllowedDomains", options.mcpAllowedDomains);
+  }
+  if (options.mcpTokenStorage) {
+    args.push("-McpTokenStorage", options.mcpTokenStorage);
+  }
+  if (options.mcpFirestoreDatabase) {
+    args.push("-McpFirestoreDatabase", options.mcpFirestoreDatabase);
   }
   if (options.minInstances) {
     args.push("-MinInstances", options.minInstances);
@@ -173,11 +205,15 @@ export async function deployCloudRun(rootDir: string, options: {
   region?: string;
   mode?: string;
   authMode?: string;
+  googleAdsAuthMode?: string;
   mcpBaseUrl?: string;
   googleAdsClientId?: string;
   googleAdsLoginCustomerId?: string;
   mcpOAuthClientId?: string;
+  mcpAllowedEmails?: string;
   mcpAllowedDomains?: string;
+  mcpTokenStorage?: string;
+  mcpFirestoreDatabase?: string;
   minInstances?: string;
   maxInstances?: string;
   memory?: string;
@@ -187,18 +223,25 @@ export async function deployCloudRun(rootDir: string, options: {
     throw new Error("--project is required.");
   }
   const authMode = options.authMode || "bearer";
+  const googleAdsAuthMode = options.googleAdsAuthMode || "shared_refresh_token";
   if (authMode === "oauth_proxy") {
     if (!options.mcpBaseUrl) {
       throw new Error("--base-url is required with --auth-mode oauth_proxy.");
     }
-    if (!options.googleAdsClientId) {
+    if (googleAdsAuthMode !== "per_user_oauth" && !options.googleAdsClientId) {
       throw new Error("--google-ads-client-id is required with --auth-mode oauth_proxy.");
     }
     if (!options.mcpOAuthClientId) {
       throw new Error("--mcp-oauth-client-id is required with --auth-mode oauth_proxy.");
     }
-    if (!options.mcpAllowedDomains) {
-      throw new Error("--allowed-domains is required with --auth-mode oauth_proxy.");
+    if (
+      googleAdsAuthMode !== "per_user_oauth" &&
+      !options.mcpAllowedEmails &&
+      !options.mcpAllowedDomains
+    ) {
+      throw new Error(
+        "--allowed-emails or --allowed-domains is required with --auth-mode oauth_proxy unless --google-ads-auth-mode per_user_oauth is used."
+      );
     }
   }
   const command = buildDeployCommand(rootDir, {
@@ -206,11 +249,15 @@ export async function deployCloudRun(rootDir: string, options: {
     region: options.region || "us-central1",
     mode: options.mode || "safe_read_only",
     authMode,
+    googleAdsAuthMode,
     mcpBaseUrl: options.mcpBaseUrl,
     googleAdsClientId: options.googleAdsClientId,
     googleAdsLoginCustomerId: options.googleAdsLoginCustomerId,
     mcpOAuthClientId: options.mcpOAuthClientId,
+    mcpAllowedEmails: options.mcpAllowedEmails,
     mcpAllowedDomains: options.mcpAllowedDomains,
+    mcpTokenStorage: options.mcpTokenStorage,
+    mcpFirestoreDatabase: options.mcpFirestoreDatabase,
     minInstances: options.minInstances,
     maxInstances: options.maxInstances,
     memory: options.memory,

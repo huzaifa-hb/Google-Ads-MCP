@@ -7,11 +7,15 @@ param(
     [string]$ArtifactRepo = "mcp-servers",
     [string]$McpMode = "safe_read_only",
     [string]$McpAuthMode = "bearer",
+    [string]$GoogleAdsAuthMode = "shared_refresh_token",
     [string]$McpBaseUrl = "",
     [string]$GoogleAdsClientId = "",
     [string]$GoogleAdsLoginCustomerId = "",
     [string]$McpOAuthClientId = "",
+    [string]$McpAllowedEmails = "",
     [string]$McpAllowedDomains = "",
+    [string]$McpTokenStorage = "local",
+    [string]$McpFirestoreDatabase = "",
     [int]$MinInstances = 0,
     [int]$MaxInstances = 1,
     [string]$Memory = "512Mi",
@@ -27,8 +31,22 @@ if ($McpAuthMode -eq "oauth_proxy" -and -not $McpBaseUrl) {
 if ($McpAuthMode -eq "oauth_proxy" -and -not $McpOAuthClientId) {
     throw "-McpOAuthClientId is required when -McpAuthMode oauth_proxy."
 }
-if ($McpAuthMode -eq "oauth_proxy" -and -not $McpAllowedDomains) {
-    throw "-McpAllowedDomains is required when -McpAuthMode oauth_proxy."
+if (
+    $McpAuthMode -eq "oauth_proxy" `
+    -and $GoogleAdsAuthMode -ne "per_user_oauth" `
+    -and -not $McpAllowedEmails `
+    -and -not $McpAllowedDomains
+) {
+    throw "-McpAllowedEmails or -McpAllowedDomains is required when -McpAuthMode oauth_proxy unless -GoogleAdsAuthMode per_user_oauth is used."
+}
+if ($GoogleAdsAuthMode -notin @("shared_refresh_token", "per_user_oauth")) {
+    throw "-GoogleAdsAuthMode must be shared_refresh_token or per_user_oauth."
+}
+if ($McpTokenStorage -notin @("local", "firestore")) {
+    throw "-McpTokenStorage must be local or firestore."
+}
+if ($McpTokenStorage -eq "firestore" -and $McpAuthMode -ne "oauth_proxy") {
+    throw "-McpTokenStorage firestore is only supported with -McpAuthMode oauth_proxy."
 }
 
 function ConvertTo-GcloudMapArg {
@@ -81,7 +99,18 @@ function Remove-OldSecretVersions {
 
 function Remove-OldArtifactImages {
     $imagePath = "$Region-docker.pkg.dev/$ProjectId/$ArtifactRepo/$ServiceName"
+    $latestVersions = @(gcloud artifacts docker tags list $imagePath `
+        --project $ProjectId `
+        --filter "tag:latest" `
+        --format "value(version)" 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $latestVersions.Count -eq 0) {
+        Write-Warning "Could not resolve latest Artifact Registry image. Leaving image versions unchanged."
+        return
+    }
+    $latestVersion = $latestVersions[0]
     $imagesJson = gcloud artifacts docker images list $imagePath `
+        --project $ProjectId `
+        --include-tags `
         --sort-by "~updateTime" `
         --format "json" 2>$null
     if ($LASTEXITCODE -ne 0) {
@@ -89,8 +118,11 @@ function Remove-OldArtifactImages {
         return
     }
     $images = @($imagesJson | ConvertFrom-Json)
-    foreach ($image in ($images | Select-Object -Skip 1)) {
+    foreach ($image in $images) {
         if (-not $image.package -or -not $image.version) {
+            continue
+        }
+        if ($image.version -eq $latestVersion) {
             continue
         }
         $imageRef = "$($image.package)@$($image.version)"
@@ -105,12 +137,17 @@ function Remove-OldArtifactImages {
 
 gcloud config set project $ProjectId
 
-gcloud services enable `
-    run.googleapis.com `
-    cloudbuild.googleapis.com `
-    artifactregistry.googleapis.com `
-    secretmanager.googleapis.com `
-    googleads.googleapis.com
+$services = @(
+    "run.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "secretmanager.googleapis.com",
+    "googleads.googleapis.com"
+)
+if ($McpTokenStorage -eq "firestore") {
+    $services += "firestore.googleapis.com"
+}
+gcloud services enable $services --project $ProjectId
 
 $projectNumber = gcloud projects describe $ProjectId --format "value(projectNumber)"
 $serviceAccount = "$projectNumber-compute@developer.gserviceaccount.com"
@@ -118,6 +155,12 @@ gcloud projects add-iam-policy-binding $ProjectId `
     --member "serviceAccount:$serviceAccount" `
     --role "roles/secretmanager.secretAccessor" `
     --quiet
+if ($McpTokenStorage -eq "firestore") {
+    gcloud projects add-iam-policy-binding $ProjectId `
+        --member "serviceAccount:$serviceAccount" `
+        --role "roles/datastore.user" `
+        --quiet
+}
 Write-Host "Granted Secret Manager access to $serviceAccount. Waiting for IAM propagation..."
 Start-Sleep -Seconds 45
 
@@ -135,28 +178,38 @@ $genericServiceBridge = if ($EnableGenericServiceBridge.IsPresent) { "true" } el
 $envMappings = @(
     "GOOGLE_ADS_API_VERSION=v24",
     "GOOGLE_PROJECT_ID=$ProjectId",
+    "GOOGLE_ADS_AUTH_MODE=$GoogleAdsAuthMode",
     "GOOGLE_ADS_MCP_MODE=$McpMode",
     "GOOGLE_ADS_MCP_AUTH_MODE=$McpAuthMode",
+    "GOOGLE_ADS_MCP_TOKEN_STORAGE=$McpTokenStorage",
     "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=$genericServiceBridge"
 )
 if ($McpAuthMode -eq "oauth_proxy") {
     $envMappings += "GOOGLE_ADS_MCP_BASE_URL=$McpBaseUrl"
     $envMappings += "GOOGLE_ADS_MCP_OAUTH_CLIENT_ID=$McpOAuthClientId"
-    $envMappings += "GOOGLE_ADS_MCP_ALLOWED_DOMAINS=$McpAllowedDomains"
+    if ($McpAllowedEmails) {
+        $envMappings += "GOOGLE_ADS_MCP_ALLOWED_EMAILS=$McpAllowedEmails"
+    }
+    if ($McpAllowedDomains) {
+        $envMappings += "GOOGLE_ADS_MCP_ALLOWED_DOMAINS=$McpAllowedDomains"
+    }
+    if ($McpFirestoreDatabase) {
+        $envMappings += "GOOGLE_ADS_MCP_FIRESTORE_DATABASE=$McpFirestoreDatabase"
+    }
 }
-if ($GoogleAdsClientId) {
+if ($GoogleAdsClientId -and $GoogleAdsAuthMode -eq "shared_refresh_token") {
     $envMappings += "GOOGLE_ADS_CLIENT_ID=$GoogleAdsClientId"
 }
 if ($GoogleAdsLoginCustomerId) {
     $envMappings += "GOOGLE_ADS_LOGIN_CUSTOMER_ID=$GoogleAdsLoginCustomerId"
 }
 
-$secretMappings = @(
-    "GOOGLE_ADS_DEVELOPER_TOKEN=GOOGLE_ADS_DEVELOPER_TOKEN:latest",
-    "GOOGLE_ADS_CLIENT_SECRET=GOOGLE_ADS_CLIENT_SECRET:latest",
-    "GOOGLE_ADS_REFRESH_TOKEN=GOOGLE_ADS_REFRESH_TOKEN:latest"
-)
-if (-not $GoogleAdsClientId) {
+$secretMappings = @("GOOGLE_ADS_DEVELOPER_TOKEN=GOOGLE_ADS_DEVELOPER_TOKEN:latest")
+if ($GoogleAdsAuthMode -eq "shared_refresh_token") {
+    $secretMappings += "GOOGLE_ADS_CLIENT_SECRET=GOOGLE_ADS_CLIENT_SECRET:latest"
+    $secretMappings += "GOOGLE_ADS_REFRESH_TOKEN=GOOGLE_ADS_REFRESH_TOKEN:latest"
+}
+if ($GoogleAdsAuthMode -eq "shared_refresh_token" -and -not $GoogleAdsClientId) {
     $secretMappings += "GOOGLE_ADS_CLIENT_ID=GOOGLE_ADS_CLIENT_ID:latest"
 }
 if ($McpAuthMode -eq "bearer") {
@@ -167,7 +220,7 @@ if ($McpAuthMode -eq "oauth_proxy") {
 }
 
 gcloud secrets describe GOOGLE_ADS_LOGIN_CUSTOMER_ID 1>$null 2>$null
-if ($LASTEXITCODE -eq 0 -and -not $GoogleAdsLoginCustomerId) {
+if ($LASTEXITCODE -eq 0 -and -not $GoogleAdsLoginCustomerId -and $GoogleAdsAuthMode -eq "shared_refresh_token") {
     $secretMappings += "GOOGLE_ADS_LOGIN_CUSTOMER_ID=GOOGLE_ADS_LOGIN_CUSTOMER_ID:latest"
 } elseif (-not $GoogleAdsLoginCustomerId) {
     Write-Host "Optional secret GOOGLE_ADS_LOGIN_CUSTOMER_ID not found. Deploying without MCC login_customer_id."

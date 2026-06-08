@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from .capability_matrix import capability_matrix_payload
-from .config import ConfigError, get_settings, value_looks_missing
+from .config import GOOGLE_ADS_OAUTH_SCOPE, ConfigError, get_settings, value_looks_missing
 from .errors import format_tool_error
 from .friendly import FriendlyDispatcher
 from .gateway import GoogleAdsGateway
@@ -35,6 +35,7 @@ from .tool_catalog import FRIENDLY_TOOL_SPECS
 def build_mcp() -> Any:
     try:
         from fastmcp import FastMCP
+        from fastmcp.server.dependencies import get_access_token
         from starlette.responses import JSONResponse
     except ImportError as exc:  # pragma: no cover - exercised only without dependencies installed.
         raise RuntimeError("fastmcp and starlette are required to run the MCP server.") from exc
@@ -44,13 +45,33 @@ def build_mcp() -> Any:
     registry = load_tool_registry(settings)
     auth = _build_auth(settings)
     mcp = FastMCP("Google Ads Full API MCP", auth=auth)
-    gateway = GoogleAdsGateway(
-        settings=settings,
-        mode=registry.mode,
-        audit_sink=build_jsonl_audit_sink(settings.audit_log_path),
+    audit_sink = build_jsonl_audit_sink(settings.audit_log_path)
+    shared_gateway = (
+        GoogleAdsGateway(
+            settings=settings,
+            mode=registry.mode,
+            audit_sink=audit_sink,
+        )
+        if settings.google_ads_auth_mode == "shared_refresh_token"
+        else None
     )
-    dispatcher = FriendlyDispatcher(gateway=gateway)
 
+    def gateway_for_request() -> GoogleAdsGateway:
+        if settings.google_ads_auth_mode == "per_user_oauth":
+            return GoogleAdsGateway(
+                settings=settings,
+                mode=registry.mode,
+                audit_sink=audit_sink,
+                access_token=_google_ads_access_token_value(get_access_token()),
+            )
+        if shared_gateway is None:
+            raise ConfigError("Shared Google Ads gateway is not configured.")
+        return shared_gateway
+
+    def dispatcher_for_request() -> FriendlyDispatcher:
+        return FriendlyDispatcher(gateway=gateway_for_request())
+
+    @mcp.custom_route("/healthz/", methods=["GET"])
     @mcp.custom_route("/healthz", methods=["GET"])
     async def healthz(request: Any) -> Any:  # noqa: ARG001
         return JSONResponse(_server_status_payload(settings, registry))
@@ -133,22 +154,22 @@ def build_mcp() -> Any:
     async def list_google_ads_services() -> dict[str, Any]:
         """List service classes available in the installed Google Ads API client."""
 
-        return gateway.list_services()
+        return gateway_for_request().list_services()
 
     async def list_accessible_customers() -> dict[str, Any]:
-        """List customer resource names accessible to the configured OAuth user."""
+        """List customer resource names accessible to the authenticated Google user."""
 
-        return await gateway.list_accessible_customers()
+        return await gateway_for_request().list_accessible_customers()
 
     async def describe_google_ads_service(service_name: str) -> dict[str, Any]:
         """Describe callable methods for a Google Ads service."""
 
-        return gateway.describe_service(service_name)
+        return gateway_for_request().describe_service(service_name)
 
     async def describe_google_ads_resource(resource_name: str) -> dict[str, Any]:
         """Describe fields for a Google Ads API resource using GoogleAdsFieldService."""
 
-        return await gateway.describe_resource(resource_name)
+        return await gateway_for_request().describe_resource(resource_name)
 
     async def get_google_ads_resource_metadata(
         resource_name: str,
@@ -156,7 +177,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Return selectable, filterable, sortable, metric, and segment metadata."""
 
-        return await gateway.get_resource_metadata(
+        return await gateway_for_request().get_resource_metadata(
             resource_name,
             force_refresh=force_refresh,
         )
@@ -170,7 +191,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Validate GAQL SELECT fields against live resource metadata."""
 
-        return await gateway.validate_gaql_fields(
+        return await gateway_for_request().validate_gaql_fields(
             resource_name,
             fields,
             include_metrics=include_metrics,
@@ -186,7 +207,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Suggest GAQL fields from live metadata for a resource."""
 
-        return await gateway.suggest_gaql_fields(
+        return await gateway_for_request().suggest_gaql_fields(
             resource_name,
             field_prefix_or_query,
             limit=limit,
@@ -208,7 +229,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Build and validate a GAQL query plan without executing it."""
 
-        return await gateway.plan_gaql_query(
+        return await gateway_for_request().plan_gaql_query(
             resource_name=resource_name,
             user_goal=user_goal,
             fields=fields,
@@ -225,7 +246,7 @@ def build_mcp() -> Any:
     async def explain_gaql_error(error_text: str) -> dict[str, object]:
         """Explain a common GAQL error and suggest the next safe tool to use."""
 
-        return gateway.explain_gaql_error(error_text)
+        return gateway_for_request().explain_gaql_error(error_text)
 
     async def query_google_ads_docs(
         question: str,
@@ -260,7 +281,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Run a GAQL search query."""
 
-        return await gateway.search(
+        return await gateway_for_request().search(
             customer_id=customer_id,
             query=query,
             page_size=page_size,
@@ -276,7 +297,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Run a GAQL SearchStream query."""
 
-        return await gateway.search_stream(
+        return await gateway_for_request().search_stream(
             customer_id=customer_id,
             query=query,
             primary_field=primary_field,
@@ -294,7 +315,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Run GoogleAdsService.mutate against arbitrary MutateOperation payloads."""
 
-        return await gateway.mutate(
+        return await gateway_for_request().mutate(
             customer_id=customer_id,
             operations=operations,
             validate_only=validate_only,
@@ -318,7 +339,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Call any Google Ads API service method exposed by the installed client."""
 
-        return await gateway.call_service(
+        return await gateway_for_request().call_service(
             service_name=service_name,
             method_name=method_name,
             payload=request or {},
@@ -336,6 +357,7 @@ def build_mcp() -> Any:
     ) -> dict[str, Any]:
         """Validate a protobuf JSON payload against a Google Ads request/message type."""
 
+        gateway = gateway_for_request()
         message = gateway.get_type(request_type)
         gateway._parse_dict(payload, message)  # noqa: SLF001 - exposed as an MCP validation tool.
         return {"valid": True, "request_type": request_type}
@@ -365,7 +387,7 @@ def build_mcp() -> Any:
 
     for spec in FRIENDLY_TOOL_SPECS:
         for exposure in registry.exposures_for(spec.name):
-            _register_friendly_tool(mcp, dispatcher, exposure)
+            _register_friendly_tool(mcp, dispatcher_for_request, exposure)
 
     _register_resources(mcp, settings, registry)
 
@@ -390,15 +412,14 @@ def _build_auth(settings: Any) -> Any:
             provider_kwargs["google_ads_bootstrap_token"] = (
                 settings.google_ads_oauth_bootstrap_token
             )
+        if settings.mcp_token_storage == "firestore":
+            provider_kwargs["client_storage"] = _build_firestore_token_storage(settings)
         provider = provider_cls(
             client_id=settings.mcp_oauth_client_id,
             client_secret=settings.mcp_oauth_client_secret,
             base_url=settings.mcp_base_url,
-            required_scopes=[
-                "openid",
-                "https://www.googleapis.com/auth/userinfo.email",
-                "https://www.googleapis.com/auth/userinfo.profile",
-            ],
+            required_scopes=_google_oauth_scopes(settings),
+            valid_scopes=_google_oauth_scopes(settings),
             **provider_kwargs,
         )
         return _OAuthAllowlistProvider(provider, settings)
@@ -417,11 +438,63 @@ def _build_auth(settings: Any) -> Any:
     )
 
 
+def _google_oauth_scopes(settings: Any) -> list[str]:
+    scopes = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+    ]
+    if settings.google_ads_auth_mode == "per_user_oauth":
+        scopes.append(GOOGLE_ADS_OAUTH_SCOPE)
+    return scopes
+
+
+def _build_firestore_token_storage(settings: Any) -> Any:
+    try:
+        from key_value.aio.stores.firestore import (
+            FirestoreStore,
+            FirestoreV1CollectionSanitizationStrategy,
+            FirestoreV1KeySanitizationStrategy,
+        )
+        from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+        from key_value.aio.wrappers.prefix_collections import PrefixCollectionsWrapper
+    except ImportError as exc:  # pragma: no cover - depends on optional runtime packages.
+        raise ConfigError(
+            "Firestore token storage requires google-cloud-firestore and FastMCP key-value "
+            "Firestore support."
+        ) from exc
+    if value_looks_missing(settings.mcp_oauth_client_secret):
+        raise ConfigError(
+            "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET is required to encrypt Firestore token storage."
+        )
+    store = FirestoreStore(
+        project=settings.google_project_id,
+        database=settings.mcp_firestore_database,
+        key_sanitization_strategy=FirestoreV1KeySanitizationStrategy(),
+        collection_sanitization_strategy=FirestoreV1CollectionSanitizationStrategy(),
+    )
+    namespaced_store = PrefixCollectionsWrapper(
+        store,
+        prefix="google-ads-mcp-oauth",
+    )
+    return FernetEncryptionWrapper(
+        key_value=namespaced_store,
+        source_material=settings.mcp_oauth_client_secret,
+        salt="google-ads-mcp-firestore-token-storage-v1",
+        raise_on_decryption_error=False,
+    )
+
+
 class _OAuthAllowlistProvider:
     def __init__(self, provider: Any, settings: Any) -> None:
         self.provider = provider
         self.allowed_emails = set(settings.mcp_allowed_emails)
         self.allowed_domains = set(settings.mcp_allowed_domains)
+        self.allow_all_google_users = (
+            settings.google_ads_auth_mode == "per_user_oauth"
+            and not self.allowed_emails
+            and not self.allowed_domains
+        )
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.provider, name)
@@ -430,6 +503,8 @@ class _OAuthAllowlistProvider:
         access_token = await self.provider.verify_token(token)
         if access_token is None:
             return None
+        if self.allow_all_google_users:
+            return access_token
         if not _oauth_token_allowed(
             access_token,
             allowed_emails=self.allowed_emails,
@@ -658,9 +733,26 @@ def _oauth_token_allowed(
     )
 
 
+def _google_ads_access_token_value(access_token: Any | None) -> str:
+    if access_token is None:
+        raise ConfigError(
+            "Authenticated Google OAuth token is required for per-user Google Ads access."
+        )
+    token_value = str(getattr(access_token, "token", "") or "").strip()
+    if not token_value:
+        raise ConfigError("Authenticated Google OAuth token did not include an access token.")
+    scopes = set(getattr(access_token, "scopes", []) or [])
+    if GOOGLE_ADS_OAUTH_SCOPE not in scopes:
+        raise ConfigError(
+            "Authenticated Google account did not grant Google Ads access. "
+            "Reconnect Claude and approve the Google Ads scope."
+        )
+    return token_value
+
+
 def _register_friendly_tool(
     mcp: Any,
-    dispatcher: FriendlyDispatcher,
+    dispatcher_factory: Any,
     exposure: ToolExposure,
 ) -> None:
     async def friendly_tool(
@@ -679,7 +771,7 @@ def _register_friendly_tool(
         partial_failure: bool = False,
     ) -> dict[str, Any]:
         try:
-            return await dispatcher.dispatch(
+            return await dispatcher_factory().dispatch(
                 exposure.canonical_name,
                 customer_id=customer_id or None,
                 payload=payload,
@@ -737,6 +829,7 @@ def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, A
         "service": "google-ads-mcp",
         "api_version": settings.api_version,
         "auth": "disabled-local-dev" if settings.allow_unauthenticated_mcp else settings.auth_mode,
+        "google_ads_auth_mode": settings.google_ads_auth_mode,
         "mode": registry.mode,
         "google_ads_configured": readiness["google_ads_configured"],
         "tools_config_source": registry.config_source,
@@ -747,6 +840,7 @@ def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, A
         "metadata_cache_ttl_seconds": settings.metadata_cache_ttl_seconds,
         "metadata_cache_max_entries": settings.metadata_cache_max_entries,
         "metadata_snapshot_enabled": bool(settings.metadata_snapshot_path),
+        "oauth_token_storage": settings.mcp_token_storage,
         "oauth_allowlist_configured": bool(
             settings.mcp_allowed_emails or settings.mcp_allowed_domains
         ),
@@ -760,11 +854,7 @@ def _oauth_discovery_payload(settings: Any) -> dict[str, Any]:
         "authorization_endpoint": f"{base_url}/authorize",
         "token_endpoint": f"{base_url}/token",
         "registration_endpoint": f"{base_url}/register",
-        "scopes_supported": [
-            "openid",
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/userinfo.profile",
-        ],
+        "scopes_supported": _google_oauth_scopes(settings),
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "token_endpoint_auth_methods_supported": [
@@ -777,16 +867,28 @@ def _oauth_discovery_payload(settings: Any) -> dict[str, Any]:
 
 
 def _google_ads_readiness_payload(settings: Any) -> dict[str, Any]:
-    required = {
-        "GOOGLE_ADS_DEVELOPER_TOKEN": settings.developer_token,
-        "GOOGLE_ADS_CLIENT_ID": settings.oauth_client_id,
-        "GOOGLE_ADS_CLIENT_SECRET": settings.oauth_client_secret,
-        "GOOGLE_ADS_REFRESH_TOKEN": settings.refresh_token,
-    }
+    if settings.google_ads_auth_mode == "per_user_oauth":
+        required = {
+            "GOOGLE_ADS_DEVELOPER_TOKEN": settings.developer_token,
+            "GOOGLE_ADS_MCP_OAUTH_CLIENT_ID": settings.mcp_oauth_client_id,
+            "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET": settings.mcp_oauth_client_secret,
+            "GOOGLE_ADS_MCP_BASE_URL": settings.mcp_base_url,
+        }
+        if settings.mcp_token_storage == "firestore":
+            required["GOOGLE_PROJECT_ID"] = settings.google_project_id
+    else:
+        required = {
+            "GOOGLE_ADS_DEVELOPER_TOKEN": settings.developer_token,
+            "GOOGLE_ADS_CLIENT_ID": settings.oauth_client_id,
+            "GOOGLE_ADS_CLIENT_SECRET": settings.oauth_client_secret,
+            "GOOGLE_ADS_REFRESH_TOKEN": settings.refresh_token,
+        }
     missing = [name for name, value in required.items() if value_looks_missing(value)]
     return {
         "status": "ready" if not missing else "not_ready",
         "service": "google-ads-mcp",
+        "google_ads_auth_mode": settings.google_ads_auth_mode,
+        "oauth_token_storage": settings.mcp_token_storage,
         "google_ads_configured": not missing,
         "missing": missing,
     }

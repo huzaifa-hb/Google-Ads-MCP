@@ -39,6 +39,11 @@ class SearchRequest:
         self.page_size: int | None = None
 
 
+class RecordingGoogleAdsClient:
+    def __init__(self, **kwargs: object) -> None:
+        self.kwargs = kwargs
+
+
 class SearchPager:
     next_page_token = "next-token"
     results = [{"campaign": {"id": "1"}}, {"campaign": {"id": "2"}}]
@@ -147,6 +152,27 @@ class ParsingGateway(GoogleAdsGateway):
 
 
 class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
+    def test_per_user_access_token_client_uses_google_oauth_credentials(self) -> None:
+        gateway = GoogleAdsGateway(
+            settings=make_settings(
+                google_ads_auth_mode="per_user_oauth",
+                developer_token="developer-token",
+                login_customer_id="123-456-7890",
+            ),
+            access_token="user-access-token",
+        )
+
+        client = gateway._load_client_from_access_token(RecordingGoogleAdsClient)  # noqa: SLF001
+
+        self.assertEqual(client.kwargs["developer_token"], "developer-token")
+        self.assertEqual(client.kwargs["login_customer_id"], "1234567890")
+        self.assertEqual(client.kwargs["version"], "v24")
+        self.assertEqual(client.kwargs["credentials"].token, "user-access-token")
+        self.assertIn(
+            "https://www.googleapis.com/auth/adwords",
+            client.kwargs["credentials"].scopes,
+        )
+
     async def test_mutating_method_cannot_be_marked_read_only(self) -> None:
         gateway = GoogleAdsGateway()
         with self.assertRaises(ValidationError):

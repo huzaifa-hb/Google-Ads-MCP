@@ -40,11 +40,17 @@ class DeploymentConfigTests(unittest.TestCase):
         self.assertNotIn("ToolsConfigPath", script)
         self.assertIn("-McpBaseUrl is required when -McpAuthMode oauth_proxy", script)
         self.assertIn("-McpOAuthClientId is required when -McpAuthMode oauth_proxy", script)
-        self.assertIn("-McpAllowedDomains is required when -McpAuthMode oauth_proxy", script)
+        self.assertIn("unless -GoogleAdsAuthMode per_user_oauth is used", script)
+        self.assertIn("-GoogleAdsAuthMode must be shared_refresh_token or per_user_oauth", script)
+        self.assertIn("-McpTokenStorage must be local or firestore", script)
         self.assertIn("GOOGLE_ADS_MCP_BASE_URL=$McpBaseUrl", script)
+        self.assertIn("GOOGLE_ADS_AUTH_MODE=$GoogleAdsAuthMode", script)
+        self.assertIn("GOOGLE_ADS_MCP_TOKEN_STORAGE=$McpTokenStorage", script)
+        self.assertIn("GOOGLE_ADS_MCP_ALLOWED_EMAILS=$McpAllowedEmails", script)
         self.assertIn("GOOGLE_ADS_MCP_ALLOWED_DOMAINS=$McpAllowedDomains", script)
+        self.assertIn("GOOGLE_ADS_MCP_FIRESTORE_DATABASE=$McpFirestoreDatabase", script)
         self.assertIn("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID=$McpOAuthClientId", script)
-        self.assertIn("GOOGLE_ADS_CLIENT_ID=$GoogleAdsClientId", script)
+        self.assertIn('$GoogleAdsAuthMode -eq "shared_refresh_token"', script)
         self.assertIn("--min-instances $MinInstances", script)
         self.assertIn("--max-instances $MaxInstances", script)
         self.assertIn("--memory $Memory", script)
@@ -67,6 +73,9 @@ class DeploymentConfigTests(unittest.TestCase):
             "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET=GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET:latest",
             script,
         )
+        self.assertIn('if ($McpTokenStorage -eq "firestore")', script)
+        self.assertIn("roles/datastore.user", script)
+        self.assertIn("firestore.googleapis.com", script)
 
 
 if __name__ == "__main__":

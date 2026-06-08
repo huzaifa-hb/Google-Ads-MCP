@@ -113,7 +113,9 @@ async function main(): Promise<void> {
       WORK_DIR,
       flagString(parsed.flags, "project") || "",
       envFile,
-      flagString(parsed.flags, "auth-mode", "bearer") || "bearer"
+      flagString(parsed.flags, "auth-mode", "bearer") || "bearer",
+      flagString(parsed.flags, "google-ads-auth-mode", "shared_refresh_token") ||
+        "shared_refresh_token"
     );
     return;
   }
@@ -124,11 +126,17 @@ async function main(): Promise<void> {
       region: flagString(parsed.flags, "region", "us-central1"),
       mode: flagString(parsed.flags, "mode", "safe_read_only"),
       authMode: flagString(parsed.flags, "auth-mode", "bearer"),
+      googleAdsAuthMode:
+        flagString(parsed.flags, "google-ads-auth-mode", "shared_refresh_token") ||
+        "shared_refresh_token",
       mcpBaseUrl: flagString(parsed.flags, "base-url") || flagString(parsed.flags, "mcp-base-url"),
       googleAdsClientId: flagString(parsed.flags, "google-ads-client-id"),
       googleAdsLoginCustomerId: flagString(parsed.flags, "google-ads-login-customer-id"),
       mcpOAuthClientId: flagString(parsed.flags, "mcp-oauth-client-id"),
+      mcpAllowedEmails: flagString(parsed.flags, "allowed-emails"),
       mcpAllowedDomains: flagString(parsed.flags, "allowed-domains"),
+      mcpTokenStorage: flagString(parsed.flags, "token-storage"),
+      mcpFirestoreDatabase: flagString(parsed.flags, "firestore-database"),
       minInstances: flagString(parsed.flags, "min-instances"),
       maxInstances: flagString(parsed.flags, "max-instances"),
       memory: flagString(parsed.flags, "memory"),
