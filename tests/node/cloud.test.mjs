@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildDeployCommand,
   buildSecretVersionCommand,
-  missingRequiredSecrets
+  missingRequiredSecrets,
+  requiredSecretsForAuthMode
 } from "../../dist/node-cli/cloud.js";
 
 test("secret commands use data files instead of secret values", () => {
@@ -43,10 +44,31 @@ test("deploy command passes OAuth proxy base URL", () => {
     region: "us-central1",
     mode: "safe_read_only",
     authMode: "oauth_proxy",
-    mcpBaseUrl: "https://example.run.app"
+    mcpBaseUrl: "https://example.run.app",
+    googleAdsClientId: "google-ads-client.apps.googleusercontent.com",
+    mcpOAuthClientId: "mcp-client.apps.googleusercontent.com",
+    mcpAllowedDomains: "gmail.com,example.com",
+    minInstances: "0",
+    maxInstances: "1",
+    memory: "512Mi",
+    cpu: "1"
   });
   assert.ok(command.args.includes("-McpBaseUrl"));
   assert.ok(command.args.includes("https://example.run.app"));
+  assert.ok(command.args.includes("-GoogleAdsClientId"));
+  assert.ok(command.args.includes("google-ads-client.apps.googleusercontent.com"));
+  assert.ok(command.args.includes("-McpOAuthClientId"));
+  assert.ok(command.args.includes("mcp-client.apps.googleusercontent.com"));
+  assert.ok(command.args.includes("-McpAllowedDomains"));
+  assert.ok(command.args.includes("gmail.com,example.com"));
+  assert.ok(command.args.includes("-MinInstances"));
+  assert.ok(command.args.includes("0"));
+  assert.ok(command.args.includes("-MaxInstances"));
+  assert.ok(command.args.includes("1"));
+  assert.ok(command.args.includes("-Memory"));
+  assert.ok(command.args.includes("512Mi"));
+  assert.ok(command.args.includes("-Cpu"));
+  assert.ok(command.args.includes("1"));
 });
 
 test("required secret validation rejects placeholders", () => {
@@ -58,4 +80,25 @@ test("required secret validation rejects placeholders", () => {
     GOOGLE_ADS_REFRESH_TOKEN: "refresh"
   });
   assert.deepEqual(missing, ["MCP_BEARER_TOKEN"]);
+});
+
+test("OAuth proxy secrets skip bearer token and non-sensitive client IDs", () => {
+  assert.deepEqual(requiredSecretsForAuthMode("oauth_proxy"), [
+    "GOOGLE_ADS_DEVELOPER_TOKEN",
+    "GOOGLE_ADS_CLIENT_SECRET",
+    "GOOGLE_ADS_REFRESH_TOKEN",
+    "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET"
+  ]);
+  const missing = missingRequiredSecrets(
+    {
+      MCP_BEARER_TOKEN: "",
+      GOOGLE_ADS_CLIENT_ID: "",
+      GOOGLE_ADS_DEVELOPER_TOKEN: "dev",
+      GOOGLE_ADS_CLIENT_SECRET: "secret",
+      GOOGLE_ADS_REFRESH_TOKEN: "refresh",
+      GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET: "oauth-secret"
+    },
+    "oauth_proxy"
+  );
+  assert.deepEqual(missing, []);
 });

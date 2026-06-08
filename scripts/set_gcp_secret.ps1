@@ -21,8 +21,9 @@ if (-not $Value) {
 }
 
 $tmp = [System.IO.Path]::GetTempFileName()
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 try {
-    [System.IO.File]::WriteAllText($tmp, $Value, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($tmp, $Value, $utf8NoBom)
     gcloud secrets describe $Name --project $ProjectId 1>$null 2>$null
     if ($LASTEXITCODE -eq 0) {
         gcloud secrets versions add $Name --data-file=$tmp --project $ProjectId

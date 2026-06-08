@@ -24,8 +24,8 @@ Usage:
   google-ads-mcp relay --url <mcp-url> [--token-env MCP_BEARER_TOKEN] [--env-file .env]
   google-ads-mcp config --client codex|claude-desktop|generic --transport remote|stdio
   google-ads-mcp smoke [--profile local-direct]
-  google-ads-mcp cloud sync-secrets --project <id>
-  google-ads-mcp cloud deploy --project <id>
+  google-ads-mcp cloud sync-secrets --project <id> [--auth-mode bearer|oauth_proxy]
+  google-ads-mcp cloud deploy --project <id> [--auth-mode bearer|oauth_proxy]
 `);
 }
 
@@ -109,7 +109,12 @@ async function main(): Promise<void> {
   }
 
   if (parsed.command === "cloud" && parsed.subcommand === "sync-secrets") {
-    await syncSecrets(WORK_DIR, flagString(parsed.flags, "project") || "", envFile);
+    await syncSecrets(
+      WORK_DIR,
+      flagString(parsed.flags, "project") || "",
+      envFile,
+      flagString(parsed.flags, "auth-mode", "bearer") || "bearer"
+    );
     return;
   }
 
@@ -119,7 +124,15 @@ async function main(): Promise<void> {
       region: flagString(parsed.flags, "region", "us-central1"),
       mode: flagString(parsed.flags, "mode", "safe_read_only"),
       authMode: flagString(parsed.flags, "auth-mode", "bearer"),
-      mcpBaseUrl: flagString(parsed.flags, "base-url") || flagString(parsed.flags, "mcp-base-url")
+      mcpBaseUrl: flagString(parsed.flags, "base-url") || flagString(parsed.flags, "mcp-base-url"),
+      googleAdsClientId: flagString(parsed.flags, "google-ads-client-id"),
+      googleAdsLoginCustomerId: flagString(parsed.flags, "google-ads-login-customer-id"),
+      mcpOAuthClientId: flagString(parsed.flags, "mcp-oauth-client-id"),
+      mcpAllowedDomains: flagString(parsed.flags, "allowed-domains"),
+      minInstances: flagString(parsed.flags, "min-instances"),
+      maxInstances: flagString(parsed.flags, "max-instances"),
+      memory: flagString(parsed.flags, "memory"),
+      cpu: flagString(parsed.flags, "cpu")
     });
     return;
   }

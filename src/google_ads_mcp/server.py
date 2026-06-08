@@ -54,6 +54,12 @@ def build_mcp() -> Any:
         payload = _google_ads_readiness_payload(settings)
         return JSONResponse(payload, status_code=200 if payload["google_ads_configured"] else 503)
 
+    @mcp.custom_route("/.well-known/openid-configuration", methods=["GET"])
+    async def openid_configuration(request: Any) -> Any:  # noqa: ARG001
+        if settings.auth_mode != "oauth_proxy":
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        return JSONResponse(_oauth_discovery_payload(settings))
+
     async def get_server_status() -> dict[str, Any]:
         """Return server mode, auth mode, config source, and exposed tool count."""
 
@@ -486,6 +492,29 @@ def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, A
         "oauth_allowlist_configured": bool(
             settings.mcp_allowed_emails or settings.mcp_allowed_domains
         ),
+    }
+
+
+def _oauth_discovery_payload(settings: Any) -> dict[str, Any]:
+    base_url = (settings.mcp_base_url or "").rstrip("/")
+    return {
+        "issuer": f"{base_url}/",
+        "authorization_endpoint": f"{base_url}/authorize",
+        "token_endpoint": f"{base_url}/token",
+        "registration_endpoint": f"{base_url}/register",
+        "scopes_supported": [
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile",
+        ],
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "token_endpoint_auth_methods_supported": [
+            "client_secret_post",
+            "client_secret_basic",
+        ],
+        "code_challenge_methods_supported": ["S256"],
+        "client_id_metadata_document_supported": True,
     }
 
 

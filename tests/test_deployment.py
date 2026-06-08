@@ -26,16 +26,43 @@ class DeploymentConfigTests(unittest.TestCase):
 
         self.assertIn("tools_config.yaml", dockerfile)
 
-    def test_cloud_run_script_requires_oauth_base_url_and_uses_secret_mappings(self) -> None:
+    def test_secret_helper_writes_utf8_without_bom(self) -> None:
+        script = (ROOT / "scripts" / "set_gcp_secret.ps1").read_text(encoding="utf-8")
+
+        self.assertIn("[System.Text.UTF8Encoding]::new($false)", script)
+        self.assertIn("[System.IO.File]::WriteAllText($tmp, $Value, $utf8NoBom)", script)
+
+    def test_cloud_run_script_requires_oauth_base_url_and_uses_free_tier_oauth_shape(
+        self,
+    ) -> None:
         script = (ROOT / "deploy" / "cloud-run.ps1").read_text(encoding="utf-8")
 
         self.assertNotIn("ToolsConfigPath", script)
         self.assertIn("-McpBaseUrl is required when -McpAuthMode oauth_proxy", script)
+        self.assertIn("-McpOAuthClientId is required when -McpAuthMode oauth_proxy", script)
+        self.assertIn("-McpAllowedDomains is required when -McpAuthMode oauth_proxy", script)
         self.assertIn("GOOGLE_ADS_MCP_BASE_URL=$McpBaseUrl", script)
-        self.assertIn(
+        self.assertIn("GOOGLE_ADS_MCP_ALLOWED_DOMAINS=$McpAllowedDomains", script)
+        self.assertIn("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID=$McpOAuthClientId", script)
+        self.assertIn("GOOGLE_ADS_CLIENT_ID=$GoogleAdsClientId", script)
+        self.assertIn("--min-instances $MinInstances", script)
+        self.assertIn("--max-instances $MaxInstances", script)
+        self.assertIn("--memory $Memory", script)
+        self.assertIn("--cpu $Cpu", script)
+        self.assertIn("--cpu-throttling", script)
+        self.assertIn("--no-cpu-boost", script)
+        self.assertIn('state=enabled OR state=disabled', script)
+        self.assertIn("Remove-OldSecretVersions", script)
+        self.assertIn("Remove-OldArtifactImages", script)
+        self.assertNotIn(
             "GOOGLE_ADS_MCP_OAUTH_CLIENT_ID=GOOGLE_ADS_MCP_OAUTH_CLIENT_ID:latest",
             script,
         )
+        self.assertIn(
+            '$secretMappings += "MCP_BEARER_TOKEN=MCP_BEARER_TOKEN:latest"',
+            script,
+        )
+        self.assertIn('if ($McpAuthMode -eq "bearer")', script)
         self.assertIn(
             "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET=GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET:latest",
             script,

@@ -2,8 +2,14 @@
 .gitignore
 .pytest_cache/
 .ruff_cache/
+.codex-run/
+.claude/
 .venv/
 venv/
+node_modules/
+build/
+dist/
+node-cli/
 tests/
 docs/
 outputs/

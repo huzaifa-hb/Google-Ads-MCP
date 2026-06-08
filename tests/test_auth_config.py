@@ -14,6 +14,7 @@ from google_ads_mcp.config import ConfigError, Settings, get_settings, reset_set
 from google_ads_mcp.server import (
     _OAuthAllowlistProvider,
     _google_ads_readiness_payload,
+    _oauth_discovery_payload,
     _oauth_token_allowed,
     _server_status_payload,
 )
@@ -232,6 +233,23 @@ class AuthConfigTests(unittest.TestCase):
         self.assertEqual(payload["metadata_cache_max_entries"], 7)
         self.assertTrue(payload["metadata_snapshot_enabled"])
         self.assertNotIn("C:/private", str(payload))
+
+    def test_oauth_discovery_payload_supports_claude_discovery(self) -> None:
+        settings = make_settings(mcp_base_url="https://example.run.app/")
+
+        payload = _oauth_discovery_payload(settings)
+
+        self.assertEqual(payload["issuer"], "https://example.run.app/")
+        self.assertEqual(
+            payload["authorization_endpoint"],
+            "https://example.run.app/authorize",
+        )
+        self.assertEqual(payload["token_endpoint"], "https://example.run.app/token")
+        self.assertEqual(payload["registration_endpoint"], "https://example.run.app/register")
+        self.assertIn("openid", payload["scopes_supported"])
+        self.assertEqual(payload["response_types_supported"], ["code"])
+        self.assertIn("authorization_code", payload["grant_types_supported"])
+        self.assertTrue(payload["client_id_metadata_document_supported"])
 
     def test_google_ads_client_config_normalizes_login_customer_id(self) -> None:
         settings = make_settings(
