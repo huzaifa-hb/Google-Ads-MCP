@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import base64
 from functools import wraps
-import os
+import hashlib
+import hmac
 import inspect
+import os
+import secrets
+import time
 from typing import Any
+from urllib.parse import urlencode
 
 from .capability_matrix import capability_matrix_payload
 from .config import ConfigError, get_settings, value_looks_missing
@@ -59,6 +65,49 @@ def build_mcp() -> Any:
         if settings.auth_mode != "oauth_proxy":
             return JSONResponse({"detail": "Not Found"}, status_code=404)
         return JSONResponse(_oauth_discovery_payload(settings))
+
+    if settings.google_ads_oauth_bootstrap_token:
+
+        @mcp.custom_route("/admin/google-ads-oauth/start", methods=["GET"])
+        async def google_ads_oauth_start(request: Any) -> Any:
+            if not _bootstrap_request_allowed(
+                request, settings.google_ads_oauth_bootstrap_token
+            ):
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+            provider = _bootstrap_provider(auth)
+            if provider is None:
+                return JSONResponse({"detail": "Bootstrap unavailable"}, status_code=404)
+            nonce, authorization_url = provider.google_ads_bootstrap_authorization_url()
+            if request.query_params.get("format") == "json":
+                return JSONResponse(
+                    {
+                        "status": "authorization_required",
+                        "nonce": nonce,
+                        "authorization_url": authorization_url,
+                    },
+                    headers={"Cache-Control": "no-store"},
+                )
+            from starlette.responses import RedirectResponse
+
+            return RedirectResponse(authorization_url, status_code=302)
+
+        @mcp.custom_route("/admin/google-ads-oauth/result", methods=["GET"])
+        async def google_ads_oauth_result(request: Any) -> Any:
+            if not _bootstrap_request_allowed(
+                request, settings.google_ads_oauth_bootstrap_token
+            ):
+                return JSONResponse({"detail": "Not Found"}, status_code=404)
+            provider = _bootstrap_provider(auth)
+            if provider is None:
+                return JSONResponse({"detail": "Bootstrap unavailable"}, status_code=404)
+            nonce = request.query_params.get("nonce") or ""
+            result = provider.pop_google_ads_bootstrap_result(nonce)
+            status_code = 200 if result["status"] == "ready" else 202
+            return JSONResponse(
+                result,
+                status_code=status_code,
+                headers={"Cache-Control": "no-store"},
+            )
 
     async def get_server_status() -> dict[str, Any]:
         """Return server mode, auth mode, config source, and exposed tool count."""
@@ -331,7 +380,17 @@ def _build_auth(settings: Any) -> Any:
             from fastmcp.server.auth.providers.google import GoogleProvider
         except ImportError as exc:  # pragma: no cover
             raise ConfigError("fastmcp GoogleProvider is required for OAuth proxy auth.") from exc
-        provider = GoogleProvider(
+        provider_cls = (
+            _google_ads_oauth_bootstrap_provider_class(GoogleProvider)
+            if settings.google_ads_oauth_bootstrap_token
+            else GoogleProvider
+        )
+        provider_kwargs: dict[str, Any] = {}
+        if settings.google_ads_oauth_bootstrap_token:
+            provider_kwargs["google_ads_bootstrap_token"] = (
+                settings.google_ads_oauth_bootstrap_token
+            )
+        provider = provider_cls(
             client_id=settings.mcp_oauth_client_id,
             client_secret=settings.mcp_oauth_client_secret,
             base_url=settings.mcp_base_url,
@@ -340,6 +399,7 @@ def _build_auth(settings: Any) -> Any:
                 "https://www.googleapis.com/auth/userinfo.email",
                 "https://www.googleapis.com/auth/userinfo.profile",
             ],
+            **provider_kwargs,
         )
         return _OAuthAllowlistProvider(provider, settings)
     try:
@@ -377,6 +437,204 @@ class _OAuthAllowlistProvider:
         ):
             return None
         return access_token
+
+
+class _GoogleAdsOAuthBootstrapMixin:
+    _STATE_PREFIX = "gads-bootstrap"
+    _GOOGLE_ADS_SCOPE = "https://www.googleapis.com/auth/adwords"
+    _STATE_TTL_SECONDS = 600
+    _RESULT_TTL_SECONDS = 600
+
+    def __init__(self, *args: Any, google_ads_bootstrap_token: str, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._google_ads_bootstrap_token = google_ads_bootstrap_token
+        self._google_ads_bootstrap_results: dict[str, dict[str, Any]] = {}
+
+    def google_ads_bootstrap_authorization_url(self) -> tuple[str, str]:
+        nonce = secrets.token_urlsafe(24)
+        expires_at = int(time.time() + self._STATE_TTL_SECONDS)
+        state = self._sign_google_ads_bootstrap_state(nonce, expires_at)
+        redirect_uri = self._google_ads_bootstrap_redirect_uri()
+        params = {
+            "client_id": self._upstream_client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": self._GOOGLE_ADS_SCOPE,
+            "access_type": "offline",
+            "prompt": "consent",
+            "include_granted_scopes": "true",
+            "state": state,
+        }
+        return nonce, f"{self._upstream_authorization_endpoint}?{urlencode(params)}"
+
+    def pop_google_ads_bootstrap_result(self, nonce: str) -> dict[str, Any]:
+        self._purge_expired_google_ads_bootstrap_results()
+        if not nonce:
+            return {"status": "missing_nonce"}
+        result = self._google_ads_bootstrap_results.pop(nonce, None)
+        if result is None:
+            return {"status": "pending"}
+        return result
+
+    async def _handle_idp_callback(self, request: Any) -> Any:
+        nonce = self._verify_google_ads_bootstrap_state(
+            str(request.query_params.get("state") or "")
+        )
+        if nonce:
+            return await self._handle_google_ads_bootstrap_callback(request, nonce)
+        return await super()._handle_idp_callback(request)
+
+    async def _handle_google_ads_bootstrap_callback(self, request: Any, nonce: str) -> Any:
+        from starlette.responses import HTMLResponse
+
+        if request.query_params.get("error"):
+            error = request.query_params.get("error")
+            return HTMLResponse(
+                _google_ads_bootstrap_html(
+                    "Authorization failed",
+                    f"Google returned: {error}",
+                ),
+                status_code=400,
+            )
+        code = request.query_params.get("code")
+        if not code:
+            return HTMLResponse(
+                _google_ads_bootstrap_html(
+                    "Authorization failed",
+                    "Google did not return an authorization code.",
+                ),
+                status_code=400,
+            )
+        try:
+            async with self._upstream_oauth_client() as oauth_client:
+                tokens = await oauth_client.fetch_token(
+                    url=self._upstream_token_endpoint,
+                    code=code,
+                    redirect_uri=self._google_ads_bootstrap_redirect_uri(),
+                    scope=self._GOOGLE_ADS_SCOPE,
+                )
+        except Exception:
+            return HTMLResponse(
+                _google_ads_bootstrap_html(
+                    "Token exchange failed",
+                    "Google accepted the login but did not issue usable tokens.",
+                ),
+                status_code=500,
+            )
+
+        refresh_token = tokens.get("refresh_token")
+        if not refresh_token:
+            return HTMLResponse(
+                _google_ads_bootstrap_html(
+                    "No refresh token returned",
+                    "Remove this app from your Google Account permissions, then retry.",
+                ),
+                status_code=400,
+            )
+
+        self._google_ads_bootstrap_results[nonce] = {
+            "status": "ready",
+            "client_id": self._upstream_client_id,
+            "refresh_token": refresh_token,
+            "created_at": int(time.time()),
+            "expires_at": int(time.time() + self._RESULT_TTL_SECONDS),
+        }
+        return HTMLResponse(
+            _google_ads_bootstrap_html(
+                "Authorization complete",
+                "You can close this tab and return to Codex.",
+            ),
+            status_code=200,
+        )
+
+    def _google_ads_bootstrap_redirect_uri(self) -> str:
+        return f"{str(self.base_url).rstrip('/')}{self._redirect_path}"
+
+    def _sign_google_ads_bootstrap_state(self, nonce: str, expires_at: int) -> str:
+        payload = f"{nonce}.{expires_at}"
+        digest = hmac.new(
+            self._google_ads_bootstrap_token.encode("utf-8"),
+            payload.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        signature = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+        return f"{self._STATE_PREFIX}.{payload}.{signature}"
+
+    def _verify_google_ads_bootstrap_state(self, state: str) -> str | None:
+        parts = state.split(".")
+        if len(parts) != 4 or parts[0] != self._STATE_PREFIX:
+            return None
+        _, nonce, expires_at_raw, signature = parts
+        try:
+            expires_at = int(expires_at_raw)
+        except ValueError:
+            return None
+        if expires_at < int(time.time()):
+            return None
+        expected = self._sign_google_ads_bootstrap_state(nonce, expires_at).rsplit(
+            ".", 1
+        )[1]
+        if not hmac.compare_digest(signature, expected):
+            return None
+        return nonce
+
+    def _purge_expired_google_ads_bootstrap_results(self) -> None:
+        now = int(time.time())
+        expired = [
+            nonce
+            for nonce, result in self._google_ads_bootstrap_results.items()
+            if int(result.get("expires_at") or 0) < now
+        ]
+        for nonce in expired:
+            self._google_ads_bootstrap_results.pop(nonce, None)
+
+
+def _google_ads_oauth_bootstrap_provider_class(google_provider_cls: type[Any]) -> type[Any]:
+    return type(
+        "GoogleAdsOAuthBootstrapProvider",
+        (_GoogleAdsOAuthBootstrapMixin, google_provider_cls),
+        {},
+    )
+
+
+def _bootstrap_provider(auth: Any) -> Any | None:
+    provider = getattr(auth, "provider", auth)
+    if hasattr(provider, "google_ads_bootstrap_authorization_url"):
+        return provider
+    return None
+
+
+def _bootstrap_request_allowed(request: Any, expected_token: str | None) -> bool:
+    if not expected_token:
+        return False
+    provided = request.query_params.get("token") or request.headers.get(
+        "x-google-ads-bootstrap-token"
+    )
+    return bool(provided and hmac.compare_digest(str(provided), str(expected_token)))
+
+
+def _google_ads_bootstrap_html(title: str, message: str) -> str:
+    safe_title = _escape_html(title)
+    safe_message = _escape_html(message)
+    return (
+        "<!doctype html><html><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+        "<title>Google Ads OAuth</title>"
+        "<style>body{font-family:Arial,sans-serif;margin:3rem;line-height:1.45;"
+        "color:#202124}main{max-width:42rem}h1{font-size:1.5rem}</style>"
+        f"</head><body><main><h1>{safe_title}</h1><p>{safe_message}</p></main>"
+        "</body></html>"
+    )
+
+
+def _escape_html(value: str) -> str:
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#x27;")
+    )
 
 
 def _oauth_token_allowed(

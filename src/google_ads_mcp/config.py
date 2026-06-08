@@ -94,6 +94,7 @@ class Settings:
     mcp_base_url: str | None
     mcp_allowed_emails: tuple[str, ...]
     mcp_allowed_domains: tuple[str, ...]
+    google_ads_oauth_bootstrap_token: str | None
     max_retries: int
     retry_base_seconds: float
     audit_log_path: str | None
@@ -145,6 +146,7 @@ class Settings:
             mcp_base_url=_env("GOOGLE_ADS_MCP_BASE_URL"),
             mcp_allowed_emails=_env_csv("GOOGLE_ADS_MCP_ALLOWED_EMAILS"),
             mcp_allowed_domains=_env_csv("GOOGLE_ADS_MCP_ALLOWED_DOMAINS"),
+            google_ads_oauth_bootstrap_token=_env("GOOGLE_ADS_OAUTH_BOOTSTRAP_TOKEN"),
             max_retries=max_retries,
             retry_base_seconds=retry_base_seconds,
             audit_log_path=_env("GOOGLE_ADS_AUDIT_LOG_PATH"),

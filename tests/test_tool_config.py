@@ -36,6 +36,7 @@ def make_settings(**overrides: object) -> Settings:
         "mcp_base_url": None,
         "mcp_allowed_emails": (),
         "mcp_allowed_domains": (),
+        "google_ads_oauth_bootstrap_token": None,
         "max_retries": 0,
         "retry_base_seconds": 0.0,
         "audit_log_path": None,
