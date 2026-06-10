@@ -480,6 +480,15 @@ class AuthConfigTests(unittest.TestCase):
         self.assertFalse(payload["allow_all_google_users"])
         self.assertNotIn("C:/private", str(payload))
 
+    def test_server_status_reports_auto_login_customer_resolution(self) -> None:
+        settings = make_settings(login_customer_id=None)
+        registry = build_tool_registry({"mode": "safe_read_only"})
+
+        payload = _server_status_payload(settings, registry)
+
+        self.assertTrue(payload["auto_login_customer_resolution_enabled"])
+        self.assertFalse(payload["default_login_customer_id_configured"])
+
     def test_server_status_reports_explicit_allow_all_google_users(self) -> None:
         settings = make_settings(
             google_ads_auth_mode="per_user_oauth",

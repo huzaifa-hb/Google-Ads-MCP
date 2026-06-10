@@ -24,17 +24,15 @@ Required secrets:
 - `GOOGLE_ADS_CLIENT_SECRET`
 - `GOOGLE_ADS_REFRESH_TOKEN`
 
-Optional:
+Optional explicit default:
 
 - `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
 
-The deploy script includes the optional login customer secret only when that
-secret exists in Secret Manager.
-
-`GOOGLE_ADS_LOGIN_CUSTOMER_ID` is only the default MCC login context. Read and
-write tools can pass `login_customer_id` per request when the OAuth user gains
-access to another MCC, so a new MCC does not require redeploying just to query
-its children.
+The deploy script does not auto-wire a stored `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
+secret. Child-account calls auto-resolve the correct MCC from the OAuth user's
+accessible manager accounts when possible. Set `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
+only when you deliberately want a default MCC login context; tools can still pass
+`login_customer_id` per request as an explicit override.
 
 Optional runtime environment values:
 

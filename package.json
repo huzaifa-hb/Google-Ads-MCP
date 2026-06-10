@@ -1,6 +1,6 @@
 {
   "name": "@huzaifa-hb/google-ads-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "NPM-friendly wrapper CLI for the Python Google Ads MCP server.",
   "license": "Apache-2.0",
   "type": "module",

@@ -27,7 +27,7 @@ The server needs these private values:
 | `GOOGLE_ADS_CLIENT_ID` | Google Cloud OAuth client | Identifies your OAuth app |
 | `GOOGLE_ADS_CLIENT_SECRET` | Google Cloud OAuth client | Used with the refresh token |
 | `GOOGLE_ADS_REFRESH_TOKEN` | One-time OAuth consent by a Google user | Authorizes access to the ad accounts that user can access |
-| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | Optional default Google Ads manager account ID | Default login context for MCC-routed calls |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | Optional default Google Ads manager account ID | Explicit fallback; child accounts auto-resolve when possible |
 | `MCP_BEARER_TOKEN` | You generate it | Protects your Cloud Run MCP endpoint |
 
 The developer token and OAuth token are separate. A developer token alone does
@@ -258,10 +258,10 @@ GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS=false
 ALLOW_UNAUTHENTICATED_MCP=false
 ```
 
-For MCC users, `GOOGLE_ADS_LOGIN_CUSTOMER_ID` can set a default manager customer
-ID with digits only. Tools can also pass `login_customer_id` per request, so a
-newly accessible MCC can be used without redeploying. For direct single-account
-access, leave the default empty.
+For MCC users, leave `GOOGLE_ADS_LOGIN_CUSTOMER_ID` empty unless you deliberately
+want one default manager. Child-account tools auto-resolve the correct MCC from
+the OAuth user's accessible manager accounts when possible, and tools can still
+pass `login_customer_id` per request as an explicit override.
 
 Keep `ALLOW_UNAUTHENTICATED_MCP=false` in Cloud Run. Setting it to `true` on a
 public service exposes the MCP endpoint; the write confirmation gate still helps,
@@ -320,7 +320,7 @@ Use the helper script:
 .\scripts\set_gcp_secret.ps1 -ProjectId YOUR_GCP_PROJECT_ID -Name GOOGLE_ADS_REFRESH_TOKEN
 ```
 
-If you use an MCC login customer ID:
+If you deliberately want a default MCC login customer ID:
 
 ```powershell
 .\scripts\set_gcp_secret.ps1 -ProjectId YOUR_GCP_PROJECT_ID -Name GOOGLE_ADS_LOGIN_CUSTOMER_ID
@@ -688,12 +688,13 @@ change.
 
 If the OAuth user has access to a manager account:
 
-1. Optionally set `GOOGLE_ADS_LOGIN_CUSTOMER_ID` to the most common manager ID.
-2. Use `account_list_customers` to discover accessible accounts.
-3. Use `account_get_mcc_hierarchy` to map parent and child accounts.
-4. Use a leaf customer ID for reports and writes.
-5. Pass `login_customer_id` on the tool call when a child account belongs under
-   a different MCC than the default.
+1. Use `account_list_customers` to discover accessible accounts.
+2. Use `account_get_mcc_hierarchy` to map parent and child accounts when you want
+   to inspect the tree.
+3. Use a leaf customer ID for reports and writes.
+4. Omit `login_customer_id` for normal child-account calls and let the server
+   auto-resolve the manager.
+5. Pass `login_customer_id` only when you want to force a specific manager.
 
 Manager accounts are for hierarchy traversal. Most reporting and mutate calls
 must target a leaf account.

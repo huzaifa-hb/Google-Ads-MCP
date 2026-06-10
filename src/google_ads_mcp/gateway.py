@@ -11,6 +11,8 @@ import asyncio
 from collections import OrderedDict
 from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import dataclass
+import hashlib
 import inspect
 import json
 import logging
@@ -49,8 +51,18 @@ from .safety import ValidationError, guard_google_ads_write, normalize_customer_
 LOGGER = logging.getLogger(__name__)
 ResourceMetadataCache = OrderedDict[tuple[str, str], tuple[float, dict[str, Any]]]
 LoginScopedGatewayCache = OrderedDict[tuple[str, str | None], "GoogleAdsGateway"]
+LoginContextCache = OrderedDict[tuple[str, str, str | None, str], tuple[float, Any]]
 _SHARED_RESOURCE_METADATA_CACHE: ResourceMetadataCache = OrderedDict()
 LOGIN_SCOPED_GATEWAY_CACHE_MAX_ENTRIES = 8
+LOGIN_CONTEXT_CACHE_MAX_ENTRIES = 256
+LOGIN_CONTEXT_CACHE_TTL_SECONDS = 300
+
+
+@dataclass(frozen=True)
+class LoginCustomerContext:
+    gateway: "GoogleAdsGateway"
+    login_customer_id: str | None
+    source: str
 
 MUTATING_METHOD_PREFIXES = (
     "mutate_",
@@ -103,6 +115,9 @@ class GoogleAdsGateway:
         login_customer_id: str | int | None = None,
         login_scoped_cache: LoginScopedGatewayCache | None = None,
         login_scoped_cache_max_entries: int = LOGIN_SCOPED_GATEWAY_CACHE_MAX_ENTRIES,
+        login_context_cache: LoginContextCache | None = None,
+        login_context_cache_max_entries: int = LOGIN_CONTEXT_CACHE_MAX_ENTRIES,
+        login_context_cache_ttl_seconds: int = LOGIN_CONTEXT_CACHE_TTL_SECONDS,
     ) -> None:
         self.settings = settings or get_settings()
         self._client = client
@@ -119,6 +134,11 @@ class GoogleAdsGateway:
             login_scoped_cache if login_scoped_cache is not None else OrderedDict()
         )
         self._login_scoped_gateway_cache_max_entries = max(1, login_scoped_cache_max_entries)
+        self._login_context_cache = (
+            login_context_cache if login_context_cache is not None else OrderedDict()
+        )
+        self._login_context_cache_max_entries = max(1, login_context_cache_max_entries)
+        self._login_context_cache_ttl_seconds = max(1, login_context_cache_ttl_seconds)
         self._metadata_snapshot: dict[str, Any] | None = None
 
     def with_login_customer_id(self, login_customer_id: str | int | None) -> "GoogleAdsGateway":
@@ -132,7 +152,7 @@ class GoogleAdsGateway:
         )
         if normalized == (self.login_customer_id or default_login_customer_id):
             return self
-        cache_key = (normalized, self.access_token)
+        cache_key = (normalized, self._cache_principal_key())
         cached = self._login_scoped_gateway_cache.get(cache_key)
         if cached is not None:
             self._login_scoped_gateway_cache.move_to_end(cache_key)
@@ -146,11 +166,146 @@ class GoogleAdsGateway:
             login_customer_id=normalized,
             login_scoped_cache=self._login_scoped_gateway_cache,
             login_scoped_cache_max_entries=self._login_scoped_gateway_cache_max_entries,
+            login_context_cache=self._login_context_cache,
+            login_context_cache_max_entries=self._login_context_cache_max_entries,
+            login_context_cache_ttl_seconds=self._login_context_cache_ttl_seconds,
         )
         self._login_scoped_gateway_cache[cache_key] = gateway
         while len(self._login_scoped_gateway_cache) > self._login_scoped_gateway_cache_max_entries:
             self._login_scoped_gateway_cache.popitem(last=False)
         return gateway
+
+    def _cache_principal_key(self) -> str | None:
+        if not self.access_token:
+            return None
+        return hashlib.sha256(self.access_token.encode("utf-8")).hexdigest()
+
+    def _context_cache_key(self, kind: str, subject: str) -> tuple[str, str, str | None, str]:
+        return (kind, self.settings.api_version, self._cache_principal_key(), subject)
+
+    def _login_context_cache_get(self, kind: str, subject: str) -> Any | None:
+        key = self._context_cache_key(kind, subject)
+        cached = self._login_context_cache.get(key)
+        if cached is None:
+            return None
+        cached_at, value = cached
+        if time.time() - cached_at > self._login_context_cache_ttl_seconds:
+            self._login_context_cache.pop(key, None)
+            return None
+        self._login_context_cache.move_to_end(key)
+        return value
+
+    def _login_context_cache_set(self, kind: str, subject: str, value: Any) -> None:
+        key = self._context_cache_key(kind, subject)
+        self._login_context_cache[key] = (time.time(), value)
+        self._login_context_cache.move_to_end(key)
+        while len(self._login_context_cache) > self._login_context_cache_max_entries:
+            self._login_context_cache.popitem(last=False)
+
+    def _current_login_customer_context(self) -> LoginCustomerContext:
+        if self.login_customer_id:
+            return LoginCustomerContext(self, self.login_customer_id, "explicit")
+        default_login_customer_id = (
+            normalize_customer_id(self.settings.login_customer_id)
+            if self.settings.login_customer_id
+            else None
+        )
+        if default_login_customer_id:
+            return LoginCustomerContext(self, default_login_customer_id, "default")
+        return LoginCustomerContext(self, None, "none")
+
+    async def _login_customer_context_for_target(
+        self,
+        customer_id: str,
+        *,
+        auto_resolve: bool,
+    ) -> LoginCustomerContext:
+        current = self._current_login_customer_context()
+        if current.login_customer_id or not auto_resolve:
+            return current
+        manager_id = await self._auto_resolve_login_customer_id(customer_id)
+        if manager_id:
+            return LoginCustomerContext(
+                self.with_login_customer_id(manager_id),
+                manager_id,
+                "auto",
+            )
+        return current
+
+    async def _cached_accessible_customer_ids(self) -> tuple[str, ...]:
+        cached = self._login_context_cache_get("accessible_customers", "all")
+        if cached is not None:
+            return tuple(cached)
+        try:
+            result = await self.list_accessible_customers()
+        except Exception as exc:
+            LOGGER.debug("Unable to list accessible customers for login context resolution: %s", exc)
+            self._login_context_cache_set("accessible_customers", "all", ())
+            return ()
+        customer_ids = tuple(result.get("customer_ids") or ())
+        self._login_context_cache_set("accessible_customers", "all", customer_ids)
+        return customer_ids
+
+    async def _auto_resolve_login_customer_id(self, customer_id: str) -> str | None:
+        cached = self._login_context_cache_get("child_manager", customer_id)
+        if cached is not None:
+            return cached or None
+        accessible_customer_ids = await self._cached_accessible_customer_ids()
+        if customer_id in accessible_customer_ids:
+            self._login_context_cache_set("child_manager", customer_id, "")
+            return None
+        for manager_id in accessible_customer_ids:
+            if manager_id == customer_id:
+                continue
+            if await self._manager_can_access_customer(manager_id, customer_id):
+                self._login_context_cache_set("child_manager", customer_id, manager_id)
+                return manager_id
+        self._login_context_cache_set("child_manager", customer_id, "")
+        return None
+
+    async def _manager_can_access_customer(self, manager_id: str, customer_id: str) -> bool:
+        manager_gateway = self.with_login_customer_id(manager_id)
+        query = (
+            "SELECT customer_client.id, customer_client.manager, customer_client.level, "
+            "customer_client.client_customer "
+            "FROM customer_client "
+            f"WHERE customer_client.id = {customer_id}"
+        )
+        try:
+            result = await manager_gateway.search(
+                customer_id=manager_id,
+                query=query,
+                max_rows=1,
+                primary_field="customer_client.id",
+                _resolve_login_customer_id=False,
+            )
+        except Exception as exc:
+            LOGGER.debug(
+                "Skipping accessible customer %s as login-customer-id candidate for %s: %s",
+                manager_id,
+                customer_id,
+                exc,
+            )
+            return False
+        for row in result.get("rows", []):
+            if not isinstance(row, dict) or not isinstance(row.get("customer_client"), dict):
+                continue
+            try:
+                discovered_id = normalize_customer_id(row["customer_client"].get("id"))
+            except ValidationError:
+                continue
+            if discovered_id == customer_id:
+                return True
+        return False
+
+    def _with_login_customer_metadata(
+        self,
+        payload: dict[str, Any],
+        context: LoginCustomerContext,
+    ) -> dict[str, Any]:
+        payload["login_customer_id_used"] = context.login_customer_id
+        payload["login_customer_id_source"] = context.source
+        return payload
 
     @property
     def client(self) -> Any:
@@ -233,8 +388,24 @@ class GoogleAdsGateway:
         page_size: int | None = None,
         page_token: str | None = None,
         primary_field: str | None = None,
+        _resolve_login_customer_id: bool = True,
     ) -> dict[str, Any]:
         cid = normalize_customer_id(customer_id)
+        login_context = await self._login_customer_context_for_target(
+            cid,
+            auto_resolve=_resolve_login_customer_id,
+        )
+        if login_context.gateway is not self:
+            result = await login_context.gateway.search(
+                customer_id=cid,
+                query=query,
+                max_rows=max_rows,
+                page_size=page_size,
+                page_token=page_token,
+                primary_field=primary_field,
+                _resolve_login_customer_id=False,
+            )
+            return self._with_login_customer_metadata(result, login_context)
         if primary_field:
             ensure_primary_field(query, primary_field)
         pagination = Pagination(max_rows=max_rows, page_size=page_size, page_token=page_token)
@@ -255,7 +426,7 @@ class GoogleAdsGateway:
         page_results = getattr(response, "results", response)
         raw_rows = [self._message_to_dict(row) for row in page_results]
         next_token = getattr(response, "next_page_token", None)
-        return {
+        return self._with_login_customer_metadata({
             "customer_id": cid,
             "query": query,
             "rows": raw_rows,
@@ -268,7 +439,7 @@ class GoogleAdsGateway:
                 limit_injected=pagination_plan.limit_injected,
                 page_size_deprecated=pagination_plan.page_size_deprecated,
             ),
-        }
+        }, login_context)
 
     async def search_stream(
         self,
@@ -277,8 +448,22 @@ class GoogleAdsGateway:
         query: str,
         primary_field: str | None = None,
         max_rows: int = 10_000,
+        _resolve_login_customer_id: bool = True,
     ) -> dict[str, Any]:
         cid = normalize_customer_id(customer_id)
+        login_context = await self._login_customer_context_for_target(
+            cid,
+            auto_resolve=_resolve_login_customer_id,
+        )
+        if login_context.gateway is not self:
+            result = await login_context.gateway.search_stream(
+                customer_id=cid,
+                query=query,
+                primary_field=primary_field,
+                max_rows=max_rows,
+                _resolve_login_customer_id=False,
+            )
+            return self._with_login_customer_metadata(result, login_context)
         if max_rows < 1:
             raise ValidationError("max_rows must be at least 1.")
         if primary_field:
@@ -305,14 +490,14 @@ class GoogleAdsGateway:
             return rows, truncated
 
         rows, truncated = await self._retry(call)
-        return {
+        return self._with_login_customer_metadata({
             "customer_id": cid,
             "query": query,
             "rows": rows,
             "row_count": len(rows),
             "max_rows": max_rows,
             "truncated": truncated,
-        }
+        }, login_context)
 
     async def mutate(
         self,
@@ -326,8 +511,27 @@ class GoogleAdsGateway:
         response_content_type: str = "MUTABLE_RESOURCE",
         tool_name: str = "google_ads_mutate",
         operation_type: str | None = None,
+        _resolve_login_customer_id: bool = True,
     ) -> dict[str, Any]:
         cid = normalize_customer_id(customer_id)
+        login_context = await self._login_customer_context_for_target(
+            cid,
+            auto_resolve=_resolve_login_customer_id,
+        )
+        if login_context.gateway is not self:
+            result = await login_context.gateway.mutate(
+                customer_id=cid,
+                operations=operations,
+                validate_only=validate_only,
+                execute=execute,
+                confirmation_phrase=confirmation_phrase,
+                partial_failure=partial_failure,
+                response_content_type=response_content_type,
+                tool_name=tool_name,
+                operation_type=operation_type,
+                _resolve_login_customer_id=False,
+            )
+            return self._with_login_customer_metadata(result, login_context)
         write_decision = guard_google_ads_write(
             mode=self.mode,
             tool_name=tool_name,
@@ -357,7 +561,7 @@ class GoogleAdsGateway:
             return service.mutate(request=request)
 
         response = await self._retry(call, retryable=write_decision.validate_only)
-        return {
+        return self._with_login_customer_metadata({
             "customer_id": cid,
             "mode": self.mode,
             "validate_only": validate_only,
@@ -365,7 +569,7 @@ class GoogleAdsGateway:
             "partial_failure": partial_failure,
             "operation_count": len(operations),
             "response": self._message_to_dict(response),
-        }
+        }, login_context)
 
     async def call_service(
         self,
@@ -381,6 +585,7 @@ class GoogleAdsGateway:
         tool_name: str = "google_ads_call_service",
     ) -> dict[str, Any]:
         payload = dict(payload or {})
+        login_context = self._current_login_customer_context()
         method_looks_mutating = method_name.startswith(MUTATING_METHOD_PREFIXES)
         effective_is_write = bool(is_write) or method_looks_mutating
         read_allowed = (service_name, method_name) in READ_ONLY_SERVICE_METHODS
@@ -442,7 +647,7 @@ class GoogleAdsGateway:
             call,
             retryable=not write_decision or write_decision.validate_only,
         )
-        return {
+        return self._with_login_customer_metadata({
             "service": service_name,
             "method": method_name,
             "request_type": inferred_type,
@@ -450,7 +655,7 @@ class GoogleAdsGateway:
             "mode": self.mode,
             "validation_forced": bool(write_decision and write_decision.forced_validation),
             "response": self._message_to_dict(response),
-        }
+        }, login_context)
 
     def list_services(self) -> dict[str, Any]:
         try:

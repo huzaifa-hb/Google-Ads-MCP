@@ -73,6 +73,16 @@ class SearchPager:
         raise AssertionError("search() must not iterate the pager across all pages.")
 
 
+class StaticSearchPager:
+    next_page_token = None
+
+    def __init__(self, results: list[dict[str, object]]) -> None:
+        self.results = results
+
+    def __iter__(self):
+        raise AssertionError("search() must not iterate the pager across all pages.")
+
+
 class SearchService:
     def __init__(self) -> None:
         self.last_request: SearchRequest | None = None
@@ -91,6 +101,82 @@ class SearchClient:
 
     def get_type(self, type_name: str) -> SearchRequest:  # noqa: ARG002
         return SearchRequest()
+
+
+class AutoLoginSearchService:
+    def __init__(self, manager_id: str | None, owned_customers: set[str] | None = None) -> None:
+        self.manager_id = manager_id
+        self.owned_customers = owned_customers or set()
+        self.discovery_queries = 0
+        self.report_queries = 0
+        self.last_request: SearchRequest | None = None
+
+    def search(self, request: SearchRequest) -> StaticSearchPager:
+        self.last_request = request
+        query = request.query
+        if "FROM customer_client" in query:
+            self.discovery_queries += 1
+            for customer_id in self.owned_customers:
+                if customer_id in query:
+                    return StaticSearchPager(
+                        [
+                            {
+                                "customer_client": {
+                                    "id": customer_id,
+                                    "manager": False,
+                                    "level": "1",
+                                    "client_customer": f"customers/{customer_id}",
+                                }
+                            }
+                        ]
+                    )
+            return StaticSearchPager([])
+        self.report_queries += 1
+        return StaticSearchPager(
+            [
+                {
+                    "campaign": {
+                        "id": f"campaign-for-{request.customer_id}",
+                        "manager": self.manager_id,
+                    }
+                }
+            ]
+        )
+
+
+class AutoLoginCustomerService:
+    def __init__(self, accessible_customer_ids: list[str]) -> None:
+        self.accessible_customer_ids = accessible_customer_ids
+        self.calls = 0
+
+    def list_accessible_customers(self, request: object | None = None) -> dict[str, object]:  # noqa: ARG002
+        self.calls += 1
+        return {
+            "resource_names": [
+                f"customers/{customer_id}" for customer_id in self.accessible_customer_ids
+            ]
+        }
+
+
+class AutoLoginClient:
+    def __init__(
+        self,
+        *,
+        accessible_customer_ids: list[str] | None = None,
+        search_service: AutoLoginSearchService | None = None,
+    ) -> None:
+        self.customer_service = AutoLoginCustomerService(accessible_customer_ids or [])
+        self.search_service = search_service or AutoLoginSearchService(None)
+
+    def get_service(self, service_name: str) -> object:
+        if service_name == "CustomerService":
+            return self.customer_service
+        return self.search_service
+
+    def get_type(self, type_name: str) -> SearchRequest | dict[str, object]:  # noqa: ARG002
+        if type_name in {"SearchGoogleAdsRequest", "ListAccessibleCustomersRequest"}:
+            return SearchRequest()
+        return {}
 
 
 class FieldQueryGateway(GoogleAdsGateway):
@@ -284,6 +370,236 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(cache), 8)
         self.assertNotIn(("1000000000", None), cache)
+
+    async def test_search_auto_resolves_child_to_accessible_manager(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        manager_a = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService(
+                    "1111111111",
+                    {"3333333333"},
+                )
+            ),
+            login_customer_id="1111111111",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        manager_b = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService(
+                    "2222222222",
+                    {"4444444444"},
+                )
+            ),
+            login_customer_id="2222222222",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("1111111111", None)] = manager_a
+        login_scoped_cache[("2222222222", None)] = manager_b
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(accessible_customer_ids=["1111111111", "2222222222"]),
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        result = await gateway.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+
+        self.assertEqual(result["login_customer_id_used"], "1111111111")
+        self.assertEqual(result["login_customer_id_source"], "auto")
+        self.assertEqual(manager_a.client.search_service.report_queries, 1)
+        self.assertEqual(manager_b.client.search_service.report_queries, 0)
+
+    async def test_search_auto_resolves_newly_accessible_manager_without_default_env(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        manager_b = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService(
+                    "2222222222",
+                    {"4444444444"},
+                )
+            ),
+            login_customer_id="2222222222",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("2222222222", None)] = manager_b
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(accessible_customer_ids=["2222222222"]),
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        result = await gateway.search(
+            customer_id="4444444444",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+
+        self.assertEqual(result["login_customer_id_used"], "2222222222")
+        self.assertEqual(result["login_customer_id_source"], "auto")
+
+    async def test_search_explicit_login_customer_id_overrides_auto_resolution(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        explicit_manager = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService(
+                    "9999999999",
+                    {"3333333333"},
+                )
+            ),
+            login_customer_id="9999999999",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("9999999999", None)] = explicit_manager
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(accessible_customer_ids=["1111111111"]),
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        ).with_login_customer_id("9999999999")
+
+        result = await gateway.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+
+        self.assertEqual(result["login_customer_id_used"], "9999999999")
+        self.assertEqual(result["login_customer_id_source"], "explicit")
+        self.assertEqual(explicit_manager.client.customer_service.calls, 0)
+
+    async def test_search_direct_accessible_leaf_does_not_force_manager_context(self) -> None:
+        root_search = AutoLoginSearchService(None)
+        gateway = ParsingGateway(
+            settings=make_settings(google_ads_auth_mode="per_user_oauth"),
+            client=AutoLoginClient(
+                accessible_customer_ids=["3333333333"],
+                search_service=root_search,
+            ),
+            login_context_cache=OrderedDict(),
+        )
+
+        result = await gateway.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+
+        self.assertIsNone(result["login_customer_id_used"])
+        self.assertEqual(result["login_customer_id_source"], "none")
+        self.assertEqual(root_search.discovery_queries, 0)
+        self.assertEqual(root_search.report_queries, 1)
+
+    async def test_search_auto_resolution_cache_reuses_discovered_manager(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        manager = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService(
+                    "1111111111",
+                    {"3333333333"},
+                )
+            ),
+            login_customer_id="1111111111",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("1111111111", None)] = manager
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(accessible_customer_ids=["1111111111"]),
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        await gateway.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+        await gateway.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+
+        self.assertEqual(manager.client.search_service.discovery_queries, 1)
+        self.assertEqual(manager.client.search_service.report_queries, 2)
+
+    async def test_auto_resolution_cache_is_separated_by_access_token(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        manager_a = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService("1111111111", {"3333333333"})
+            ),
+            access_token="token-a",
+            login_customer_id="1111111111",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        manager_b = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService("2222222222", {"3333333333"})
+            ),
+            access_token="token-b",
+            login_customer_id="2222222222",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("1111111111", manager_a._cache_principal_key())] = manager_a  # noqa: SLF001
+        login_scoped_cache[("2222222222", manager_b._cache_principal_key())] = manager_b  # noqa: SLF001
+        gateway_a = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(accessible_customer_ids=["1111111111"]),
+            access_token="token-a",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        gateway_b = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(accessible_customer_ids=["2222222222"]),
+            access_token="token-b",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        result_a = await gateway_a.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+        result_b = await gateway_b.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+
+        self.assertEqual(result_a["login_customer_id_used"], "1111111111")
+        self.assertEqual(result_b["login_customer_id_used"], "2222222222")
 
     async def test_mutating_method_cannot_be_marked_read_only(self) -> None:
         gateway = GoogleAdsGateway()

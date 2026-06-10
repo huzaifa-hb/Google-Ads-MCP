@@ -123,6 +123,18 @@ Real writes require all of this:
 Do not put this server online with authentication disabled. Do not share `.env`,
 refresh tokens, developer tokens, OAuth secrets, or bearer tokens.
 
+## Migrating To 0.4.0
+
+This release removes the need for one hardcoded Cloud Run MCC:
+
+- Child-account tools now auto-resolve the correct manager account from the
+  OAuth user's accessible accounts when `login_customer_id` is omitted.
+- `GOOGLE_ADS_LOGIN_CUSTOMER_ID` remains an optional default for single-MCC
+  deployments, but it is no longer required for child accounts under newly
+  accessible MCCs.
+- Tool responses include `login_customer_id_used` and
+  `login_customer_id_source` so routing is visible without exposing secrets.
+
 ## Migrating To 0.3.0
 
 This release adds per-request MCC routing:

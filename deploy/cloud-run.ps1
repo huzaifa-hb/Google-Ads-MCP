@@ -223,11 +223,8 @@ if ($McpAuthMode -eq "oauth_proxy") {
     $secretMappings += "GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET=GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET:latest"
 }
 
-gcloud secrets describe GOOGLE_ADS_LOGIN_CUSTOMER_ID 1>$null 2>$null
-if ($LASTEXITCODE -eq 0 -and -not $GoogleAdsLoginCustomerId -and $GoogleAdsAuthMode -eq "shared_refresh_token") {
-    $secretMappings += "GOOGLE_ADS_LOGIN_CUSTOMER_ID=GOOGLE_ADS_LOGIN_CUSTOMER_ID:latest"
-} elseif (-not $GoogleAdsLoginCustomerId) {
-    Write-Host "Optional secret GOOGLE_ADS_LOGIN_CUSTOMER_ID not found. Deploying without MCC login_customer_id."
+if (-not $GoogleAdsLoginCustomerId) {
+    Write-Host "Deploying without a default GOOGLE_ADS_LOGIN_CUSTOMER_ID. Child-account calls can auto-resolve or pass login_customer_id per request."
 }
 
 $envArg = ConvertTo-GcloudMapArg $envMappings

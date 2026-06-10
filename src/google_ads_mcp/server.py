@@ -57,12 +57,16 @@ def build_mcp() -> Any:
     login_scoped_gateway_cache: OrderedDict[tuple[str, str | None], GoogleAdsGateway] = (
         OrderedDict()
     )
+    login_context_cache: OrderedDict[tuple[str, str, str | None, str], tuple[float, Any]] = (
+        OrderedDict()
+    )
     shared_gateway = (
         GoogleAdsGateway(
             settings=settings,
             mode=registry.mode,
             audit_sink=audit_sink,
             login_scoped_cache=login_scoped_gateway_cache,
+            login_context_cache=login_context_cache,
         )
         if settings.google_ads_auth_mode == "shared_refresh_token"
         else None
@@ -76,6 +80,7 @@ def build_mcp() -> Any:
                 audit_sink=audit_sink,
                 access_token=_google_ads_access_token_value(get_access_token()),
                 login_scoped_cache=login_scoped_gateway_cache,
+                login_context_cache=login_context_cache,
             )
         else:
             if shared_gateway is None:
@@ -977,6 +982,8 @@ def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, A
         "metadata_cache_ttl_seconds": settings.metadata_cache_ttl_seconds,
         "metadata_cache_max_entries": settings.metadata_cache_max_entries,
         "metadata_snapshot_enabled": bool(settings.metadata_snapshot_path),
+        "auto_login_customer_resolution_enabled": True,
+        "default_login_customer_id_configured": bool(settings.login_customer_id),
         "oauth_token_storage": settings.mcp_token_storage,
         "oauth_allowlist_configured": bool(
             settings.mcp_allowed_emails or settings.mcp_allowed_domains

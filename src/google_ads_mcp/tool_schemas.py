@@ -772,8 +772,8 @@ def _customer_id_schema() -> dict[str, Any]:
 
 def _login_customer_id_schema() -> dict[str, Any]:
     return _string(
-        "Optional manager/MCC customer id to use as the Google Ads login-customer-id header. "
-        "Use this when querying a child account through an MCC."
+        "Optional manager/MCC customer id override for the Google Ads login-customer-id header. "
+        "When omitted, the server auto-resolves the manager for child accounts when possible."
     )
 
 
