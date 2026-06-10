@@ -76,9 +76,10 @@ same Fernet-encrypted Firestore key-value pattern used for OAuth token storage,
 with a separate namespace and salt. Results are deleted on first read, and
 expired results are treated as pending.
 
-With local token storage, bootstrap results stay in process memory only. That is
-fine for a single local instance, but it is not reliable for multiple Cloud Run
-instances or restarts.
+With local token storage, bootstrap results stay in process memory only and are
+encrypted with a process-local key until they are popped. That is fine for a
+single local instance, but it is not reliable for multiple Cloud Run instances
+or restarts.
 
 ## Production Notes
 

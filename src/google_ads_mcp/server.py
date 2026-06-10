@@ -7,6 +7,7 @@ from functools import wraps
 import hashlib
 import hmac
 import inspect
+import json
 import os
 import secrets
 import time
@@ -36,6 +37,7 @@ OAUTH_TOKEN_FIRESTORE_PREFIX = "google-ads-mcp-oauth"
 OAUTH_TOKEN_FIRESTORE_SALT = "google-ads-mcp-firestore-token-storage-v1"
 BOOTSTRAP_RESULT_FIRESTORE_PREFIX = "google-ads-mcp-bootstrap"
 BOOTSTRAP_RESULT_FIRESTORE_SALT = "google-ads-mcp-firestore-bootstrap-results-v1"
+BOOTSTRAP_RESULT_MEMORY_SALT = "google-ads-mcp-memory-bootstrap-results-v1"
 
 
 def build_mcp() -> Any:
@@ -506,17 +508,29 @@ def _build_firestore_token_storage(settings: Any) -> Any:
 
 class _MemoryBootstrapResultStore:
     def __init__(self) -> None:
+        self._cipher = _BootstrapResultCipher()
         self.results: dict[str, dict[str, Any]] = {}
 
     async def put(self, nonce: str, result: dict[str, Any], *, ttl_seconds: int) -> None:
-        self.results[nonce] = dict(result)
+        expires_at = int(result.get("expires_at") or int(time.time() + ttl_seconds))
+        payload = dict(result)
+        payload["expires_at"] = expires_at
+        self.results[nonce] = {
+            "ciphertext": self._cipher.encrypt(payload),
+            "expires_at": expires_at,
+        }
 
     async def pop(self, nonce: str) -> dict[str, Any]:
         self._purge_expired()
         if not nonce:
             return {"status": "missing_nonce"}
-        result = self.results.pop(nonce, None)
+        stored = self.results.pop(nonce, None)
+        if stored is None:
+            return {"status": "pending"}
+        result = self._cipher.decrypt(str(stored.get("ciphertext") or ""))
         if result is None:
+            return {"status": "pending"}
+        if int(result.get("expires_at") or 0) < int(time.time()):
             return {"status": "pending"}
         return result
 
@@ -524,11 +538,41 @@ class _MemoryBootstrapResultStore:
         now = int(time.time())
         expired = [
             nonce
-            for nonce, result in self.results.items()
-            if int(result.get("expires_at") or 0) < now
+            for nonce, stored in self.results.items()
+            if int(stored.get("expires_at") or 0) < now
         ]
         for nonce in expired:
             self.results.pop(nonce, None)
+
+
+class _BootstrapResultCipher:
+    def __init__(self) -> None:
+        try:
+            from cryptography.fernet import Fernet, InvalidToken
+        except ImportError as exc:  # pragma: no cover - dependency is declared.
+            raise ConfigError("cryptography is required to encrypt bootstrap results.") from exc
+        source_material = secrets.token_urlsafe(32)
+        key = hashlib.pbkdf2_hmac(
+            "sha256",
+            source_material.encode("utf-8"),
+            BOOTSTRAP_RESULT_MEMORY_SALT.encode("utf-8"),
+            390_000,
+            dklen=32,
+        )
+        self._fernet = Fernet(base64.urlsafe_b64encode(key))
+        self._invalid_token = InvalidToken
+
+    def encrypt(self, result: dict[str, Any]) -> str:
+        encoded = json.dumps(result, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return self._fernet.encrypt(encoded).decode("ascii")
+
+    def decrypt(self, ciphertext: str) -> dict[str, Any] | None:
+        try:
+            decoded = self._fernet.decrypt(ciphertext.encode("ascii"))
+            result = json.loads(decoded.decode("utf-8"))
+        except (self._invalid_token, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            return None
+        return result if isinstance(result, dict) else None
 
 
 class _KeyValueBootstrapResultStore:

@@ -350,6 +350,19 @@ class AuthConfigTests(unittest.TestCase):
 
         self.assertEqual(asyncio.run(store.pop("expired"))["status"], "pending")
 
+    def test_memory_bootstrap_result_store_does_not_store_clear_refresh_token(self) -> None:
+        store = _MemoryBootstrapResultStore()
+        ready = {
+            "status": "ready",
+            "refresh_token": "secret-refresh-token",
+            "expires_at": 9999999999,
+        }
+
+        asyncio.run(store.put("nonce", ready, ttl_seconds=600))
+
+        self.assertNotIn("secret-refresh-token", str(store.results))
+        self.assertEqual(asyncio.run(store.pop("nonce"))["refresh_token"], "secret-refresh-token")
+
     def test_key_value_bootstrap_result_store_pops_and_deletes(self) -> None:
         key_value = FakeKeyValueStore()
         store = _KeyValueBootstrapResultStore(key_value)

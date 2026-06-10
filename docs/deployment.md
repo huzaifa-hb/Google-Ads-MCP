@@ -96,7 +96,8 @@ intentionally want any Google OAuth user allowed through the MCP front door, pas
 When `-McpTokenStorage firestore` is enabled, OAuth tokens and Google Ads
 bootstrap results are stored through encrypted Firestore key-value wrappers.
 Bootstrap refresh-token results are deleted on first read. Local bootstrap
-storage is in memory only and should be treated as single-instance only.
+storage is encrypted in process memory only and should be treated as
+single-instance only.
 
 ## Post-Deploy Checks
 
