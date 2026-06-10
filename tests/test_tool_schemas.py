@@ -11,7 +11,7 @@ from google_ads_mcp.tool_schemas import parameters_schema_for_exposure
 def _exposure(
     registered_name: str,
     *,
-    profile: str = "lean",
+    profile: str = "full",
     mode: str = "validation_only",
 ) -> ToolExposure:
     registry = build_tool_registry({"mode": mode, "tool_profile": profile})
