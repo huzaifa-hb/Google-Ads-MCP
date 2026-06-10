@@ -59,6 +59,10 @@ def _env_csv(name: str) -> tuple[str, ...]:
     return tuple(item.strip().lower() for item in raw.split(",") if item.strip())
 
 
+def _env_bool(name: str, default: str = "false") -> bool:
+    return (_env(name, default) or default).lower() in {"1", "true", "yes"}
+
+
 def _normalize_google_ads_customer_id(value: str | None, *, name: str) -> str | None:
     if not value:
         return None
@@ -98,6 +102,7 @@ class Settings:
     mcp_base_url: str | None
     mcp_allowed_emails: tuple[str, ...]
     mcp_allowed_domains: tuple[str, ...]
+    mcp_allow_all_google_users: bool
     mcp_token_storage: str
     mcp_firestore_database: str | None
     google_ads_oauth_bootstrap_token: str | None
@@ -157,6 +162,7 @@ class Settings:
             mcp_base_url=_env("GOOGLE_ADS_MCP_BASE_URL"),
             mcp_allowed_emails=_env_csv("GOOGLE_ADS_MCP_ALLOWED_EMAILS"),
             mcp_allowed_domains=_env_csv("GOOGLE_ADS_MCP_ALLOWED_DOMAINS"),
+            mcp_allow_all_google_users=_env_bool("GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS"),
             mcp_token_storage=mcp_token_storage,
             mcp_firestore_database=_env("GOOGLE_ADS_MCP_FIRESTORE_DATABASE"),
             google_ads_oauth_bootstrap_token=_env("GOOGLE_ADS_OAUTH_BOOTSTRAP_TOKEN"),
@@ -196,14 +202,24 @@ class Settings:
             if missing:
                 raise ConfigError(f"Missing OAuth MCP auth values: {', '.join(missing)}")
             if (
-                self.google_ads_auth_mode != "per_user_oauth"
-                and not self.mcp_allowed_emails
+                not self.mcp_allowed_emails
                 and not self.mcp_allowed_domains
             ):
-                raise ConfigError(
-                    "OAuth proxy mode requires GOOGLE_ADS_MCP_ALLOWED_EMAILS or "
-                    "GOOGLE_ADS_MCP_ALLOWED_DOMAINS."
-                )
+                if (
+                    self.google_ads_auth_mode == "per_user_oauth"
+                    and self.mcp_allow_all_google_users
+                ):
+                    pass
+                elif self.google_ads_auth_mode == "per_user_oauth":
+                    raise ConfigError(
+                        "per-user OAuth without an allowlist requires "
+                        "GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS=true."
+                    )
+                else:
+                    raise ConfigError(
+                        "OAuth proxy mode requires GOOGLE_ADS_MCP_ALLOWED_EMAILS or "
+                        "GOOGLE_ADS_MCP_ALLOWED_DOMAINS."
+                    )
             self.require_mcp_token_storage()
 
     def require_google_ads_auth_mode(self) -> None:

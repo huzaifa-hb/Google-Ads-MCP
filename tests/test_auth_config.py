@@ -13,6 +13,7 @@ import _bootstrap  # noqa: F401
 from google_ads_mcp.config import ConfigError, Settings, get_settings, reset_settings_cache
 from google_ads_mcp.server import (
     _OAuthAllowlistProvider,
+    _bootstrap_request_allowed,
     _google_ads_access_token_value,
     _google_ads_readiness_payload,
     _oauth_discovery_payload,
@@ -93,13 +94,26 @@ class AuthConfigTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             settings.require_mcp_auth()
 
-    def test_per_user_oauth_proxy_accepts_no_server_allowlist(self) -> None:
+    def test_per_user_oauth_proxy_requires_allowlist_or_explicit_allow_all(self) -> None:
         settings = make_settings(
             auth_mode="oauth_proxy",
             google_ads_auth_mode="per_user_oauth",
             mcp_oauth_client_id="client-id",
             mcp_oauth_client_secret="client-secret",
             mcp_base_url="https://example.com",
+        )
+
+        with self.assertRaisesRegex(ConfigError, "GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS"):
+            settings.require_mcp_auth()
+
+    def test_per_user_oauth_proxy_accepts_explicit_allow_all(self) -> None:
+        settings = make_settings(
+            auth_mode="oauth_proxy",
+            google_ads_auth_mode="per_user_oauth",
+            mcp_oauth_client_id="client-id",
+            mcp_oauth_client_secret="client-secret",
+            mcp_base_url="https://example.com",
+            mcp_allow_all_google_users=True,
         )
 
         settings.require_mcp_auth()
@@ -120,8 +134,10 @@ class AuthConfigTests(unittest.TestCase):
     def test_oauth_allowlist_env_values_are_normalized(self) -> None:
         previous_email = os.environ.get("GOOGLE_ADS_MCP_ALLOWED_EMAILS")
         previous_domain = os.environ.get("GOOGLE_ADS_MCP_ALLOWED_DOMAINS")
+        previous_allow_all = os.environ.get("GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS")
         os.environ["GOOGLE_ADS_MCP_ALLOWED_EMAILS"] = " Owner@Example.com,ops@example.com "
         os.environ["GOOGLE_ADS_MCP_ALLOWED_DOMAINS"] = " Example.com "
+        os.environ["GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS"] = "true"
         try:
             settings = Settings.from_env()
         finally:
@@ -133,9 +149,14 @@ class AuthConfigTests(unittest.TestCase):
                 os.environ.pop("GOOGLE_ADS_MCP_ALLOWED_DOMAINS", None)
             else:
                 os.environ["GOOGLE_ADS_MCP_ALLOWED_DOMAINS"] = previous_domain
+            if previous_allow_all is None:
+                os.environ.pop("GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS", None)
+            else:
+                os.environ["GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS"] = previous_allow_all
 
         self.assertEqual(settings.mcp_allowed_emails, ("owner@example.com", "ops@example.com"))
         self.assertEqual(settings.mcp_allowed_domains, ("example.com",))
+        self.assertTrue(settings.mcp_allow_all_google_users)
 
     def test_reset_settings_cache_refreshes_environment(self) -> None:
         previous = os.environ.get("PORT")
@@ -221,7 +242,10 @@ class AuthConfigTests(unittest.TestCase):
         provider = FakeOAuthProvider(token)
         wrapper = _OAuthAllowlistProvider(
             provider,
-            make_settings(google_ads_auth_mode="per_user_oauth"),
+            make_settings(
+                google_ads_auth_mode="per_user_oauth",
+                mcp_allow_all_google_users=True,
+            ),
         )
 
         result = asyncio.run(wrapper.verify_token("raw-token"))
@@ -261,6 +285,20 @@ class AuthConfigTests(unittest.TestCase):
         self.assertTrue(payload["google_ads_configured"])
         self.assertEqual(payload["missing"], [])
         self.assertEqual(payload["google_ads_auth_mode"], "per_user_oauth")
+        self.assertFalse(payload["allow_all_google_users"])
+
+    def test_bootstrap_request_allows_header_token_only(self) -> None:
+        request = SimpleNamespace(
+            query_params={"token": "secret"},
+            headers={"x-google-ads-bootstrap-token": "secret"},
+        )
+
+        self.assertTrue(_bootstrap_request_allowed(request, "secret"))
+
+    def test_bootstrap_request_rejects_query_token(self) -> None:
+        request = SimpleNamespace(query_params={"token": "secret"}, headers={})
+
+        self.assertFalse(_bootstrap_request_allowed(request, "secret"))
 
     def test_google_ads_readiness_payload_treats_placeholders_as_missing(self) -> None:
         payload = _google_ads_readiness_payload(
@@ -290,7 +328,19 @@ class AuthConfigTests(unittest.TestCase):
         self.assertEqual(payload["metadata_cache_ttl_seconds"], 120)
         self.assertEqual(payload["metadata_cache_max_entries"], 7)
         self.assertTrue(payload["metadata_snapshot_enabled"])
+        self.assertFalse(payload["allow_all_google_users"])
         self.assertNotIn("C:/private", str(payload))
+
+    def test_server_status_reports_explicit_allow_all_google_users(self) -> None:
+        settings = make_settings(
+            google_ads_auth_mode="per_user_oauth",
+            mcp_allow_all_google_users=True,
+        )
+        registry = build_tool_registry({"mode": "safe_read_only"})
+
+        payload = _server_status_payload(settings, registry)
+
+        self.assertTrue(payload["allow_all_google_users"])
 
     def test_oauth_discovery_payload_supports_claude_discovery(self) -> None:
         settings = make_settings(mcp_base_url="https://example.run.app/")

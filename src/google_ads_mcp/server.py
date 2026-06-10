@@ -494,6 +494,7 @@ class _OAuthAllowlistProvider:
         self.allowed_domains = set(settings.mcp_allowed_domains)
         self.allow_all_google_users = (
             settings.google_ads_auth_mode == "per_user_oauth"
+            and settings.mcp_allow_all_google_users
             and not self.allowed_emails
             and not self.allowed_domains
         )
@@ -684,9 +685,7 @@ def _bootstrap_provider(auth: Any) -> Any | None:
 def _bootstrap_request_allowed(request: Any, expected_token: str | None) -> bool:
     if not expected_token:
         return False
-    provided = request.query_params.get("token") or request.headers.get(
-        "x-google-ads-bootstrap-token"
-    )
+    provided = request.headers.get("x-google-ads-bootstrap-token")
     return bool(provided and hmac.compare_digest(str(provided), str(expected_token)))
 
 
@@ -850,6 +849,7 @@ def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, A
         "oauth_allowlist_configured": bool(
             settings.mcp_allowed_emails or settings.mcp_allowed_domains
         ),
+        "allow_all_google_users": bool(settings.mcp_allow_all_google_users),
     }
 
 
@@ -895,6 +895,7 @@ def _google_ads_readiness_payload(settings: Any) -> dict[str, Any]:
         "service": "google-ads-mcp",
         "google_ads_auth_mode": settings.google_ads_auth_mode,
         "oauth_token_storage": settings.mcp_token_storage,
+        "allow_all_google_users": bool(settings.mcp_allow_all_google_users),
         "google_ads_configured": not missing,
         "missing": missing,
     }
