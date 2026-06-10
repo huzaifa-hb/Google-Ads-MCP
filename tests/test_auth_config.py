@@ -8,11 +8,17 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import _bootstrap  # noqa: F401
 from google_ads_mcp.config import ConfigError, Settings, get_settings, reset_settings_cache
 from google_ads_mcp.server import (
+    BOOTSTRAP_RESULT_FIRESTORE_PREFIX,
+    BOOTSTRAP_RESULT_FIRESTORE_SALT,
+    _KeyValueBootstrapResultStore,
+    _MemoryBootstrapResultStore,
     _OAuthAllowlistProvider,
+    _build_bootstrap_result_store,
     _bootstrap_request_allowed,
     _google_ads_access_token_value,
     _google_ads_readiness_payload,
@@ -34,6 +40,32 @@ class FakeOAuthProvider:
     async def verify_token(self, token: str) -> object | None:
         self.seen_token = token
         return self.token
+
+
+class FakeKeyValueStore:
+    def __init__(self) -> None:
+        self.values: dict[str, dict[str, object]] = {}
+        self.deleted: list[str] = []
+        self.put_ttl: float | None = None
+
+    async def put(
+        self,
+        key: str,
+        value: dict[str, object],
+        *,
+        collection: str | None = None,  # noqa: ARG002
+        ttl: float | None = None,
+    ) -> None:
+        self.values[key] = dict(value)
+        self.put_ttl = ttl
+
+    async def get(self, key: str, *, collection: str | None = None):  # noqa: ANN201, ARG002
+        return self.values.get(key)
+
+    async def delete(self, key: str, *, collection: str | None = None) -> bool:  # noqa: ARG002
+        self.deleted.append(key)
+        self.values.pop(key, None)
+        return True
 
 
 class AuthConfigTests(unittest.TestCase):
@@ -299,6 +331,59 @@ class AuthConfigTests(unittest.TestCase):
         request = SimpleNamespace(query_params={"token": "secret"}, headers={})
 
         self.assertFalse(_bootstrap_request_allowed(request, "secret"))
+
+    def test_memory_bootstrap_result_store_pops_once_and_expires(self) -> None:
+        store = _MemoryBootstrapResultStore()
+        ready = {
+            "status": "ready",
+            "refresh_token": "refresh",
+            "expires_at": 9999999999,
+        }
+
+        asyncio.run(store.put("nonce", ready, ttl_seconds=600))
+
+        self.assertEqual(asyncio.run(store.pop("nonce"))["refresh_token"], "refresh")
+        self.assertEqual(asyncio.run(store.pop("nonce"))["status"], "pending")
+
+        expired = {"status": "ready", "refresh_token": "old", "expires_at": 1}
+        asyncio.run(store.put("expired", expired, ttl_seconds=600))
+
+        self.assertEqual(asyncio.run(store.pop("expired"))["status"], "pending")
+
+    def test_key_value_bootstrap_result_store_pops_and_deletes(self) -> None:
+        key_value = FakeKeyValueStore()
+        store = _KeyValueBootstrapResultStore(key_value)
+        ready = {
+            "status": "ready",
+            "refresh_token": "refresh",
+            "expires_at": 9999999999,
+        }
+
+        asyncio.run(store.put("nonce", ready, ttl_seconds=600))
+        result = asyncio.run(store.pop("nonce"))
+
+        self.assertEqual(result["refresh_token"], "refresh")
+        self.assertEqual(key_value.deleted, ["nonce"])
+        self.assertEqual(key_value.put_ttl, 600)
+
+    def test_firestore_bootstrap_store_uses_separate_encrypted_prefix_and_salt(self) -> None:
+        key_value = FakeKeyValueStore()
+        settings = make_settings(
+            mcp_token_storage="firestore",
+            google_project_id="project",
+            mcp_oauth_client_secret="client-secret",
+        )
+
+        with patch("google_ads_mcp.server._build_encrypted_firestore_key_value") as build:
+            build.return_value = key_value
+            store = _build_bootstrap_result_store(settings)
+
+        self.assertIsInstance(store, _KeyValueBootstrapResultStore)
+        build.assert_called_once_with(
+            settings,
+            prefix=BOOTSTRAP_RESULT_FIRESTORE_PREFIX,
+            salt=BOOTSTRAP_RESULT_FIRESTORE_SALT,
+        )
 
     def test_google_ads_readiness_payload_treats_placeholders_as_missing(self) -> None:
         payload = _google_ads_readiness_payload(

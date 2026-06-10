@@ -31,6 +31,11 @@ from .safety import build_jsonl_audit_sink
 from .tool_config import ToolExposure, ToolRegistry, load_tool_registry
 from .tool_catalog import FRIENDLY_TOOL_SPECS
 
+OAUTH_TOKEN_FIRESTORE_PREFIX = "google-ads-mcp-oauth"
+OAUTH_TOKEN_FIRESTORE_SALT = "google-ads-mcp-firestore-token-storage-v1"
+BOOTSTRAP_RESULT_FIRESTORE_PREFIX = "google-ads-mcp-bootstrap"
+BOOTSTRAP_RESULT_FIRESTORE_SALT = "google-ads-mcp-firestore-bootstrap-results-v1"
+
 
 def build_mcp() -> Any:
     try:
@@ -122,7 +127,7 @@ def build_mcp() -> Any:
             if provider is None:
                 return JSONResponse({"detail": "Bootstrap unavailable"}, status_code=404)
             nonce = request.query_params.get("nonce") or ""
-            result = provider.pop_google_ads_bootstrap_result(nonce)
+            result = await provider.pop_google_ads_bootstrap_result(nonce)
             status_code = 200 if result["status"] == "ready" else 202
             return JSONResponse(
                 result,
@@ -414,6 +419,9 @@ def _build_auth(settings: Any) -> Any:
             provider_kwargs["google_ads_bootstrap_token"] = (
                 settings.google_ads_oauth_bootstrap_token
             )
+            provider_kwargs["google_ads_bootstrap_result_store"] = (
+                _build_bootstrap_result_store(settings)
+            )
         if settings.mcp_token_storage == "firestore":
             provider_kwargs["client_storage"] = _build_firestore_token_storage(settings)
         provider = provider_cls(
@@ -451,7 +459,7 @@ def _google_oauth_scopes(settings: Any) -> list[str]:
     return scopes
 
 
-def _build_firestore_token_storage(settings: Any) -> Any:
+def _build_encrypted_firestore_key_value(settings: Any, *, prefix: str, salt: str) -> Any:
     try:
         from key_value.aio.stores.firestore import (
             FirestoreStore,
@@ -477,14 +485,80 @@ def _build_firestore_token_storage(settings: Any) -> Any:
     )
     namespaced_store = PrefixCollectionsWrapper(
         store,
-        prefix="google-ads-mcp-oauth",
+        prefix=prefix,
     )
     return FernetEncryptionWrapper(
         key_value=namespaced_store,
         source_material=settings.mcp_oauth_client_secret,
-        salt="google-ads-mcp-firestore-token-storage-v1",
+        salt=salt,
         raise_on_decryption_error=False,
     )
+
+
+def _build_firestore_token_storage(settings: Any) -> Any:
+    return _build_encrypted_firestore_key_value(
+        settings,
+        prefix=OAUTH_TOKEN_FIRESTORE_PREFIX,
+        salt=OAUTH_TOKEN_FIRESTORE_SALT,
+    )
+
+
+class _MemoryBootstrapResultStore:
+    def __init__(self) -> None:
+        self.results: dict[str, dict[str, Any]] = {}
+
+    async def put(self, nonce: str, result: dict[str, Any], *, ttl_seconds: int) -> None:
+        self.results[nonce] = dict(result)
+
+    async def pop(self, nonce: str) -> dict[str, Any]:
+        self._purge_expired()
+        if not nonce:
+            return {"status": "missing_nonce"}
+        result = self.results.pop(nonce, None)
+        if result is None:
+            return {"status": "pending"}
+        return result
+
+    def _purge_expired(self) -> None:
+        now = int(time.time())
+        expired = [
+            nonce
+            for nonce, result in self.results.items()
+            if int(result.get("expires_at") or 0) < now
+        ]
+        for nonce in expired:
+            self.results.pop(nonce, None)
+
+
+class _KeyValueBootstrapResultStore:
+    def __init__(self, key_value: Any) -> None:
+        self.key_value = key_value
+
+    async def put(self, nonce: str, result: dict[str, Any], *, ttl_seconds: int) -> None:
+        await self.key_value.put(nonce, result, ttl=ttl_seconds)
+
+    async def pop(self, nonce: str) -> dict[str, Any]:
+        if not nonce:
+            return {"status": "missing_nonce"}
+        result = await self.key_value.get(nonce)
+        if result is None:
+            return {"status": "pending"}
+        await self.key_value.delete(nonce)
+        if int(result.get("expires_at") or 0) < int(time.time()):
+            return {"status": "pending"}
+        return result
+
+
+def _build_bootstrap_result_store(settings: Any) -> _MemoryBootstrapResultStore | _KeyValueBootstrapResultStore:
+    if settings.mcp_token_storage == "firestore":
+        return _KeyValueBootstrapResultStore(
+            _build_encrypted_firestore_key_value(
+                settings,
+                prefix=BOOTSTRAP_RESULT_FIRESTORE_PREFIX,
+                salt=BOOTSTRAP_RESULT_FIRESTORE_SALT,
+            )
+        )
+    return _MemoryBootstrapResultStore()
 
 
 class _OAuthAllowlistProvider:
@@ -523,10 +597,18 @@ class _GoogleAdsOAuthBootstrapMixin:
     _STATE_TTL_SECONDS = 600
     _RESULT_TTL_SECONDS = 600
 
-    def __init__(self, *args: Any, google_ads_bootstrap_token: str, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        google_ads_bootstrap_token: str,
+        google_ads_bootstrap_result_store: Any | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._google_ads_bootstrap_token = google_ads_bootstrap_token
-        self._google_ads_bootstrap_results: dict[str, dict[str, Any]] = {}
+        self._google_ads_bootstrap_result_store = (
+            google_ads_bootstrap_result_store or _MemoryBootstrapResultStore()
+        )
 
     def google_ads_bootstrap_authorization_url(self) -> tuple[str, str]:
         nonce = secrets.token_urlsafe(24)
@@ -545,14 +627,8 @@ class _GoogleAdsOAuthBootstrapMixin:
         }
         return nonce, f"{self._upstream_authorization_endpoint}?{urlencode(params)}"
 
-    def pop_google_ads_bootstrap_result(self, nonce: str) -> dict[str, Any]:
-        self._purge_expired_google_ads_bootstrap_results()
-        if not nonce:
-            return {"status": "missing_nonce"}
-        result = self._google_ads_bootstrap_results.pop(nonce, None)
-        if result is None:
-            return {"status": "pending"}
-        return result
+    async def pop_google_ads_bootstrap_result(self, nonce: str) -> dict[str, Any]:
+        return await self._google_ads_bootstrap_result_store.pop(nonce)
 
     async def _handle_idp_callback(self, request: Any) -> Any:
         nonce = self._verify_google_ads_bootstrap_state(
@@ -610,13 +686,17 @@ class _GoogleAdsOAuthBootstrapMixin:
                 status_code=400,
             )
 
-        self._google_ads_bootstrap_results[nonce] = {
-            "status": "ready",
-            "client_id": self._upstream_client_id,
-            "refresh_token": refresh_token,
-            "created_at": int(time.time()),
-            "expires_at": int(time.time() + self._RESULT_TTL_SECONDS),
-        }
+        await self._google_ads_bootstrap_result_store.put(
+            nonce,
+            {
+                "status": "ready",
+                "client_id": self._upstream_client_id,
+                "refresh_token": refresh_token,
+                "created_at": int(time.time()),
+                "expires_at": int(time.time() + self._RESULT_TTL_SECONDS),
+            },
+            ttl_seconds=self._RESULT_TTL_SECONDS,
+        )
         return HTMLResponse(
             _google_ads_bootstrap_html(
                 "Authorization complete",
@@ -655,17 +735,6 @@ class _GoogleAdsOAuthBootstrapMixin:
         if not hmac.compare_digest(signature, expected):
             return None
         return nonce
-
-    def _purge_expired_google_ads_bootstrap_results(self) -> None:
-        now = int(time.time())
-        expired = [
-            nonce
-            for nonce, result in self._google_ads_bootstrap_results.items()
-            if int(result.get("expires_at") or 0) < now
-        ]
-        for nonce in expired:
-            self._google_ads_bootstrap_results.pop(nonce, None)
-
 
 def _google_ads_oauth_bootstrap_provider_class(google_provider_cls: type[Any]) -> type[Any]:
     return type(
