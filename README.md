@@ -135,6 +135,14 @@ This release removes the need for one hardcoded Cloud Run MCC:
 - Tool responses include `login_customer_id_used` and
   `login_customer_id_source` so routing is visible without exposing secrets.
 
+## Patch Notes For 0.4.2
+
+- `google_ads_call_service` and mutate paths now run local write gates before
+  any MCC login-context lookup.
+- Service-mode reads use the cached accessible-customer list for direct-account
+  fast paths and proactive MCC resolution for child accounts.
+- Do not deploy `0.4.1`; use `0.4.2` or later for dynamic MCC routing.
+
 ## Patch Notes For 0.4.1
 
 - Service-mode tools and `google_ads_call_service` now auto-resolve MCC context

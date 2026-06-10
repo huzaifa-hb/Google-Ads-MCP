@@ -232,7 +232,47 @@ class GoogleAdsGateway:
             )
         return current
 
-    async def _cached_accessible_customer_ids(self) -> tuple[str, ...]:
+    async def _login_customer_context_for_approved_target(
+        self,
+        customer_id: str,
+        *,
+        auto_resolve: bool,
+    ) -> LoginCustomerContext:
+        current = self._current_login_customer_context()
+        if current.login_customer_id or not auto_resolve:
+            return current
+        cached = self._login_context_cache_get("child_manager", customer_id)
+        if cached is not None:
+            if cached:
+                return LoginCustomerContext(
+                    self.with_login_customer_id(cached),
+                    cached,
+                    "auto",
+                )
+            return current
+        accessible_customer_ids = await self._cached_accessible_customer_ids(
+            propagate_errors=True
+        )
+        if customer_id in accessible_customer_ids:
+            self._login_context_cache_set("child_manager", customer_id, "")
+            return current
+        manager_id = await self._auto_resolve_login_customer_id(
+            customer_id,
+            accessible_customer_ids=accessible_customer_ids,
+        )
+        if manager_id:
+            return LoginCustomerContext(
+                self.with_login_customer_id(manager_id),
+                manager_id,
+                "auto",
+            )
+        return current
+
+    async def _cached_accessible_customer_ids(
+        self,
+        *,
+        propagate_errors: bool = False,
+    ) -> tuple[str, ...]:
         cached = self._login_context_cache_get("accessible_customers", "all")
         if cached is not None:
             return tuple(cached)
@@ -240,18 +280,24 @@ class GoogleAdsGateway:
             result = await self.list_accessible_customers()
         except Exception as exc:
             LOGGER.debug("Unable to list accessible customers for login context resolution: %s", exc)
-            if not self._is_transient(exc):
-                self._login_context_cache_set("accessible_customers", "all", ())
+            if propagate_errors:
+                raise
             return ()
         customer_ids = tuple(result.get("customer_ids") or ())
         self._login_context_cache_set("accessible_customers", "all", customer_ids)
         return customer_ids
 
-    async def _auto_resolve_login_customer_id(self, customer_id: str) -> str | None:
+    async def _auto_resolve_login_customer_id(
+        self,
+        customer_id: str,
+        *,
+        accessible_customer_ids: tuple[str, ...] | None = None,
+    ) -> str | None:
         cached = self._login_context_cache_get("child_manager", customer_id)
         if cached is not None:
             return cached or None
-        accessible_customer_ids = await self._cached_accessible_customer_ids()
+        if accessible_customer_ids is None:
+            accessible_customer_ids = await self._cached_accessible_customer_ids()
         if customer_id in accessible_customer_ids:
             self._login_context_cache_set("child_manager", customer_id, "")
             return None
@@ -534,7 +580,21 @@ class GoogleAdsGateway:
         _resolve_login_customer_id: bool = True,
     ) -> dict[str, Any]:
         cid = normalize_customer_id(customer_id)
-        login_context = await self._login_customer_context_for_target(
+        if len(operations) > 5000:
+            raise ValidationError("Google Ads mutate batches can include at most 5,000 operations.")
+        write_decision = guard_google_ads_write(
+            mode=self.mode,
+            tool_name=tool_name,
+            customer_id=cid,
+            validate_only=validate_only,
+            execute=execute,
+            confirmation_phrase=confirmation_phrase,
+            operation_type=operation_type or "google_ads_mutate",
+            operation_count=len(operations),
+            audit_sink=self.audit_sink,
+        )
+        validate_only = write_decision.validate_only
+        login_context = await self._login_customer_context_for_approved_target(
             cid,
             auto_resolve=_resolve_login_customer_id,
         )
@@ -552,20 +612,6 @@ class GoogleAdsGateway:
                 _resolve_login_customer_id=False,
             )
             return self._with_login_customer_metadata(result, login_context)
-        write_decision = guard_google_ads_write(
-            mode=self.mode,
-            tool_name=tool_name,
-            customer_id=cid,
-            validate_only=validate_only,
-            execute=execute,
-            confirmation_phrase=confirmation_phrase,
-            operation_type=operation_type or "google_ads_mutate",
-            operation_count=len(operations),
-            audit_sink=self.audit_sink,
-        )
-        validate_only = write_decision.validate_only
-        if len(operations) > 5000:
-            raise ValidationError("Google Ads mutate batches can include at most 5,000 operations.")
 
         def call() -> Any:
             service = self.get_service("GoogleAdsService")
@@ -606,9 +652,56 @@ class GoogleAdsGateway:
         _resolve_login_customer_id: bool = True,
     ) -> dict[str, Any]:
         payload = dict(payload or {})
+        method_looks_mutating = method_name.startswith(MUTATING_METHOD_PREFIXES)
+        effective_is_write = bool(is_write) or method_looks_mutating
+        read_allowed = (service_name, method_name) in READ_ONLY_SERVICE_METHODS
+        generic_bridge_enabled = (
+            self.mode == "admin_debug" and self.settings.enable_generic_service_bridge
+        )
+        if not effective_is_write and not read_allowed:
+            if generic_bridge_enabled:
+                effective_is_write = True
+            else:
+                raise ValidationError(
+                    f"{service_name}.{method_name} is not on the read-only service allowlist. "
+                    "Set is_write=true to route it through the write guard, or enable "
+                    "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true in admin_debug mode for "
+                    "explicit generic bridge debugging."
+                )
+        write_decision = None
         target_customer_id = self._payload_customer_id(payload)
+        if effective_is_write:
+            if not target_customer_id:
+                raise ValidationError("customer_id is required for Google Ads service writes.")
+            write_decision = guard_google_ads_write(
+                mode=self.mode,
+                tool_name=tool_name,
+                customer_id=target_customer_id,
+                validate_only=validate_only,
+                execute=execute,
+                confirmation_phrase=confirmation_phrase,
+                operation_type=method_name,
+                operation_count=1,
+                audit_sink=self.audit_sink,
+            )
+        inferred_type = request_type or f"{snake_to_pascal(method_name)}Request"
+        request_payload = dict(payload)
+        if write_decision is not None:
+            preflight_request = self.get_type(inferred_type)
+            supports_validate_only = self._message_has_field(preflight_request, "validate_only")
+            if supports_validate_only:
+                request_payload["validate_only"] = write_decision.validate_only
+            elif write_decision.validate_only:
+                raise ValidationError(
+                    f"{inferred_type} does not support validate_only. "
+                    "This service method cannot be previewed safely through "
+                    "google_ads_call_service; use a native validation-capable mutate path "
+                    "or confirm a real write explicitly."
+                )
+            else:
+                request_payload.pop("validate_only", None)
         login_context = (
-            await self._login_customer_context_for_target(
+            await self._login_customer_context_for_approved_target(
                 target_customer_id,
                 auto_resolve=_resolve_login_customer_id,
             )
@@ -629,39 +722,6 @@ class GoogleAdsGateway:
                 _resolve_login_customer_id=False,
             )
             return self._with_login_customer_metadata(result, login_context)
-        method_looks_mutating = method_name.startswith(MUTATING_METHOD_PREFIXES)
-        effective_is_write = bool(is_write) or method_looks_mutating
-        read_allowed = (service_name, method_name) in READ_ONLY_SERVICE_METHODS
-        generic_bridge_enabled = (
-            self.mode == "admin_debug" and self.settings.enable_generic_service_bridge
-        )
-        if not effective_is_write and not read_allowed:
-            if generic_bridge_enabled:
-                effective_is_write = True
-            else:
-                raise ValidationError(
-                    f"{service_name}.{method_name} is not on the read-only service allowlist. "
-                    "Set is_write=true to route it through the write guard, or enable "
-                    "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE=true in admin_debug mode for "
-                    "explicit generic bridge debugging."
-                )
-        write_decision = None
-        if effective_is_write:
-            customer_id = payload.get("customer_id") or payload.get("customerId")
-            if not customer_id:
-                raise ValidationError("customer_id is required for Google Ads service writes.")
-            write_decision = guard_google_ads_write(
-                mode=self.mode,
-                tool_name=tool_name,
-                customer_id=customer_id,
-                validate_only=validate_only,
-                execute=execute,
-                confirmation_phrase=confirmation_phrase,
-                operation_type=method_name,
-                operation_count=1,
-                audit_sink=self.audit_sink,
-            )
-        inferred_type = request_type or f"{snake_to_pascal(method_name)}Request"
 
         def call() -> Any:
             service = self.get_service(service_name)
@@ -669,20 +729,6 @@ class GoogleAdsGateway:
                 raise ValidationError(f"{service_name}.{method_name} is not available.")
             method = getattr(service, method_name)
             request = self.get_type(inferred_type)
-            request_payload = dict(payload)
-            if write_decision is not None:
-                supports_validate_only = self._message_has_field(request, "validate_only")
-                if supports_validate_only:
-                    request_payload["validate_only"] = write_decision.validate_only
-                elif write_decision.validate_only:
-                    raise ValidationError(
-                        f"{inferred_type} does not support validate_only. "
-                        "This service method cannot be previewed safely through "
-                        "google_ads_call_service; use a native validation-capable mutate path "
-                        "or confirm a real write explicitly."
-                    )
-                else:
-                    request_payload.pop("validate_only", None)
             self._parse_dict(request_payload, request)
             return method(request=request)
 

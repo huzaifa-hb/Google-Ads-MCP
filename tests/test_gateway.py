@@ -112,6 +112,7 @@ class AutoLoginSearchService:
         self.service_calls = 0
         self.last_request: SearchRequest | None = None
         self.last_service_request: dict[str, object] | None = None
+        self.last_mutate_request: MutateRequest | None = None
 
     def search(self, request: SearchRequest) -> StaticSearchPager:
         self.last_request = request
@@ -153,6 +154,24 @@ class AutoLoginSearchService:
             "request": request,
         }
 
+    def mutate_campaigns(self, request: dict[str, object]) -> dict[str, object]:
+        self.service_calls += 1
+        self.last_service_request = request
+        return {
+            "manager": self.manager_id,
+            "request": request,
+        }
+
+    def mutate(self, request: MutateRequest) -> dict[str, object]:
+        self.service_calls += 1
+        self.last_mutate_request = request
+        return {
+            "manager": self.manager_id,
+            "customer_id": getattr(request, "customer_id", None),
+            "validate_only": getattr(request, "validate_only", None),
+            "operation_count": len(request.mutate_operations),
+        }
+
 
 class TransientThenOwnedSearchService(AutoLoginSearchService):
     def __init__(self, manager_id: str, owned_customers: set[str]) -> None:
@@ -181,14 +200,26 @@ class AutoLoginCustomerService:
         }
 
 
+class FailingAccessibleCustomerService:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def list_accessible_customers(self, request: object | None = None) -> dict[str, object]:  # noqa: ARG002
+        self.calls += 1
+        raise RuntimeError("ACCESSIBLE_CUSTOMERS_FAILED")
+
+
 class AutoLoginClient:
     def __init__(
         self,
         *,
         accessible_customer_ids: list[str] | None = None,
         search_service: AutoLoginSearchService | None = None,
+        customer_service: AutoLoginCustomerService | FailingAccessibleCustomerService | None = None,
     ) -> None:
-        self.customer_service = AutoLoginCustomerService(accessible_customer_ids or [])
+        self.customer_service = customer_service or AutoLoginCustomerService(
+            accessible_customer_ids or []
+        )
         self.search_service = search_service or AutoLoginSearchService(None)
 
     def get_service(self, service_name: str) -> object:
@@ -199,6 +230,8 @@ class AutoLoginClient:
     def get_type(self, type_name: str) -> SearchRequest | dict[str, object]:  # noqa: ARG002
         if type_name in {"SearchGoogleAdsRequest", "ListAccessibleCustomersRequest"}:
             return SearchRequest()
+        if type_name == "MutateGoogleAdsRequest":
+            return MutateRequest()
         return {}
 
 
@@ -264,11 +297,29 @@ class FailingMutateService:
         raise RuntimeError("INTERNAL")
 
 
+class RecordingMutateService:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.last_request: MutateRequest | None = None
+
+    def mutate(self, request: MutateRequest) -> dict[str, object]:
+        self.calls += 1
+        self.last_request = request
+        return {
+            "customer_id": getattr(request, "customer_id", None),
+            "validate_only": getattr(request, "validate_only", None),
+            "operation_count": len(request.mutate_operations),
+        }
+
+
 class MutateClient:
-    def __init__(self, service: FailingMutateService) -> None:
+    def __init__(self, service: FailingMutateService | RecordingMutateService) -> None:
         self.service = service
 
-    def get_service(self, service_name: str) -> FailingMutateService:  # noqa: ARG002
+    def get_service(  # noqa: ARG002
+        self,
+        service_name: str,
+    ) -> FailingMutateService | RecordingMutateService:
         return self.service
 
     def get_type(self, type_name: str) -> MutateRequest | dict[str, object]:
@@ -672,6 +723,112 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(manager.client.search_service.service_calls, 1)
         self.assertEqual(manager.client.search_service.last_service_request["customer_id"], "3333333333")
 
+    async def test_call_service_direct_accessible_read_does_not_probe_managers(self) -> None:
+        root_service = AutoLoginSearchService(None)
+        gateway = ParsingGateway(
+            settings=make_settings(google_ads_auth_mode="per_user_oauth"),
+            client=AutoLoginClient(
+                accessible_customer_ids=["3333333333"],
+                search_service=root_service,
+            ),
+            login_context_cache=OrderedDict(),
+        )
+
+        result = await gateway.call_service(
+            service_name="InvoiceService",
+            method_name="list_invoices",
+            request_type="ListInvoicesRequest",
+            payload={
+                "customer_id": "3333333333",
+                "billing_setup": "customers/3333333333/billingSetups/1",
+            },
+            is_write=False,
+        )
+
+        self.assertIsNone(result["login_customer_id_used"])
+        self.assertEqual(result["login_customer_id_source"], "none")
+        self.assertEqual(gateway.client.customer_service.calls, 1)
+        self.assertEqual(root_service.discovery_queries, 0)
+        self.assertEqual(root_service.service_calls, 1)
+
+    async def test_call_service_accessible_customer_failure_does_not_probe_managers(self) -> None:
+        root_service = AutoLoginSearchService(None)
+        failing_customer_service = FailingAccessibleCustomerService()
+        gateway = ParsingGateway(
+            settings=make_settings(google_ads_auth_mode="per_user_oauth"),
+            client=AutoLoginClient(
+                customer_service=failing_customer_service,
+                search_service=root_service,
+            ),
+            login_context_cache=OrderedDict(),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "ACCESSIBLE_CUSTOMERS_FAILED"):
+            await gateway.call_service(
+                service_name="InvoiceService",
+                method_name="list_invoices",
+                request_type="ListInvoicesRequest",
+                payload={
+                    "customer_id": "3333333333",
+                    "billing_setup": "customers/3333333333/billingSetups/1",
+                },
+                is_write=False,
+            )
+
+        self.assertEqual(failing_customer_service.calls, 1)
+        self.assertEqual(root_service.discovery_queries, 0)
+        self.assertEqual(root_service.service_calls, 0)
+
+    async def test_call_service_write_resolves_before_service_invocation(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        manager = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService(
+                    "1111111111",
+                    {"3333333333"},
+                )
+            ),
+            login_customer_id="1111111111",
+            mode="write_enabled",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("1111111111", manager._cache_principal_key())] = manager  # noqa: SLF001
+        root_service = AutoLoginSearchService(None)
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                accessible_customer_ids=["1111111111"],
+                search_service=root_service,
+            ),
+            mode="write_enabled",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        result = await gateway.call_service(
+            service_name="CampaignService",
+            method_name="mutate_campaigns",
+            request_type="MutateCampaignsRequest",
+            payload={"customer_id": "3333333333", "operations": []},
+            is_write=True,
+            validate_only=False,
+            execute=True,
+            confirmation_phrase=CONFIRMATION_PHRASE,
+        )
+
+        self.assertEqual(result["login_customer_id_used"], "1111111111")
+        self.assertEqual(result["login_customer_id_source"], "auto")
+        self.assertEqual(root_service.service_calls, 0)
+        self.assertEqual(manager.client.search_service.service_calls, 1)
+        self.assertEqual(
+            manager.client.search_service.last_service_request["customer_id"],
+            "3333333333",
+        )
+
     async def test_transient_manager_probe_does_not_negative_cache_resolution(self) -> None:
         login_scoped_cache = OrderedDict()
         login_context_cache = OrderedDict()
@@ -770,7 +927,12 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
     )
     async def test_validation_only_service_write_requires_request_validate_field(self) -> None:
         service = RecordingService()
-        gateway = GoogleAdsGateway(client=RealTypeClient(service), mode="validation_only")
+        gateway = GoogleAdsGateway(
+            settings=make_settings(),
+            client=RealTypeClient(service),
+            mode="validation_only",
+            login_context_cache=OrderedDict(),
+        )
 
         with self.assertRaisesRegex(ValidationError, "does not support validate_only"):
             await gateway.call_service(
@@ -809,7 +971,12 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unlisted_service_read_is_denied_by_default(self) -> None:
         service = RecordingService()
-        gateway = ParsingGateway(client=FakeClient(service), mode="admin_debug")
+        gateway = ParsingGateway(
+            settings=make_settings(),
+            client=FakeClient(service),
+            mode="admin_debug",
+            login_context_cache=OrderedDict(),
+        )
 
         with self.assertRaises(ValidationError):
             await gateway.call_service(
@@ -819,6 +986,8 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
                 payload={"customer_id": "1234567890"},
                 is_write=False,
             )
+
+        self.assertIsNone(service.last_request)
 
     async def test_allowlisted_service_read_is_allowed(self) -> None:
         service = RecordingService()
@@ -968,9 +1137,103 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(service.last_request)
 
+    async def test_safe_read_only_mutate_rejects_before_login_lookup(self) -> None:
+        root_service = AutoLoginSearchService(None)
+        gateway = ParsingGateway(
+            settings=make_settings(),
+            client=AutoLoginClient(
+                accessible_customer_ids=["1234567890"],
+                search_service=root_service,
+            ),
+            mode="safe_read_only",
+            login_context_cache=OrderedDict(),
+        )
+
+        with self.assertRaisesRegex(ValidationError, "writes are disabled"):
+            await gateway.mutate(
+                customer_id="1234567890",
+                operations=[{"campaign_operation": {"create": {"name": "Test"}}}],
+                validate_only=True,
+                execute=False,
+            )
+
+        self.assertEqual(gateway.client.customer_service.calls, 0)
+        self.assertEqual(root_service.service_calls, 0)
+
+    async def test_validation_only_mutate_resolves_after_guard_and_sends_validate_only(self) -> None:
+        root_service = AutoLoginSearchService(None)
+        gateway = ParsingGateway(
+            settings=make_settings(google_ads_auth_mode="per_user_oauth"),
+            client=AutoLoginClient(
+                accessible_customer_ids=["1234567890"],
+                search_service=root_service,
+            ),
+            mode="validation_only",
+            login_context_cache=OrderedDict(),
+        )
+
+        result = await gateway.mutate(
+            customer_id="1234567890",
+            operations=[{"campaign_operation": {"create": {"name": "Test"}}}],
+            validate_only=False,
+            execute=True,
+        )
+
+        self.assertIsNone(result["login_customer_id_used"])
+        self.assertEqual(result["login_customer_id_source"], "none")
+        self.assertEqual(gateway.client.customer_service.calls, 1)
+        self.assertEqual(root_service.service_calls, 1)
+        self.assertIsNotNone(root_service.last_mutate_request)
+        self.assertTrue(root_service.last_mutate_request.validate_only)
+
+    async def test_confirmed_mutate_resolves_before_service_invocation(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        manager_service = AutoLoginSearchService("1111111111", {"3333333333"})
+        manager = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(search_service=manager_service),
+            login_customer_id="1111111111",
+            mode="write_enabled",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("1111111111", manager._cache_principal_key())] = manager  # noqa: SLF001
+        root_service = AutoLoginSearchService(None)
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                accessible_customer_ids=["1111111111"],
+                search_service=root_service,
+            ),
+            mode="write_enabled",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        result = await gateway.mutate(
+            customer_id="3333333333",
+            operations=[{"campaign_operation": {"create": {"name": "Test"}}}],
+            validate_only=False,
+            execute=True,
+            confirmation_phrase=CONFIRMATION_PHRASE,
+        )
+
+        self.assertEqual(result["login_customer_id_used"], "1111111111")
+        self.assertEqual(result["login_customer_id_source"], "auto")
+        self.assertEqual(root_service.service_calls, 0)
+        self.assertEqual(manager_service.service_calls, 1)
+        self.assertIsNotNone(manager_service.last_mutate_request)
+        self.assertEqual(manager_service.last_mutate_request.customer_id, "3333333333")
+
     async def test_committed_mutate_is_not_retried_on_transient_error(self) -> None:
         service = FailingMutateService()
-        settings = make_settings(max_retries=3, retry_base_seconds=0.0)
+        settings = make_settings(
+            login_customer_id="1234567890",
+            max_retries=3,
+            retry_base_seconds=0.0,
+        )
         gateway = ParsingGateway(
             client=MutateClient(service),
             mode="write_enabled",
