@@ -48,6 +48,8 @@ from .safety import ValidationError, guard_google_ads_write, normalize_customer_
 
 
 LOGGER = logging.getLogger(__name__)
+ResourceMetadataCache = OrderedDict[tuple[str, str], tuple[float, dict[str, Any]]]
+_SHARED_RESOURCE_METADATA_CACHE: ResourceMetadataCache = OrderedDict()
 
 MUTATING_METHOD_PREFIXES = (
     "mutate_",
@@ -82,6 +84,10 @@ def snake_to_pascal(value: str) -> str:
     return "".join(part.capitalize() for part in value.split("_") if part)
 
 
+def clear_shared_resource_metadata_cache() -> None:
+    _SHARED_RESOURCE_METADATA_CACHE.clear()
+
+
 class GoogleAdsGateway:
     """Lazy wrapper around Google Ads API services."""
 
@@ -92,15 +98,16 @@ class GoogleAdsGateway:
         mode: str | None = None,
         audit_sink: Callable[[dict[str, Any]], None] | None = None,
         access_token: str | None = None,
+        metadata_cache: ResourceMetadataCache | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self._client = client
         self.access_token = access_token
         self.mode = mode or self.settings.mcp_mode or "safe_read_only"
         self.audit_sink = audit_sink
-        self._resource_metadata_cache: OrderedDict[
-            tuple[str, str], tuple[float, dict[str, Any]]
-        ] = OrderedDict()
+        self._resource_metadata_cache = (
+            metadata_cache if metadata_cache is not None else _SHARED_RESOURCE_METADATA_CACHE
+        )
         self._metadata_snapshot: dict[str, Any] | None = None
 
     @property

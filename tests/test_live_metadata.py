@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
 import _bootstrap  # noqa: F401
-from google_ads_mcp.gateway import GoogleAdsGateway
+from google_ads_mcp.gateway import GoogleAdsGateway, clear_shared_resource_metadata_cache
 from google_ads_mcp.safety import ValidationError
 from test_tool_config import make_settings
 
@@ -110,6 +111,9 @@ class FakeClient:
 
 
 class LiveMetadataTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        clear_shared_resource_metadata_cache()
+
     async def test_resource_metadata_uses_cache(self) -> None:
         service = MetadataService()
         gateway = GoogleAdsGateway(client=FakeClient(service))
@@ -124,6 +128,37 @@ class LiveMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("campaign.name", first["resource_fields"])
         self.assertIn("metrics.clicks", first["metrics"])
         self.assertIn("segments.date", first["segments"])
+
+    async def test_resource_metadata_cache_is_shared_across_per_user_gateways(self) -> None:
+        service = MetadataService()
+        cache = OrderedDict()
+        first_gateway = GoogleAdsGateway(
+            client=FakeClient(service),
+            settings=make_settings(api_version="v24"),
+            access_token="user-one-token",
+            metadata_cache=cache,
+        )
+        second_gateway = GoogleAdsGateway(
+            client=FakeClient(service),
+            settings=make_settings(api_version="v24"),
+            access_token="user-two-token",
+            metadata_cache=cache,
+        )
+        other_version_gateway = GoogleAdsGateway(
+            client=FakeClient(service),
+            settings=make_settings(api_version="v25"),
+            access_token="user-three-token",
+            metadata_cache=cache,
+        )
+
+        first = await first_gateway.get_resource_metadata("campaign")
+        second = await second_gateway.get_resource_metadata("campaign")
+        other_version = await other_version_gateway.get_resource_metadata("campaign")
+
+        self.assertFalse(first["cached"])
+        self.assertTrue(second["cached"])
+        self.assertFalse(other_version["cached"])
+        self.assertEqual(len(service.queries), 4)
 
     async def test_resource_metadata_cache_can_be_disabled(self) -> None:
         service = MetadataService()
