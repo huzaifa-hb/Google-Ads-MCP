@@ -42,7 +42,7 @@ Before setup, collect these:
 | Google Ads developer token | Google Ads API Center | Lets any tool call the Google Ads API |
 | OAuth client ID and secret | Google Cloud Console | Lets you sign in with Google |
 | Refresh token | Created during setup | Lets the server keep access after sign-in |
-| Optional manager account ID | Your Google Ads MCC | Needed when you manage clients through an MCC |
+| Optional default manager account ID | Your Google Ads MCC | Default login context for MCC-routed calls |
 
 This repo does not use a hosted broker like GAQL.app. That means you keep the
 connection under your control, but Google still requires the API credentials.

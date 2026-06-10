@@ -218,6 +218,21 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
             client.kwargs["credentials"].scopes,
         )
 
+    def test_per_call_login_customer_id_overrides_default_login_context(self) -> None:
+        gateway = GoogleAdsGateway(
+            settings=make_settings(
+                google_ads_auth_mode="per_user_oauth",
+                developer_token="developer-token",
+                login_customer_id="123-456-7890",
+            ),
+            access_token="user-access-token",
+        )
+
+        dynamic_gateway = gateway.with_login_customer_id("222-333-4444")
+        client = dynamic_gateway._load_client_from_access_token(RecordingGoogleAdsClient)  # noqa: SLF001
+
+        self.assertEqual(client.kwargs["login_customer_id"], "2223334444")
+
     async def test_mutating_method_cannot_be_marked_read_only(self) -> None:
         gateway = GoogleAdsGateway()
         with self.assertRaises(ValidationError):

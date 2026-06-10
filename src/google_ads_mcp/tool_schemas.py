@@ -107,6 +107,7 @@ def _core_parameters_schema(name: str) -> dict[str, Any]:
         return _object_schema(
             {
                 "customer_id": _customer_id_schema(),
+                "login_customer_id": _login_customer_id_schema(),
                 "query": _string("GAQL query to execute with GoogleAdsService.Search."),
                 **_row_cap_properties(),
                 "primary_field": _string("Optional primary field used to key or flatten rows."),
@@ -117,6 +118,7 @@ def _core_parameters_schema(name: str) -> dict[str, Any]:
         return _object_schema(
             {
                 "customer_id": _customer_id_schema(),
+                "login_customer_id": _login_customer_id_schema(),
                 "query": _string("GAQL query to execute with GoogleAdsService.SearchStream."),
                 "max_rows": _integer("Total row cap for the stream response.", default=10_000, minimum=1),
                 "primary_field": _string("Optional primary field used to key or flatten rows."),
@@ -127,6 +129,7 @@ def _core_parameters_schema(name: str) -> dict[str, Any]:
         return _object_schema(
             {
                 "customer_id": _customer_id_schema(),
+                "login_customer_id": _login_customer_id_schema(),
                 "operations": _array("GoogleAdsService MutateOperation objects.", {"type": "object"}),
                 **_write_safety_properties(),
                 "response_content_type": _enum(
@@ -142,6 +145,7 @@ def _core_parameters_schema(name: str) -> dict[str, Any]:
             {
                 "service_name": _string("Google Ads service class name."),
                 "method_name": _string("snake_case service method name."),
+                "login_customer_id": _login_customer_id_schema(),
                 "request": _open_object("Request payload matching the Google Ads protobuf JSON shape."),
                 "request_type": _string("Optional protobuf request message type."),
                 "is_write": _boolean("Whether this service call mutates Google Ads state."),
@@ -161,7 +165,10 @@ def _core_parameters_schema(name: str) -> dict[str, Any]:
 
 
 def _friendly_parameters_schema(spec: Any) -> dict[str, Any]:
-    properties: dict[str, Any] = {"customer_id": _customer_id_schema()}
+    properties: dict[str, Any] = {
+        "customer_id": _customer_id_schema(),
+        "login_customer_id": _login_customer_id_schema(),
+    }
     required = ["customer_id"]
 
     if spec.name == "get_mcc_hierarchy":
@@ -761,6 +768,13 @@ def _write_safety_properties(*, partial_failure: bool = True) -> dict[str, Any]:
 
 def _customer_id_schema() -> dict[str, Any]:
     return _string("Google Ads customer id, without dashes.")
+
+
+def _login_customer_id_schema() -> dict[str, Any]:
+    return _string(
+        "Optional manager/MCC customer id to use as the Google Ads login-customer-id header. "
+        "Use this when querying a child account through an MCC."
+    )
 
 
 def _filters_schema(resource: str | None = None) -> dict[str, Any]:

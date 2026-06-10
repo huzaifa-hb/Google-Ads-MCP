@@ -89,11 +89,18 @@ class ToolSchemaTests(unittest.TestCase):
         schema = parameters_schema_for_exposure(_exposure("reporting_get_campaign_metrics"))
 
         properties = schema["properties"]
+        self.assertIn("login_customer_id", properties)
         self.assertIn("filters", properties)
         self.assertIn("date_range", properties)
         self.assertIn("max_rows", properties)
         self.assertTrue(properties["page_size"]["deprecated"])
         self.assertNotIn("payload", schema.get("required", []))
+
+    def test_core_search_schema_exposes_login_customer_id(self) -> None:
+        schema = parameters_schema_for_exposure(_exposure("generic_google_ads_search"))
+
+        self.assertIn("login_customer_id", schema["properties"])
+        self.assertNotIn("login_customer_id", schema.get("required", []))
 
     def test_list_invoices_schema_requires_billing_setup_payload(self) -> None:
         schema = parameters_schema_for_exposure(_exposure("account_list_invoices"))

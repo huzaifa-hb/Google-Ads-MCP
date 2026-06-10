@@ -64,17 +64,19 @@ def build_mcp() -> Any:
         else None
     )
 
-    def gateway_for_request() -> GoogleAdsGateway:
+    def gateway_for_request(login_customer_id: str | None = None) -> GoogleAdsGateway:
         if settings.google_ads_auth_mode == "per_user_oauth":
-            return GoogleAdsGateway(
+            gateway = GoogleAdsGateway(
                 settings=settings,
                 mode=registry.mode,
                 audit_sink=audit_sink,
                 access_token=_google_ads_access_token_value(get_access_token()),
             )
-        if shared_gateway is None:
-            raise ConfigError("Shared Google Ads gateway is not configured.")
-        return shared_gateway
+        else:
+            if shared_gateway is None:
+                raise ConfigError("Shared Google Ads gateway is not configured.")
+            gateway = shared_gateway
+        return gateway.with_login_customer_id(login_customer_id)
 
     def dispatcher_for_request() -> FriendlyDispatcher:
         return FriendlyDispatcher(gateway=gateway_for_request())
@@ -287,10 +289,11 @@ def build_mcp() -> Any:
         page_size: int | None = None,
         page_token: str | None = None,
         primary_field: str | None = None,
+        login_customer_id: str | None = None,
     ) -> dict[str, Any]:
         """Run a GAQL search query."""
 
-        return await gateway_for_request().search(
+        return await gateway_for_request(login_customer_id).search(
             customer_id=customer_id,
             query=query,
             max_rows=max_rows,
@@ -304,10 +307,11 @@ def build_mcp() -> Any:
         query: str,
         primary_field: str | None = None,
         max_rows: int = 10_000,
+        login_customer_id: str | None = None,
     ) -> dict[str, Any]:
         """Run a GAQL SearchStream query."""
 
-        return await gateway_for_request().search_stream(
+        return await gateway_for_request(login_customer_id).search_stream(
             customer_id=customer_id,
             query=query,
             primary_field=primary_field,
@@ -322,10 +326,11 @@ def build_mcp() -> Any:
         confirmation_phrase: str | None = None,
         partial_failure: bool = False,
         response_content_type: str = "MUTABLE_RESOURCE",
+        login_customer_id: str | None = None,
     ) -> dict[str, Any]:
         """Run GoogleAdsService.mutate against arbitrary MutateOperation payloads."""
 
-        return await gateway_for_request().mutate(
+        return await gateway_for_request(login_customer_id).mutate(
             customer_id=customer_id,
             operations=operations,
             validate_only=validate_only,
@@ -346,10 +351,11 @@ def build_mcp() -> Any:
         validate_only: bool = True,
         execute: bool = False,
         confirmation_phrase: str | None = None,
+        login_customer_id: str | None = None,
     ) -> dict[str, Any]:
         """Call any Google Ads API service method exposed by the installed client."""
 
-        return await gateway_for_request().call_service(
+        return await gateway_for_request(login_customer_id).call_service(
             service_name=service_name,
             method_name=method_name,
             payload=request or {},
@@ -882,6 +888,7 @@ def _register_friendly_tool(
         max_accounts: int | None = None,
         page_size: int | None = None,
         page_token: str | None = None,
+        login_customer_id: str | None = None,
         validate_only: bool = True,
         execute: bool = False,
         confirmation_phrase: str | None = None,
@@ -901,6 +908,7 @@ def _register_friendly_tool(
                 max_accounts=max_accounts,
                 page_size=page_size,
                 page_token=page_token,
+                login_customer_id=login_customer_id,
                 validate_only=validate_only,
                 execute=execute,
                 confirmation_phrase=confirmation_phrase,

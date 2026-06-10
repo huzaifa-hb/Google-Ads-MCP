@@ -59,6 +59,16 @@ class FakeGateway:
         return {"service_call": kwargs}
 
 
+class LoginAwareGateway(FakeGateway):
+    def __init__(self) -> None:
+        super().__init__()
+        self.login_customer_id = None
+
+    def with_login_customer_id(self, login_customer_id):  # noqa: ANN001, ANN201
+        self.login_customer_id = login_customer_id
+        return self
+
+
 class BranchingGateway(FakeGateway):
     async def search(self, **kwargs):
         customer_id = kwargs["customer_id"]
@@ -200,6 +210,19 @@ class PaginatedHierarchyGateway(FakeGateway):
 
 
 class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
+    async def test_dispatch_uses_per_call_login_customer_id(self) -> None:
+        gateway = LoginAwareGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        await dispatcher.dispatch(
+            "get_campaign_metrics",
+            customer_id="4348607393",
+            login_customer_id="4548397719",
+        )
+
+        self.assertEqual(gateway.login_customer_id, "4548397719")
+        self.assertEqual(gateway.last_search["customer_id"], "4348607393")
+
     async def test_all_friendly_tools_have_dispatch_behavior_matching_capability_status(self) -> None:
         status_by_name = {
             row.tool: row.implementation_status

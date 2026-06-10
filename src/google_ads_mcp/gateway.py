@@ -98,16 +98,40 @@ class GoogleAdsGateway:
         audit_sink: Callable[[dict[str, Any]], None] | None = None,
         access_token: str | None = None,
         metadata_cache: ResourceMetadataCache | None = None,
+        login_customer_id: str | int | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self._client = client
         self.access_token = access_token
+        self.login_customer_id = (
+            normalize_customer_id(login_customer_id) if login_customer_id else None
+        )
         self.mode = mode or self.settings.mcp_mode or "safe_read_only"
         self.audit_sink = audit_sink
         self._resource_metadata_cache = (
             metadata_cache if metadata_cache is not None else _SHARED_RESOURCE_METADATA_CACHE
         )
         self._metadata_snapshot: dict[str, Any] | None = None
+
+    def with_login_customer_id(self, login_customer_id: str | int | None) -> "GoogleAdsGateway":
+        if not login_customer_id:
+            return self
+        normalized = normalize_customer_id(login_customer_id)
+        default_login_customer_id = (
+            normalize_customer_id(self.settings.login_customer_id)
+            if self.settings.login_customer_id
+            else None
+        )
+        if normalized == (self.login_customer_id or default_login_customer_id):
+            return self
+        return GoogleAdsGateway(
+            settings=self.settings,
+            mode=self.mode,
+            audit_sink=self.audit_sink,
+            access_token=self.access_token,
+            metadata_cache=self._resource_metadata_cache,
+            login_customer_id=normalized,
+        )
 
     @property
     def client(self) -> Any:
@@ -122,10 +146,16 @@ class GoogleAdsGateway:
                 self._client = self._load_client_from_access_token(GoogleAdsClient)
             else:
                 self._client = GoogleAdsClient.load_from_dict(
-                    self.settings.google_ads_client_config(),
+                    self._google_ads_client_config(),
                     version=self.settings.api_version,
                 )
         return self._client
+
+    def _google_ads_client_config(self) -> dict[str, object]:
+        config = self.settings.google_ads_client_config()
+        if self.login_customer_id:
+            config["login_customer_id"] = self.login_customer_id
+        return config
 
     def _load_client_from_access_token(self, google_ads_client_cls: Any) -> Any:
         try:
@@ -133,6 +163,8 @@ class GoogleAdsGateway:
         except ImportError as exc:
             raise RuntimeError("google-auth is required for per-user Google Ads OAuth.") from exc
         config = self.settings.google_ads_access_token_client_config()
+        if self.login_customer_id:
+            config["login_customer_id"] = self.login_customer_id
         credentials = Credentials(
             token=self.access_token,
             scopes=[GOOGLE_ADS_OAUTH_SCOPE],

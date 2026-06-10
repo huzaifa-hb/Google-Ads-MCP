@@ -31,6 +31,11 @@ Optional:
 The deploy script includes the optional login customer secret only when that
 secret exists in Secret Manager.
 
+`GOOGLE_ADS_LOGIN_CUSTOMER_ID` is only the default MCC login context. Read and
+write tools can pass `login_customer_id` per request when the OAuth user gains
+access to another MCC, so a new MCC does not require redeploying just to query
+its children.
+
 Optional runtime environment values:
 
 - `GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS`
