@@ -32,12 +32,11 @@ from .gaql import (
     Pagination,
     apply_default_parameters,
     apply_pagination_plan,
+    build_filter_clauses,
     date_where_clause,
     ensure_no_offset_clause,
     ensure_primary_field,
     explain_gaql_error,
-    gaql_filter_clause,
-    gaql_literal,
     normalize_field_list,
     normalize_resource_name,
     select_clause,
@@ -944,43 +943,7 @@ class GoogleAdsGateway:
         metadata: dict[str, Any],
         warnings: list[str],
     ) -> list[str]:
-        clauses: list[str] = []
-        filterable = set(metadata.get("filterable", []))
-        candidates = sorted(filterable)
-        field_types = {
-            str(field.get("name")): str(field.get("data_type", "")).upper()
-            for field in metadata.get("fields", [])
-            if field.get("name")
-        }
-        for field, raw_value in filters.items():
-            field_name = str(field).strip()
-            if not GAQL_FIELD_RE.fullmatch(field_name):
-                warnings.append(f"Skipped invalid filter field '{field_name}'.")
-                continue
-            if field_name not in filterable:
-                suggestions = self._field_suggestions(field_name, candidates)
-                suffix = f" Suggestions: {', '.join(suggestions)}." if suggestions else ""
-                warnings.append(f"Skipped non-filterable field '{field_name}'.{suffix}")
-                continue
-            clause = self._single_filter_clause(
-                field_name,
-                raw_value,
-                field_types.get(field_name, ""),
-            )
-            if clause:
-                clauses.append(clause)
-        return clauses
-
-    def _single_filter_clause(
-        self,
-        field_name: str,
-        raw_value: Any,
-        data_type: str,
-    ) -> str | None:
-        return gaql_filter_clause(field_name, raw_value, data_type)
-
-    def _gaql_literal(self, value: Any, data_type: str = "") -> str:
-        return gaql_literal(value, data_type)
+        return build_filter_clauses(filters, metadata=metadata, warnings=warnings)
 
     def _set_request_value(self, request: Any, name: str, value: Any) -> None:
         if isinstance(request, dict):

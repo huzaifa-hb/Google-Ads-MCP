@@ -123,6 +123,19 @@ class BranchingGateway(FakeGateway):
         return {"rows": [], "query": kwargs["query"]}
 
 
+class MetadataGateway(FakeGateway):
+    async def get_resource_metadata(self, resource: str):  # noqa: ANN201
+        return {
+            "ok": True,
+            "resource": resource,
+            "filterable": ["campaign.status"],
+            "fields": [
+                {"name": "campaign.status", "data_type": "ENUM"},
+                {"name": "campaign.name", "data_type": "STRING"},
+            ],
+        }
+
+
 class PaginatedHierarchyGateway(FakeGateway):
     def __init__(self) -> None:
         super().__init__()
@@ -236,6 +249,33 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
                 customer_id="1234567890",
                 filters={"campaign.status OR metrics.clicks > 0": "ENABLED"},
             )
+
+    async def test_query_filters_use_simple_validation_without_metadata(self) -> None:
+        gateway = FakeGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "list_campaigns",
+            customer_id="1234567890",
+            filters={"campaign.status": "ENABLED"},
+        )
+
+        self.assertIn("campaign.status = 'ENABLED'", result["query"])
+        self.assertNotIn("warnings", result)
+
+    async def test_query_filters_skip_non_filterable_fields_with_metadata_warning(self) -> None:
+        gateway = MetadataGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "list_campaigns",
+            customer_id="1234567890",
+            filters={"campaign.status": "ENABLED", "campaign.name": "Brand"},
+        )
+
+        self.assertIn("campaign.status = ENABLED", result["query"])
+        self.assertNotIn("campaign.name = 'Brand'", result["query"])
+        self.assertIn("Skipped non-filterable field 'campaign.name'", " ".join(result["warnings"]))
 
     async def test_add_campaign_negative_keywords_builds_operations(self) -> None:
         gateway = FakeGateway()

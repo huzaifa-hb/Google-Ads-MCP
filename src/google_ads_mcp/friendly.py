@@ -7,10 +7,9 @@ from typing import Any
 
 from .gaql import (
     DEFAULT_DATE_RANGE,
-    GAQL_FIELD_RE,
     TIME_SEGMENTS,
+    build_filter_clauses,
     date_where_clause,
-    gaql_filter_clause,
     gaql_literal,
     select_clause,
 )
@@ -183,7 +182,9 @@ class FriendlyDispatcher:
             )
         if spec.name == "list_customers" and not payload.get("include_managers"):
             filters = {**filters, "customer_client.manager": False}
-        query = self._build_query(spec, payload=payload, filters=filters)
+        warnings: list[str] = []
+        clauses = await self._filter_clauses_for_resource(spec.resource, filters, warnings)
+        query = self._build_query(spec, payload=payload, clauses=clauses)
         result = await self.gateway.search(
             customer_id=cid,
             query=query,
@@ -192,6 +193,7 @@ class FriendlyDispatcher:
             page_token=page_token,
             primary_field=spec.primary_field,
         )
+        self._attach_warnings(result, warnings)
         return result
 
     async def _report(
@@ -222,7 +224,8 @@ class FriendlyDispatcher:
         if "segments.hour" in fields and "segments.date" not in fields:
             fields.append("segments.date")
 
-        clauses = self._filter_clauses(filters)
+        warnings: list[str] = []
+        clauses = await self._filter_clauses_for_resource(spec.resource, filters, warnings)
         effective_date_range = self._effective_report_date_range(
             spec,
             date_range=date_range,
@@ -251,6 +254,7 @@ class FriendlyDispatcher:
             page_token=page_token,
             primary_field=spec.primary_field,
         )
+        self._attach_warnings(result, warnings)
         if spec.name == "get_geo_performance":
             for row in result.get("rows", []):
                 geo = row.get("geographic_view", {})
@@ -550,11 +554,11 @@ class FriendlyDispatcher:
         spec: FriendlyToolSpec,
         *,
         payload: dict[str, Any],
-        filters: dict[str, Any],
+        clauses: list[str],
     ) -> str:
         if not spec.resource:
             raise ValidationError(f"{spec.name} does not have a GAQL resource mapping.")
-        clauses = self._filter_clauses(filters)
+        clauses = list(clauses)
         identifier = payload.get("id") or payload.get("resource_id")
         resource_name = payload.get("resource_name")
         if identifier and spec.primary_field:
@@ -567,23 +571,25 @@ class FriendlyDispatcher:
         return query
 
     def _filter_clauses(self, filters: dict[str, Any]) -> list[str]:
-        clauses: list[str] = []
-        for field, value in sorted(filters.items()):
-            if value is None:
-                continue
-            field = self._filter_field(field)
-            clause = gaql_filter_clause(field, value)
-            if clause:
-                clauses.append(clause)
-        return clauses
+        return build_filter_clauses(filters)
 
-    def _filter_field(self, field: str) -> str:
-        clean = field.strip()
-        if not GAQL_FIELD_RE.fullmatch(clean):
-            raise ValidationError(
-                "Friendly filters must use a GAQL field path like campaign.status."
-            )
-        return clean
+    async def _filter_clauses_for_resource(
+        self,
+        resource: str | None,
+        filters: dict[str, Any],
+        warnings: list[str],
+    ) -> list[str]:
+        if not filters or not resource or not hasattr(self.gateway, "get_resource_metadata"):
+            return self._filter_clauses(filters)
+        metadata = await self.gateway.get_resource_metadata(resource)
+        if not metadata.get("ok"):
+            warnings.append("Filter metadata unavailable; used simple filter validation.")
+            return self._filter_clauses(filters)
+        return build_filter_clauses(filters, metadata=metadata, warnings=warnings)
+
+    def _attach_warnings(self, result: dict[str, Any], warnings: list[str]) -> None:
+        if warnings:
+            result["warnings"] = [*result.get("warnings", []), *warnings]
 
     async def _mcc_hierarchy(
         self,

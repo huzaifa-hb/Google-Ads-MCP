@@ -329,6 +329,42 @@ def suggest_fields(field: str, candidates: Iterable[str], limit: int = 5) -> lis
     return get_close_matches(field, sorted(set(candidates)), n=limit, cutoff=0.45)
 
 
+def build_filter_clauses(
+    filters: dict[str, Any],
+    *,
+    metadata: dict[str, Any] | None = None,
+    warnings: list[str] | None = None,
+) -> list[str]:
+    warnings = warnings if warnings is not None else []
+    clauses: list[str] = []
+    filterable = set(metadata.get("filterable", [])) if metadata and metadata.get("ok") else None
+    candidates = sorted(filterable or [])
+    field_types = {
+        str(field.get("name")): str(field.get("data_type", "")).upper()
+        for field in (metadata or {}).get("fields", [])
+        if field.get("name")
+    }
+    for raw_field, raw_value in sorted(filters.items()):
+        if raw_value is None:
+            continue
+        field = str(raw_field).strip()
+        if not GAQL_FIELD_RE.fullmatch(field):
+            message = f"Skipped invalid filter field '{field}'."
+            if filterable is None:
+                raise ValidationError(message)
+            warnings.append(message)
+            continue
+        if filterable is not None and field not in filterable:
+            suggestions = suggest_fields(field, candidates)
+            suffix = f" Suggestions: {', '.join(suggestions)}." if suggestions else ""
+            warnings.append(f"Skipped non-filterable field '{field}'.{suffix}")
+            continue
+        clause = gaql_filter_clause(field, raw_value, field_types.get(field, ""))
+        if clause:
+            clauses.append(clause)
+    return clauses
+
+
 def explain_gaql_error(error_text: str) -> dict[str, object]:
     text = error_text or ""
     lowered = text.lower()
