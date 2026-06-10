@@ -240,30 +240,17 @@ def _read_env(path: Path) -> dict[str, str]:
 
 
 def _write_env(path: Path, updates: dict[str, str]) -> None:
-    existing_lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    seen: set[str] = set()
-    output: list[str] = []
+    from dotenv import set_key
 
-    for line in existing_lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            output.append(line)
-            continue
-        key = stripped.split("=", 1)[0].strip()
-        if key in updates:
-            output.append(f"{key}={_checked_env_file_value(key, updates[key])}")
-            seen.add(key)
-        else:
-            output.append(line)
-
-    if output and output[-1].strip():
-        output.append("")
-
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(exist_ok=True)
     for key, value in updates.items():
-        if key not in seen:
-            output.append(f"{key}={_checked_env_file_value(key, value)}")
-
-    path.write_text("\n".join(output) + "\n", encoding="utf-8")
+        set_key(
+            str(path),
+            key,
+            _checked_env_file_value(key, value),
+            quote_mode="never",
+        )
 
 
 def _env_file_updates(path: Path, updates: dict[str, str]) -> dict[str, str]:
