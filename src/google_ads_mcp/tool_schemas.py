@@ -436,16 +436,7 @@ def _mutation_payload_schema(name: str) -> dict[str, Any]:
             ["operations"],
         )
     if name in CAMPAIGN_CREATE_TOOLS:
-        return _object_schema(
-            {
-                "name": _string("Campaign name."),
-                "budget_id": _string("Existing campaign budget id."),
-                "budget_name": _string("Name for a temporary budget operation."),
-                "amount_micros": _integer("Budget amount in micros.", minimum=1),
-                "status": _enum("Initial campaign status.", ("PAUSED", "ENABLED", "REMOVED"), default="PAUSED"),
-            },
-            ["name"],
-        )
+        return _campaign_create_payload_schema(name)
     if name in ASSET_MUTATION_TOOLS:
         return _asset_mutation_payload_schema(name)
     if name in APPLY_LABEL_TOOLS or name in REMOVE_LABEL_FROM_TOOLS or name in {
@@ -460,6 +451,77 @@ def _mutation_payload_schema(name: str) -> dict[str, Any]:
         {"operations": _array("GoogleAdsService MutateOperation objects.", {"type": "object"})},
         ["operations"],
     )
+
+
+def _campaign_create_payload_schema(name: str) -> dict[str, Any]:
+    properties = {
+        "name": _string("Campaign name."),
+        "budget_id": _string("Existing campaign budget id."),
+        "campaign_budget_resource_name": _string("Full existing campaign budget resource name."),
+        "budget_name": _string("Name for a temporary budget operation."),
+        "amount_micros": _integer("Budget amount in micros.", minimum=1),
+        "daily_budget_micros": _integer("Daily budget amount in micros.", minimum=1),
+        "status": _enum("Initial campaign status.", ("PAUSED", "ENABLED", "REMOVED"), default="PAUSED"),
+        "contains_eu_political_advertising": _string("EU political advertising declaration."),
+        "start_date": _string("Campaign start date in YYYY-MM-DD format."),
+        "end_date": _string("Campaign end date in YYYY-MM-DD format."),
+        "tracking_template": _string("Tracking URL template."),
+        "final_url_suffix": _string("Final URL suffix."),
+        "bidding_strategy": _string("Existing bidding strategy resource name."),
+        "bidding_strategy_type": _string("Inline bidding strategy type."),
+        "target_cpa_micros": _integer("Target CPA in micros.", minimum=1),
+        "target_roas": _number("Target ROAS ratio, for example 4.0 for 400%.", minimum=0.01),
+        "enhanced_cpc_enabled": _boolean("Enable enhanced CPC for manual CPC.", default=False),
+    }
+    required = ["name"]
+    if name == "create_app_campaign":
+        properties.update(
+            {
+                "app_id": _string("Mobile app id required for app campaigns."),
+                "app_store": _enum(
+                    "App store.",
+                    ("GOOGLE_APP_STORE", "APPLE_APP_STORE"),
+                    default="GOOGLE_APP_STORE",
+                ),
+                "advertising_channel_sub_type": _string("App campaign subtype."),
+                "app_bidding_strategy_goal_type": _string("App campaign bidding strategy goal type."),
+            }
+        )
+        required.append("app_id")
+    if name == "create_search_campaign":
+        properties.update(
+            {
+                "target_google_search": _boolean("Serve on Google Search.", default=True),
+                "target_search_network": _boolean("Serve on search partners.", default=False),
+                "target_content_network": _boolean("Serve on Display Network.", default=False),
+                "target_partner_search_network": _boolean(
+                    "Serve on Google partner search network.", default=False
+                ),
+            }
+        )
+    if name in {"create_shopping_campaign", "create_pmax_campaign"}:
+        properties.update(
+            {
+                "merchant_id": _string("Merchant Center id for shopping settings."),
+                "feed_label": _string("Shopping feed label."),
+            }
+        )
+    if name == "create_shopping_campaign":
+        properties["campaign_priority"] = _integer("Shopping campaign priority.", default=0, minimum=0)
+    if name == "create_pmax_campaign":
+        properties.update(
+            {
+                "include_business_name_asset": _boolean(
+                    "Create and attach a business-name asset.", default=True
+                ),
+                "business_name": _string("Business name text asset."),
+                "brand_name": _string("Fallback business name text."),
+                "business_name_asset_name": _string("Name for the temporary business-name asset."),
+                "logo_asset_id": _string("Existing logo asset id."),
+                "logo_asset_resource_name": _string("Existing logo asset resource name."),
+            }
+        )
+    return _object_schema(properties, required)
 
 
 def _negative_keyword_mutation_payload_schema(name: str) -> dict[str, Any]:
@@ -760,6 +822,20 @@ def _string(description: str, *, default: str | None = None) -> dict[str, Any]:
 
 def _integer(description: str, *, default: int | None = None, minimum: int | None = None) -> dict[str, Any]:
     schema: dict[str, Any] = {"type": "integer", "description": description}
+    if default is not None:
+        schema["default"] = default
+    if minimum is not None:
+        schema["minimum"] = minimum
+    return schema
+
+
+def _number(
+    description: str,
+    *,
+    default: float | None = None,
+    minimum: float | None = None,
+) -> dict[str, Any]:
+    schema: dict[str, Any] = {"type": "number", "description": description}
     if default is not None:
         schema["default"] = default
     if minimum is not None:

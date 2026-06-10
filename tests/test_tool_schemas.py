@@ -67,6 +67,24 @@ class ToolSchemaTests(unittest.TestCase):
         self.assertIn("campaign_id", payload["properties"])
         self.assertNotIn("headlines", payload["properties"])
 
+    def test_campaign_create_schemas_expose_channel_specific_payloads(self) -> None:
+        app_payload = _payload_schema("campaigns_create_app_campaign")
+        shopping_payload = _payload_schema("campaigns_create_shopping_campaign")
+        pmax_payload = _payload_schema("campaigns_create_pmax_campaign")
+        search_payload = _payload_schema("campaigns_create_search_campaign")
+
+        self.assertEqual(set(app_payload["required"]), {"name", "app_id"})
+        self.assertIn("app_store", app_payload["properties"])
+        self.assertIn("app_bidding_strategy_goal_type", app_payload["properties"])
+        self.assertIn("merchant_id", shopping_payload["properties"])
+        self.assertIn("feed_label", shopping_payload["properties"])
+        self.assertIn("campaign_priority", shopping_payload["properties"])
+        self.assertIn("merchant_id", pmax_payload["properties"])
+        self.assertIn("business_name", pmax_payload["properties"])
+        self.assertIn("logo_asset_id", pmax_payload["properties"])
+        self.assertIn("target_search_network", search_payload["properties"])
+        self.assertNotIn("app_id", search_payload["properties"])
+
     def test_report_schema_exposes_filters_dates_and_row_cap(self) -> None:
         schema = parameters_schema_for_exposure(_exposure("reporting_get_campaign_metrics"))
 
