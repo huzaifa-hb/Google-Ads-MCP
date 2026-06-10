@@ -222,7 +222,9 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
 
                 if status == "operation_template":
                     self.assertIn("operations", result["required_payload"])
-                elif status in {"unsupported_by_design", "deprecated", "eligibility_gated"}:
+                elif status in {"unsupported_by_design", "eligibility_gated"} or (
+                    status == "deprecated" and not spec.alias_for
+                ):
                     self.assertEqual(result["error"], "unsupported_capability")
                 else:
                     self.assertNotEqual(result.get("error"), "unsupported_capability")
