@@ -47,6 +47,7 @@ test("deploy command passes OAuth proxy base URL", () => {
     googleAdsAuthMode: "per_user_oauth",
     mcpBaseUrl: "https://example.run.app",
     mcpOAuthClientId: "mcp-client.apps.googleusercontent.com",
+    mcpAllowAllGoogleUsers: true,
     mcpTokenStorage: "firestore",
     minInstances: "0",
     maxInstances: "1",
@@ -59,6 +60,7 @@ test("deploy command passes OAuth proxy base URL", () => {
   assert.ok(command.args.includes("per_user_oauth"));
   assert.ok(command.args.includes("-McpOAuthClientId"));
   assert.ok(command.args.includes("mcp-client.apps.googleusercontent.com"));
+  assert.ok(command.args.includes("-McpAllowAllGoogleUsers"));
   assert.ok(command.args.includes("-McpTokenStorage"));
   assert.ok(command.args.includes("firestore"));
   assert.ok(command.args.includes("-MinInstances"));
