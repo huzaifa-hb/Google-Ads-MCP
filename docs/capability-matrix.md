@@ -177,17 +177,17 @@ This file is generated from `src/google_ads_mcp/tool_catalog.py`, `src/google_ad
 | `remove_negative_keywords_campaign` | `keywords` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Remove campaign-level negative keywords. |
 | `remove_shared_list_from_campaign` | `keywords` | `negative_keyword` | `hand_implemented` | GoogleAdsService.Search or GoogleAdsService.Mutate | `write` | no | Detach a shared negative list from a campaign. |
 | `update_keyword_bid` | `keywords` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Update CPC bid on a keyword. |
-| `apply_label_to_ad` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to ads. |
-| `apply_label_to_ad_group` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to ad groups. |
-| `apply_label_to_campaign` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to campaigns. |
-| `apply_label_to_keyword` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Attach label to keywords. |
+| `apply_label_to_ad` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for apply_ad_label; use apply_ad_label. |
+| `apply_label_to_ad_group` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for apply_ad_group_label; use apply_ad_group_label. |
+| `apply_label_to_campaign` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for apply_campaign_label; use apply_campaign_label. |
+| `apply_label_to_keyword` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for apply_keyword_label; use apply_keyword_label. |
 | `create_label` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Create a label. |
 | `list_labels` | `labels` | `query` | `hand_implemented` | GoogleAdsService.Search FROM label | `read` | no | List account labels. |
 | `remove_label` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Remove a label. |
-| `remove_label_from_ad` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from ads. |
-| `remove_label_from_ad_group` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from ad groups. |
-| `remove_label_from_campaign` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from campaigns. |
-| `remove_label_from_keyword` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Detach label from keywords. |
+| `remove_label_from_ad` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for remove_ad_label; use remove_ad_label. |
+| `remove_label_from_ad_group` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for remove_ad_group_label; use remove_ad_group_label. |
+| `remove_label_from_campaign` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for remove_campaign_label; use remove_campaign_label. |
+| `remove_label_from_keyword` | `labels` | `mutate` | `deprecated` | GoogleAdsService.Mutate | `write` | no | Deprecated alias for remove_keyword_label; use remove_keyword_label. |
 | `update_label` | `labels` | `mutate` | `hand_implemented` | GoogleAdsService.Mutate | `write` | no | Update label name, color, or description. |
 | `describe_google_ads_resource` | `metadata` | `metadata` | `hand_implemented` | GoogleAdsFieldService.SearchGoogleAdsFields | `read` | no | Describe fields for a Google Ads API resource. |
 | `describe_google_ads_service` | `metadata` | `metadata` | `hand_implemented` | Local metadata/introspection | `read` | no | Describe callable methods for a Google Ads service. |

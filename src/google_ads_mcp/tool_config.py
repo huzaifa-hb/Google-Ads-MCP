@@ -35,6 +35,8 @@ class ToolExposure:
     read_write: str
     description: str
     friendly_spec: FriendlyToolSpec | None = None
+    deprecated: bool = False
+    alias_for: str | None = None
 
     def to_catalog_entry(self) -> dict[str, Any]:
         return {
@@ -48,6 +50,8 @@ class ToolExposure:
             "mode": self.tool_mode,
             "read_write": self.read_write,
             "description": self.description,
+            "deprecated": self.deprecated,
+            "alias_for": self.alias_for,
         }
 
 
@@ -298,6 +302,7 @@ def build_tool_registry(raw_config: dict[str, Any], *, source: str = "memory") -
                 tool_overrides=tool_overrides,
                 legacy_aliases_enabled=legacy_aliases_enabled,
                 friendly_spec=None,
+                tool_profile=tool_profile,
             )
         )
 
@@ -306,7 +311,9 @@ def build_tool_registry(raw_config: dict[str, Any], *, source: str = "memory") -
         namespace = _friendly_namespace(spec, read_write, namespaces)
         exposures.extend(
             _exposures_for_tool(
-                canonical_name=spec.name,
+                canonical_name=spec.alias_for or spec.name,
+                registered_base_name=spec.name,
+                config_name=spec.name,
                 namespace=namespace,
                 category=spec.category,
                 tool_mode=spec.mode,
@@ -318,6 +325,9 @@ def build_tool_registry(raw_config: dict[str, Any], *, source: str = "memory") -
                 tool_overrides=tool_overrides,
                 legacy_aliases_enabled=legacy_aliases_enabled,
                 friendly_spec=spec,
+                tool_profile=tool_profile,
+                deprecated=spec.deprecated,
+                alias_for=spec.alias_for,
             )
         )
 
@@ -349,6 +359,8 @@ def classify_friendly_read_write(spec: FriendlyToolSpec) -> str:
 def _exposures_for_tool(
     *,
     canonical_name: str,
+    registered_base_name: str | None = None,
+    config_name: str | None = None,
     namespace: str,
     category: str,
     tool_mode: str,
@@ -360,16 +372,30 @@ def _exposures_for_tool(
     tool_overrides: dict[str, bool],
     legacy_aliases_enabled: bool,
     friendly_spec: FriendlyToolSpec | None,
+    tool_profile: str,
+    deprecated: bool = False,
+    alias_for: str | None = None,
 ) -> list[ToolExposure]:
-    if not _tool_is_enabled(canonical_name, namespace, read_write, mode, namespaces, tool_overrides):
+    config_name = config_name or canonical_name
+    profile_requested = deprecated and tool_profile in {"standard", "full"}
+    if not _tool_is_enabled(
+        config_name,
+        namespace,
+        read_write,
+        mode,
+        namespaces,
+        tool_overrides,
+        force_requested=profile_requested,
+    ):
         return []
 
     namespace_config = namespaces[namespace]
-    registered_names = [_registered_name(canonical_name, namespace_config.prefix)]
+    base_name = registered_base_name or canonical_name
+    registered_names = [_registered_name(base_name, namespace_config.prefix)]
     if canonical_name in {"get_tool_catalog", "get_capability_matrix", "get_server_status"}:
         registered_names = [canonical_name]
     elif legacy_aliases_enabled:
-        registered_names.append(canonical_name)
+        registered_names.append(base_name)
 
     return [
         ToolExposure(
@@ -383,6 +409,8 @@ def _exposures_for_tool(
             read_write=read_write,
             description=description,
             friendly_spec=friendly_spec,
+            deprecated=deprecated,
+            alias_for=alias_for,
         )
         for registered_name in registered_names
     ]
@@ -395,6 +423,7 @@ def _tool_is_enabled(
     mode: str,
     namespaces: dict[str, NamespaceConfig],
     tool_overrides: dict[str, bool],
+    force_requested: bool = False,
 ) -> bool:
     if canonical_name in tool_overrides and not tool_overrides[canonical_name]:
         return False
@@ -405,6 +434,8 @@ def _tool_is_enabled(
         requested = True
     else:
         requested = (
+            force_requested
+            or
             namespace_config.enabled
             or canonical_name in {"get_tool_catalog", "get_capability_matrix", "get_server_status"}
             or (

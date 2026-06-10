@@ -34,10 +34,15 @@ class CapabilityMatrixTests(unittest.TestCase):
             by_name["create_responsive_search_ad"].implementation_status,
             "hand_implemented",
         )
-        self.assertEqual(by_name["apply_label_to_campaign"].implementation_status, "hand_implemented")
+        self.assertEqual(by_name["apply_label_to_campaign"].implementation_status, "deprecated")
+        self.assertEqual(by_name["apply_label_to_campaign"].canonical_name, "apply_campaign_label")
         self.assertEqual(
             by_name["remove_label_from_keyword"].implementation_status,
-            "hand_implemented",
+            "deprecated",
+        )
+        self.assertEqual(
+            by_name["remove_label_from_keyword"].canonical_name,
+            "remove_keyword_label",
         )
         self.assertEqual(by_name["bulk_add_negative_keywords"].implementation_status, "hand_implemented")
         self.assertEqual(by_name["create_dsa_page_feed"].implementation_status, "operation_template")

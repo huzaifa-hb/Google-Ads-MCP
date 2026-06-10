@@ -30,7 +30,6 @@ from .resources import (
 )
 from .safety import build_jsonl_audit_sink
 from .tool_config import ToolExposure, ToolRegistry, load_tool_registry
-from .tool_catalog import FRIENDLY_TOOL_SPECS
 
 OAUTH_TOKEN_FIRESTORE_PREFIX = "google-ads-mcp-oauth"
 OAUTH_TOKEN_FIRESTORE_SALT = "google-ads-mcp-firestore-token-storage-v1"
@@ -393,8 +392,8 @@ def build_mcp() -> Any:
     for canonical_name, func in core_tools.items():
         _register_core_tool(mcp, registry, canonical_name, func)
 
-    for spec in FRIENDLY_TOOL_SPECS:
-        for exposure in registry.exposures_for(spec.name):
+    for exposure in registry.exposures:
+        if exposure.source == "friendly":
             _register_friendly_tool(mcp, dispatcher_for_request, exposure)
 
     _register_resources(mcp, settings, registry)

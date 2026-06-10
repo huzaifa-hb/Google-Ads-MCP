@@ -33,6 +33,20 @@ class FriendlyToolSpec:
     primary_field: str | None = None
     fields: tuple[str, ...] = ()
     notes: str | None = None
+    deprecated: bool = False
+    alias_for: str | None = None
+
+
+DEPRECATED_LABEL_ALIASES: dict[str, str] = {
+    "apply_label_to_campaign": "apply_campaign_label",
+    "apply_label_to_ad_group": "apply_ad_group_label",
+    "apply_label_to_ad": "apply_ad_label",
+    "apply_label_to_keyword": "apply_keyword_label",
+    "remove_label_from_campaign": "remove_campaign_label",
+    "remove_label_from_ad_group": "remove_ad_group_label",
+    "remove_label_from_ad": "remove_ad_label",
+    "remove_label_from_keyword": "remove_keyword_label",
+}
 
 
 TOOL_GROUPS: dict[str, list[tuple[str, str]]] = {
@@ -830,6 +844,10 @@ def build_tool_specs() -> tuple[FriendlyToolSpec, ...]:
                 else:
                     resource, base_fields, primary_field = REPORT_RESOURCES[name]
                     fields = base_fields + REPORT_METRICS_BY_TOOL.get(name, DEFAULT_METRICS)
+            alias_for = DEPRECATED_LABEL_ALIASES.get(name)
+            deprecated = alias_for is not None
+            if deprecated:
+                notes = f"Deprecated alias for {alias_for}; use {alias_for}."
             specs.append(
                 FriendlyToolSpec(
                     name=name,
@@ -845,6 +863,8 @@ def build_tool_specs() -> tuple[FriendlyToolSpec, ...]:
                     primary_field=primary_field,
                     fields=fields,
                     notes=notes,
+                    deprecated=deprecated,
+                    alias_for=alias_for,
                 )
             )
     return tuple(specs)

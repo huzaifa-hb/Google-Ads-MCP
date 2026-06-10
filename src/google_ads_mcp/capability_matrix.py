@@ -153,7 +153,7 @@ def _row_for_spec(spec: FriendlyToolSpec) -> CapabilityRow:
     read_write = classify_friendly_read_write(spec)
     return CapabilityRow(
         tool=spec.name,
-        canonical_name=spec.name,
+        canonical_name=spec.alias_for or spec.name,
         namespace=spec.category,
         mode=spec.mode,
         implementation_status=_friendly_status(spec),
@@ -193,6 +193,8 @@ def _core_backend(name: str) -> str:
 
 
 def _friendly_status(spec: FriendlyToolSpec) -> str:
+    if spec.deprecated:
+        return "deprecated"
     if spec.name == "create_similar_audience":
         return "deprecated"
     if spec.name in UNSUPPORTED_TOOLS:

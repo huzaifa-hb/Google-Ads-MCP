@@ -100,6 +100,45 @@ class ToolConfigTests(unittest.TestCase):
         self.assertIn("assets_list_assets", standard.registered_names)
         self.assertIn("conversions_list_conversion_actions", standard.registered_names)
 
+    def test_label_first_aliases_are_deprecated_standard_compatibility_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = load_tool_registry(
+                make_settings(mcp_tool_profile="standard", mcp_mode="validation_only"),
+                cwd=Path(temp_dir),
+            )
+
+        self.assertIn("campaigns_apply_campaign_label", registry.registered_names)
+        alias = next(
+            exposure
+            for exposure in registry.exposures
+            if exposure.registered_name == "labels_apply_label_to_campaign"
+        )
+        self.assertTrue(alias.deprecated)
+        self.assertEqual(alias.alias_for, "apply_campaign_label")
+        self.assertEqual(alias.canonical_name, "apply_campaign_label")
+        entry = alias.to_catalog_entry()
+        self.assertTrue(entry["deprecated"])
+        self.assertEqual(entry["alias_for"], "apply_campaign_label")
+
+    def test_label_first_aliases_are_hidden_from_lean_unless_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            lean = load_tool_registry(
+                make_settings(mcp_tool_profile="lean", mcp_mode="validation_only"),
+                cwd=Path(temp_dir),
+            )
+
+        self.assertIn("campaigns_apply_campaign_label", lean.registered_names)
+        self.assertNotIn("labels_apply_label_to_campaign", lean.registered_names)
+
+        explicit = build_tool_registry(
+            {
+                "mode": "validation_only",
+                "tool_profile": "lean",
+                "tools": {"apply_label_to_campaign": {"enabled": True}},
+            }
+        )
+        self.assertIn("labels_apply_label_to_campaign", explicit.registered_names)
+
     def test_env_config_path_overrides_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "custom.yaml"
