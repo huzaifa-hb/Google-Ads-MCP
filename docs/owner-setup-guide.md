@@ -209,7 +209,10 @@ google-ads-mcp-auth --write-env --prompt
 The prompt asks for `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`,
 `GOOGLE_ADS_DEVELOPER_TOKEN`, and optional `GOOGLE_ADS_LOGIN_CUSTOMER_ID`.
 Omit the login customer ID for direct single-account access. In `--write-env`
-mode, the helper saves `GOOGLE_ADS_REFRESH_TOKEN` locally and does not print it.
+mode, the helper stores the developer token, OAuth client secret, and refresh
+token in the OS keyring, then writes only `keyring://` references to `.env`.
+Those references are for local runs only; use `--print-refresh-token` and real
+Secret Manager values for Cloud Run secret sync.
 
 The old script path still works as a compatibility wrapper:
 

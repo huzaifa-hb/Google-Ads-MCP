@@ -42,6 +42,14 @@ class FakeOAuthProvider:
         return self.token
 
 
+class FakeKeyring:
+    def __init__(self, values: dict[tuple[str, str], str]) -> None:
+        self.values = values
+
+    def get_password(self, service: str, account: str) -> str | None:
+        return self.values.get((service, account))
+
+
 class FakeKeyValueStore:
     def __init__(self) -> None:
         self.values: dict[str, dict[str, object]] = {}
@@ -91,6 +99,31 @@ class AuthConfigTests(unittest.TestCase):
 
         with self.assertRaises(ConfigError):
             settings.require_mcp_auth()
+
+    def test_settings_resolve_keyring_secret_references(self) -> None:
+        keyring = FakeKeyring(
+            {
+                ("google-ads-mcp", "local:GOOGLE_ADS_DEVELOPER_TOKEN"): "developer-token",
+                ("google-ads-mcp", "local:GOOGLE_ADS_CLIENT_SECRET"): "client-secret",
+                ("google-ads-mcp", "local:GOOGLE_ADS_REFRESH_TOKEN"): "refresh-token",
+            }
+        )
+        env = {
+            "MCP_BEARER_TOKEN": "bearer-token",
+            "GOOGLE_ADS_DEVELOPER_TOKEN": (
+                "keyring://google-ads-mcp/local/GOOGLE_ADS_DEVELOPER_TOKEN"
+            ),
+            "GOOGLE_ADS_CLIENT_ID": "client-id",
+            "GOOGLE_ADS_CLIENT_SECRET": "keyring://google-ads-mcp/local/GOOGLE_ADS_CLIENT_SECRET",
+            "GOOGLE_ADS_REFRESH_TOKEN": "keyring://google-ads-mcp/local/GOOGLE_ADS_REFRESH_TOKEN",
+        }
+
+        with patch.dict(sys.modules, {"keyring": keyring}), patch.dict(os.environ, env, clear=True):
+            settings = Settings.from_env()
+
+        self.assertEqual(settings.developer_token, "developer-token")
+        self.assertEqual(settings.oauth_client_secret, "client-secret")
+        self.assertEqual(settings.refresh_token, "refresh-token")
 
     def test_invalid_google_ads_auth_mode_fails_fast(self) -> None:
         settings = make_settings(google_ads_auth_mode="magic")

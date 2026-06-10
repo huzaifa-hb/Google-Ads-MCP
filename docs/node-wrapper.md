@@ -28,8 +28,10 @@ Open PowerShell in the folder where you want the setup to live.
 npx @huzaifa-hb/google-ads-mcp setup
 ```
 
-The setup will ask for Google Ads values. If you do not have them yet, use the
-[owner setup guide](owner-setup-guide.md) to collect them.
+The setup will ask for Google Ads values, store sensitive Google Ads values in
+the OS keyring, and write only local references to `.env`. If you do not have
+the values yet, use the [owner setup guide](owner-setup-guide.md) to collect
+them.
 
 Start the server:
 

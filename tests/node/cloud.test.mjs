@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildDeployCommand,
   buildSecretVersionCommand,
+  localSecretReferenceValues,
   missingRequiredSecrets,
   requiredSecretsForAuthMode
 } from "../../dist/node-cli/cloud.js";
@@ -82,6 +83,22 @@ test("required secret validation rejects placeholders", () => {
     GOOGLE_ADS_REFRESH_TOKEN: "refresh"
   });
   assert.deepEqual(missing, ["MCP_BEARER_TOKEN"]);
+});
+
+test("cloud secret validation rejects local keyring references", () => {
+  const localRefs = localSecretReferenceValues(
+    {
+      MCP_BEARER_TOKEN: "bearer",
+      GOOGLE_ADS_DEVELOPER_TOKEN:
+        "keyring://google-ads-mcp/local/GOOGLE_ADS_DEVELOPER_TOKEN",
+      GOOGLE_ADS_CLIENT_ID: "client",
+      GOOGLE_ADS_CLIENT_SECRET: "secret",
+      GOOGLE_ADS_REFRESH_TOKEN: "keyring://google-ads-mcp/local/GOOGLE_ADS_REFRESH_TOKEN"
+    },
+    "bearer"
+  );
+
+  assert.deepEqual(localRefs, ["GOOGLE_ADS_DEVELOPER_TOKEN", "GOOGLE_ADS_REFRESH_TOKEN"]);
 });
 
 test("OAuth proxy secrets skip bearer token and non-sensitive client IDs", () => {

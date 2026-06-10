@@ -63,7 +63,8 @@ npx @huzaifa-hb/google-ads-mcp setup
 ```
 
 The setup asks for your Google Ads values, opens a browser for Google sign-in,
-creates a local `.env` file, and checks whether the server is ready.
+creates a local `.env` file, stores Google Ads secrets in the OS keyring, and
+checks whether the server is ready.
 
 Start the local server:
 

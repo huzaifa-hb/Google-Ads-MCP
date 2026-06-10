@@ -11,10 +11,17 @@ import argparse
 import getpass
 import json
 from pathlib import Path
-import secrets
 from collections.abc import Sequence
 import sys
 from typing import Any
+
+from .local_secrets import (
+    LocalSecretError,
+    is_local_secret_reference,
+    local_secret_namespace,
+    resolve_local_secret_reference,
+    store_local_secret,
+)
 
 SCOPES = ("https://www.googleapis.com/auth/adwords",)
 
@@ -28,6 +35,15 @@ ENV_DEFAULTS = {
     "GOOGLE_ADS_MCP_ALLOW_LEGACY_WRITE_DEFAULTS": "false",
     "GOOGLE_ADS_MCP_ENABLE_GENERIC_SERVICE_BRIDGE": "false",
 }
+
+SENSITIVE_ENV_FILE_KEYS = frozenset(
+    {
+        "GOOGLE_ADS_CLIENT_SECRET",
+        "GOOGLE_ADS_DEVELOPER_TOKEN",
+        "GOOGLE_ADS_REFRESH_TOKEN",
+        "MCP_BEARER_TOKEN",
+    }
+)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -71,7 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--write-env",
         action="store_true",
-        help="Write local .env values instead of printing the refresh token.",
+        help=(
+            "Write local .env values and store sensitive Google Ads values in the OS keyring "
+            "instead of printing the refresh token."
+        ),
     )
     parser.add_argument(
         "--print-refresh-token",
@@ -140,11 +159,14 @@ def _emit_or_store_credentials(
     if args.write_env:
         _write_env_credentials(args, refresh_token, parser)
         print(f"Updated {Path(args.env_file)} with Google Ads OAuth values.")
-        print("Refresh token was saved locally and was not printed.")
+        print("Refresh token was stored in the local keyring and was not printed.")
         return
 
     if not args.print_refresh_token:
-        parser.error("Use --write-env to save locally, or --print-refresh-token to print the token.")
+        parser.error(
+            "Use --write-env to store locally in the OS keyring, or "
+            "--print-refresh-token to print the token."
+        )
 
     print("\nGOOGLE_ADS_REFRESH_TOKEN")
     print(refresh_token)
@@ -165,7 +187,10 @@ def _write_env_credentials(
 
     env_path = Path(args.env_file)
     current = _read_env(env_path)
-    developer_token = args.developer_token or current.get("GOOGLE_ADS_DEVELOPER_TOKEN")
+    developer_token = args.developer_token or _read_current_secret(
+        current.get("GOOGLE_ADS_DEVELOPER_TOKEN"),
+        parser,
+    )
     if not developer_token and args.prompt:
         developer_token = getpass.getpass("GOOGLE_ADS_DEVELOPER_TOKEN: ").strip()
     if not developer_token:
@@ -182,7 +207,6 @@ def _write_env_credentials(
 
     values = {
         **ENV_DEFAULTS,
-        "MCP_BEARER_TOKEN": current.get("MCP_BEARER_TOKEN") or secrets.token_urlsafe(32),
         "GOOGLE_ADS_DEVELOPER_TOKEN": developer_token,
         "GOOGLE_ADS_CLIENT_ID": client_id,
         "GOOGLE_ADS_CLIENT_SECRET": client_secret,
@@ -193,7 +217,7 @@ def _write_env_credentials(
             else current.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "")
         ),
     }
-    _write_env(env_path, values)
+    _write_env(env_path, _env_file_updates(env_path, values))
 
 
 def _client_values_from_file(path: Path) -> tuple[str | None, str | None]:
@@ -227,7 +251,7 @@ def _write_env(path: Path, updates: dict[str, str]) -> None:
             continue
         key = stripped.split("=", 1)[0].strip()
         if key in updates:
-            output.append(f"{key}={updates[key]}")
+            output.append(f"{key}={_checked_env_file_value(key, updates[key])}")
             seen.add(key)
         else:
             output.append(line)
@@ -237,9 +261,38 @@ def _write_env(path: Path, updates: dict[str, str]) -> None:
 
     for key, value in updates.items():
         if key not in seen:
-            output.append(f"{key}={value}")
+            output.append(f"{key}={_checked_env_file_value(key, value)}")
 
     path.write_text("\n".join(output) + "\n", encoding="utf-8")
+
+
+def _env_file_updates(path: Path, updates: dict[str, str]) -> dict[str, str]:
+    return {key: _env_file_value(path, key, value) for key, value in updates.items()}
+
+
+def _env_file_value(path: Path, key: str, value: str) -> str:
+    if key in SENSITIVE_ENV_FILE_KEYS and value and not is_local_secret_reference(value):
+        return store_local_secret(local_secret_namespace(path), key, value)
+    return value
+
+
+def _checked_env_file_value(key: str, value: str) -> str:
+    if key in SENSITIVE_ENV_FILE_KEYS and value and not is_local_secret_reference(value):
+        raise ValueError(f"{key} must be stored as a local secret reference, not clear text.")
+    return value
+
+
+def _read_current_secret(
+    value: str | None,
+    parser: argparse.ArgumentParser,
+) -> str | None:
+    if not value:
+        return None
+    try:
+        return resolve_local_secret_reference(value)
+    except LocalSecretError as exc:
+        parser.error(str(exc))
+    return None
 
 
 if __name__ == "__main__":

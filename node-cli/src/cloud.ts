@@ -97,6 +97,16 @@ export function missingRequiredSecrets(
   );
 }
 
+export function localSecretReferenceValues(
+  env: Record<string, string | undefined>,
+  authMode = "bearer",
+  googleAdsAuthMode = "shared_refresh_token"
+): string[] {
+  return requiredSecretsForAuthMode(authMode, googleAdsAuthMode).filter((name) =>
+    (env[name] || "").trim().startsWith("keyring://google-ads-mcp/")
+  );
+}
+
 export async function syncSecrets(
   rootDir: string,
   projectId: string,
@@ -112,6 +122,13 @@ export async function syncSecrets(
   const missing = missingRequiredSecrets(env, authMode, googleAdsAuthMode);
   if (missing.length > 0) {
     throw new Error(`Missing or placeholder .env values: ${missing.join(", ")}`);
+  }
+  const localRefs = localSecretReferenceValues(env, authMode, googleAdsAuthMode);
+  if (localRefs.length > 0) {
+    throw new Error(
+      `Local keyring references cannot be synced to Secret Manager: ${localRefs.join(", ")}. ` +
+        "Use real Secret Manager values, or run google-ads-mcp-auth --print-refresh-token."
+    );
   }
 
   const tempDir = await mkdtemp(path.join(tmpdir(), "google-ads-mcp-secrets-"));

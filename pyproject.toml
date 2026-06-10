@@ -29,6 +29,7 @@ dev = [
 ]
 setup = [
     "google-auth-oauthlib>=1.2.0",
+    "keyring>=25.0.0",
 ]
 
 [project.scripts]

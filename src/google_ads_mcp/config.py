@@ -8,6 +8,8 @@ from functools import lru_cache
 
 from dotenv import load_dotenv
 
+from .local_secrets import LocalSecretError, resolve_local_secret_reference
+
 load_dotenv(override=False)
 
 
@@ -26,6 +28,10 @@ def _env(name: str, default: str | None = None) -> str | None:
     if value is None:
         return None
     value = value.strip()
+    try:
+        value = resolve_local_secret_reference(value).strip()
+    except LocalSecretError as exc:
+        raise ConfigError(str(exc)) from exc
     return value or None
 
 
