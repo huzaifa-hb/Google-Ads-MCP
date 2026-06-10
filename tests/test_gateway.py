@@ -15,6 +15,19 @@ try:
 except ImportError:  # pragma: no cover - dependency is part of project env
     ApplyRecommendationRequest = None  # type: ignore[assignment]
 
+try:
+    from google.ads.googleads.v24.services.services.google_ads_service.pagers import (
+        SearchPager as RealSearchPager,
+    )
+    from google.ads.googleads.v24.services.types.google_ads_service import (
+        SearchGoogleAdsRequest,
+        SearchGoogleAdsResponse,
+    )
+except ImportError:  # pragma: no cover - dependency is part of project env
+    RealSearchPager = None  # type: ignore[assignment]
+    SearchGoogleAdsRequest = None  # type: ignore[assignment]
+    SearchGoogleAdsResponse = None  # type: ignore[assignment]
+
 
 class RecordingService:
     def __init__(self) -> None:
@@ -400,6 +413,24 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["pagination"]["next_page_token"], "next-token")
         self.assertEqual(service.last_request.page_token, "existing-token")  # type: ignore[union-attr]
         self.assertEqual(service.last_request.query, "SELECT campaign.id FROM campaign LIMIT 10000 PARAMETERS omit_unselected_resource_names = true")  # type: ignore[union-attr]
+
+    @unittest.skipUnless(
+        RealSearchPager is not None
+        and SearchGoogleAdsRequest is not None
+        and SearchGoogleAdsResponse is not None,
+        "google-ads package is not installed",
+    )
+    def test_real_search_pager_delegates_results_and_next_page_token(self) -> None:
+        response = SearchGoogleAdsResponse()
+        response.next_page_token = "next-token"
+        pager = RealSearchPager(
+            lambda request, **kwargs: response,
+            SearchGoogleAdsRequest(),
+            response,
+        )
+
+        self.assertEqual(list(pager.results), list(response.results))
+        self.assertEqual(pager.next_page_token, "next-token")
 
     async def test_search_rejects_page_token_with_injected_limit(self) -> None:
         service = SearchService()
