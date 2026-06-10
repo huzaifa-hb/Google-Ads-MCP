@@ -90,11 +90,30 @@ class StreamService:
         ]
 
 
+class FailingStream:
+    def __iter__(self):
+        raise RuntimeError("INTERNAL")
+
+
+class IterationFailingStreamService:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def search_stream(self, request: SearchRequest):  # noqa: ANN201, ARG002
+        self.calls += 1
+        if self.calls == 1:
+            return FailingStream()
+        return [SimpleNamespace(results=[{"row": "ok"}])]
+
+
 class StreamClient:
-    def __init__(self, service: StreamService) -> None:
+    def __init__(self, service: StreamService | IterationFailingStreamService) -> None:
         self.service = service
 
-    def get_service(self, service_name: str) -> StreamService:  # noqa: ARG002
+    def get_service(  # noqa: ARG002
+        self,
+        service_name: str,
+    ) -> StreamService | IterationFailingStreamService:
         return self.service
 
     def get_type(self, type_name: str) -> SearchRequest:  # noqa: ARG002
@@ -448,6 +467,24 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["row_count"], 2)
         self.assertTrue(result["truncated"])
         self.assertEqual(result["max_rows"], 2)
+
+    async def test_search_stream_retries_iterator_time_transient_errors(self) -> None:
+        service = IterationFailingStreamService()
+        settings = make_settings(max_retries=1, retry_base_seconds=0.0)
+        gateway = ParsingGateway(
+            client=StreamClient(service),
+            mode="safe_read_only",
+            settings=settings,
+        )
+
+        result = await gateway.search_stream(
+            customer_id="1234567890",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=10,
+        )
+
+        self.assertEqual(service.calls, 2)
+        self.assertEqual(result["rows"], [{"row": "ok"}])
 
     async def test_search_stream_rejects_invalid_max_rows(self) -> None:
         gateway = ParsingGateway(client=StreamClient(StreamService()), mode="safe_read_only")

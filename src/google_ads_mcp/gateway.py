@@ -248,19 +248,20 @@ class GoogleAdsGateway:
             request = self.get_type("SearchGoogleAdsStreamRequest")
             request.customer_id = cid
             request.query = query
-            return service.search_stream(request=request)
-
-        stream = await self._retry(call)
-        rows: list[dict[str, Any]] = []
-        truncated = False
-        for batch in stream:
-            for row in getattr(batch, "results", []):
-                if len(rows) >= max_rows:
-                    truncated = True
+            stream = service.search_stream(request=request)
+            rows: list[dict[str, Any]] = []
+            truncated = False
+            for batch in stream:
+                for row in getattr(batch, "results", []):
+                    if len(rows) >= max_rows:
+                        truncated = True
+                        break
+                    rows.append(self._message_to_dict(row))
+                if truncated:
                     break
-                rows.append(self._message_to_dict(row))
-            if truncated:
-                break
+            return rows, truncated
+
+        rows, truncated = await self._retry(call)
         return {
             "customer_id": cid,
             "query": query,
