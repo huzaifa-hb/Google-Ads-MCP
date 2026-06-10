@@ -10,8 +10,10 @@ in this order:
 `GOOGLE_ADS_MCP_MODE` overrides the file's `mode`.
 `GOOGLE_ADS_MCP_TOOL_PROFILE` can switch breadth without editing the file:
 
-- `lean`: default PPC read tools plus metadata, planning, account, reporting,
-  campaign, ad group, ad, keyword, and budget basics.
+- `lean`: default curated 35-tool PPC read catalog. It keeps metadata/planning,
+  account basics, campaign/ad group/ad/keyword/budget list/get tools, raw GAQL,
+  and the high-frequency campaign, ad group, ad, keyword, search terms, device,
+  geo, landing page, and change history reports.
 - `standard`: the broader read catalog from earlier releases.
 - `full`: every read namespace, with write exposure still controlled by
   `GOOGLE_ADS_MCP_MODE`.

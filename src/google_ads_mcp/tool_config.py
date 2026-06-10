@@ -224,6 +224,43 @@ LEAN_PROFILE_NAMESPACES = {
     "keywords",
     "budgets",
 }
+LEAN_PROFILE_TOOL_NAMES = {
+    "get_tool_catalog",
+    "get_capability_matrix",
+    "get_server_status",
+    "list_accessible_customers",
+    "describe_google_ads_resource",
+    "get_google_ads_resource_metadata",
+    "validate_gaql_fields",
+    "suggest_gaql_fields",
+    "query_google_ads_docs",
+    "plan_gaql_query",
+    "explain_gaql_error",
+    "get_account_info",
+    "list_customers",
+    "get_mcc_hierarchy",
+    "get_account_settings",
+    "list_campaigns",
+    "get_campaign",
+    "list_ad_groups",
+    "get_ad_group",
+    "list_ads",
+    "get_ad",
+    "list_keywords",
+    "get_keyword",
+    "list_budgets",
+    "get_budget",
+    "execute_gaql_query",
+    "get_campaign_metrics",
+    "get_ad_group_metrics",
+    "get_ad_metrics",
+    "get_keyword_metrics",
+    "get_search_terms_report",
+    "get_device_performance",
+    "get_geo_performance",
+    "get_landing_page_report",
+    "get_change_history_report",
+}
 STANDARD_PROFILE_NAMESPACES = {
     "metadata",
     "planning",
@@ -386,6 +423,7 @@ def _exposures_for_tool(
         namespaces,
         tool_overrides,
         force_requested=profile_requested,
+        tool_profile=tool_profile,
     ):
         return []
 
@@ -424,6 +462,7 @@ def _tool_is_enabled(
     namespaces: dict[str, NamespaceConfig],
     tool_overrides: dict[str, bool],
     force_requested: bool = False,
+    tool_profile: str = "custom",
 ) -> bool:
     if canonical_name in tool_overrides and not tool_overrides[canonical_name]:
         return False
@@ -433,6 +472,8 @@ def _tool_is_enabled(
     if canonical_name in tool_overrides and tool_overrides[canonical_name]:
         requested = True
     else:
+        if tool_profile == "lean" and canonical_name not in LEAN_PROFILE_TOOL_NAMES:
+            return False
         requested = (
             force_requested
             or

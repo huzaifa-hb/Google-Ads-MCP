@@ -73,7 +73,7 @@ class ToolConfigTests(unittest.TestCase):
 
     def test_tool_profiles_have_pinned_safe_read_counts(self) -> None:
         cases = {
-            "lean": 73,
+            "lean": 35,
             "standard": 81,
             "full": 93,
         }
@@ -99,6 +99,25 @@ class ToolConfigTests(unittest.TestCase):
         self.assertNotIn("assets_list_assets", lean.registered_names)
         self.assertIn("assets_list_assets", standard.registered_names)
         self.assertIn("conversions_list_conversion_actions", standard.registered_names)
+        self.assertIn("reporting_get_household_income_report", standard.registered_names)
+
+    def test_lean_profile_keeps_high_frequency_reports_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            lean = load_tool_registry(make_settings(), cwd=Path(temp_dir))
+
+        self.assertIn("reporting_get_campaign_metrics", lean.registered_names)
+        self.assertIn("reporting_get_search_terms_report", lean.registered_names)
+        self.assertIn("reporting_get_device_performance", lean.registered_names)
+        self.assertIn("reporting_get_geo_performance", lean.registered_names)
+        self.assertIn("reporting_get_landing_page_report", lean.registered_names)
+        self.assertIn("reporting_get_change_history_report", lean.registered_names)
+        self.assertIn("reporting_execute_gaql_query", lean.registered_names)
+        self.assertNotIn("reporting_get_household_income_report", lean.registered_names)
+        self.assertNotIn("reporting_get_parental_status_report", lean.registered_names)
+        self.assertNotIn("reporting_get_topic_report", lean.registered_names)
+        self.assertNotIn("reporting_get_reach_frequency_report", lean.registered_names)
+        self.assertNotIn("reporting_get_paid_organic_report", lean.registered_names)
+        self.assertNotIn("reporting_get_auction_insights", lean.registered_names)
 
     def test_label_first_aliases_are_deprecated_standard_compatibility_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -127,17 +146,25 @@ class ToolConfigTests(unittest.TestCase):
                 cwd=Path(temp_dir),
             )
 
-        self.assertIn("campaigns_apply_campaign_label", lean.registered_names)
+        self.assertNotIn("campaigns_apply_campaign_label", lean.registered_names)
         self.assertNotIn("labels_apply_label_to_campaign", lean.registered_names)
 
-        explicit = build_tool_registry(
+        explicit_alias = build_tool_registry(
             {
                 "mode": "validation_only",
                 "tool_profile": "lean",
                 "tools": {"apply_label_to_campaign": {"enabled": True}},
             }
         )
-        self.assertIn("labels_apply_label_to_campaign", explicit.registered_names)
+        explicit_canonical = build_tool_registry(
+            {
+                "mode": "validation_only",
+                "tool_profile": "lean",
+                "tools": {"apply_campaign_label": {"enabled": True}},
+            }
+        )
+        self.assertIn("labels_apply_label_to_campaign", explicit_alias.registered_names)
+        self.assertIn("campaigns_apply_campaign_label", explicit_canonical.registered_names)
 
     def test_env_config_path_overrides_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

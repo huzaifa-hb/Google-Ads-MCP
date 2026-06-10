@@ -137,7 +137,7 @@ This release tightens a few public contracts:
 - Admin OAuth bootstrap routes accept the bootstrap secret only through the
   `x-google-ads-bootstrap-token` header. Query-string bootstrap tokens are no
   longer accepted.
-- The default tool profile is now leaner. Set
+- The default tool profile is now a curated 35-tool lean catalog. Set
   `GOOGLE_ADS_MCP_TOOL_PROFILE=standard` if you want the broad read-tool catalog
   exposed by earlier versions.
 
