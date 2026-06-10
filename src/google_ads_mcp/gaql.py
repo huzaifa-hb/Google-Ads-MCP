@@ -16,6 +16,8 @@ QUOTA_OR_RATE_RE = re.compile(
     r"\b(resource[_ ]exhausted|rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
     flags=re.IGNORECASE,
 )
+SIGNED_INTEGER_RE = re.compile(r"^[+-]?\d+$")
+SIGNED_NUMBER_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
 ALLOWED_FILTER_OPERATORS = {"=", "!=", ">", ">=", "<", "<=", "LIKE", "IN", "NOT IN"}
 
 PRESET_DATE_RANGES = {
@@ -162,7 +164,13 @@ def gaql_literal(value: object, data_type: str = "") -> str:
     text = str(value)
     if normalized_type in {"INT32", "INT64", "UINT64", "DOUBLE", "FLOAT"}:
         number_text = text.strip()
-        if number_text.replace(".", "", 1).isdigit():
+        if normalized_type == "UINT64" and number_text.isdigit():
+            return number_text
+        if normalized_type in {"INT32", "INT64"} and SIGNED_INTEGER_RE.fullmatch(
+            number_text
+        ):
+            return number_text
+        if normalized_type in {"DOUBLE", "FLOAT"} and SIGNED_NUMBER_RE.fullmatch(number_text):
             return number_text
     if normalized_type == "ENUM":
         enum_text = text.strip().upper()

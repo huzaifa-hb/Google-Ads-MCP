@@ -14,6 +14,7 @@ from google_ads_mcp.safety import (
     guard_google_ads_write,
     hash_customer_id,
     normalize_customer_id,
+    redact_sensitive,
 )
 
 
@@ -134,6 +135,24 @@ class SafetyTests(unittest.TestCase):
         event = json.loads(lines[0])
         self.assertEqual(event["result"], "validated")
         self.assertNotIn("1234567890", lines[0])
+
+    def test_redact_sensitive_preserves_keyword_payloads(self) -> None:
+        payload = {
+            "keywords": [{"text": "buy shoes", "match_type": "EXACT"}],
+            "campaign_id": "1234567890",
+            "developer_token": "secret-token",
+            "api_key": "secret-key",
+        }
+
+        redacted = redact_sensitive(payload)
+
+        self.assertEqual(
+            redacted["keywords"],
+            [{"text": "buy shoes", "match_type": "EXACT"}],
+        )
+        self.assertEqual(redacted["campaign_id"], "1234567890")
+        self.assertEqual(redacted["developer_token"], "[REDACTED]")
+        self.assertEqual(redacted["api_key"], "[REDACTED]")
 
 
 if __name__ == "__main__":

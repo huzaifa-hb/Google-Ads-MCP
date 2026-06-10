@@ -229,24 +229,8 @@ def redact_sensitive(value: Any) -> Any:
         redacted: dict[str, Any] = {}
         for key, item in value.items():
             lowered = key.lower()
-            if any(
-                token in lowered
-                for token in (
-                    "secret",
-                    "token",
-                    "refresh",
-                    "password",
-                    "key",
-                    "email",
-                    "phone",
-                    "address",
-                    "user_identifier",
-                    "gclid",
-                    "gbraid",
-                    "wbraid",
-                    "customer_match",
-                )
-            ):
+            normalized = lowered.replace("-", "_").replace(" ", "_")
+            if normalized in SENSITIVE_REDACTION_KEYS:
                 redacted[key] = "[REDACTED]"
             else:
                 redacted[key] = redact_sensitive(item)
@@ -254,4 +238,38 @@ def redact_sensitive(value: Any) -> Any:
     if isinstance(value, list):
         return [redact_sensitive(item) for item in value]
     return value
+
+
+SENSITIVE_REDACTION_KEYS = frozenset(
+    {
+        "access_token",
+        "address",
+        "api_key",
+        "apikey",
+        "bearer_token",
+        "client_secret",
+        "customer_match",
+        "developer_token",
+        "email",
+        "gbraid",
+        "gclid",
+        "google_ads_client_secret",
+        "google_ads_developer_token",
+        "google_ads_refresh_token",
+        "mcp_bearer_token",
+        "mcp_oauth_client_secret",
+        "oauth_client_secret",
+        "password",
+        "phone",
+        "phone_number",
+        "private_key",
+        "refresh",
+        "refresh_token",
+        "secret",
+        "token",
+        "user_email",
+        "user_identifier",
+        "wbraid",
+    }
+)
 

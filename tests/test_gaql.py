@@ -11,6 +11,7 @@ from google_ads_mcp.gaql import (
     ensure_no_offset_clause,
     ensure_primary_field,
     explain_gaql_error,
+    gaql_filter_clause,
 )
 from google_ads_mcp.safety import ValidationError
 
@@ -22,6 +23,34 @@ class GaqlTests(unittest.TestCase):
 
     def test_preset_date_range(self) -> None:
         self.assertEqual(date_where_clause(date_range="LAST_7_DAYS"), "segments.date DURING LAST_7_DAYS")
+
+    def test_numeric_filter_literals_allow_signed_values(self) -> None:
+        cases = [
+            ("-5", "INT64", "metrics.clicks > -5"),
+            ("+5", "INT64", "metrics.clicks > +5"),
+            ("-1.25", "DOUBLE", "metrics.clicks > -1.25"),
+        ]
+
+        for value, data_type, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(
+                    gaql_filter_clause(
+                        "metrics.clicks",
+                        {"operator": ">", "value": value},
+                        data_type,
+                    ),
+                    expected,
+                )
+
+    def test_numeric_filter_literals_still_quote_non_numeric_text(self) -> None:
+        self.assertEqual(
+            gaql_filter_clause(
+                "metrics.clicks",
+                {"operator": ">", "value": "not-a-number"},
+                "INT64",
+            ),
+            "metrics.clicks > 'not-a-number'",
+        )
 
     def test_primary_field_required(self) -> None:
         with self.assertRaises(ValidationError):
