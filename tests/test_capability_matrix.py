@@ -55,6 +55,18 @@ class CapabilityMatrixTests(unittest.TestCase):
 
         self.assertTrue(all(row.read_write == "read" for row in rows))
 
+    def test_agency_write_matrix_contains_write_rows_without_raw_mutate(self) -> None:
+        registry = build_tool_registry({"mode": "write_enabled", "tool_profile": "agency_write"})
+
+        payload = capability_matrix_payload(registry)
+        by_name = {row["registered_name"]: row for row in payload["tools"]}
+
+        self.assertEqual(by_name["campaigns_pause_campaign"]["read_write"], "write")
+        self.assertEqual(by_name["budgets_update_budget"]["read_write"], "write")
+        self.assertEqual(by_name["keywords_add_negative_keywords_campaign"]["read_write"], "write")
+        self.assertNotIn("generic_google_ads_mutate", by_name)
+        self.assertNotIn("generic_google_ads_call_service", by_name)
+
 
 if __name__ == "__main__":
     unittest.main()

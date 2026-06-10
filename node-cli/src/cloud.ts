@@ -47,6 +47,7 @@ export type DeployOptions = {
   mcpAllowAllGoogleUsers?: boolean;
   mcpTokenStorage?: string;
   mcpFirestoreDatabase?: string;
+  toolProfile?: string;
   minInstances?: string;
   maxInstances?: string;
   memory?: string;
@@ -206,6 +207,9 @@ export function buildDeployCommand(rootDir: string, options: DeployOptions): Gcl
   if (options.mcpFirestoreDatabase) {
     args.push("-McpFirestoreDatabase", options.mcpFirestoreDatabase);
   }
+  if (options.toolProfile) {
+    args.push("-ToolProfile", options.toolProfile);
+  }
   if (options.minInstances) {
     args.push("-MinInstances", options.minInstances);
   }
@@ -236,6 +240,7 @@ export async function deployCloudRun(rootDir: string, options: {
   mcpAllowAllGoogleUsers?: boolean;
   mcpTokenStorage?: string;
   mcpFirestoreDatabase?: string;
+  toolProfile?: string;
   minInstances?: string;
   maxInstances?: string;
   memory?: string;

@@ -12,6 +12,10 @@ diagnostics, reporting, and first-time setup.
 | `write_enabled` | Configured write tools plus read tools | Allowed only with confirmation |
 | `admin_debug` | Configured generic bridge tools can be exposed | Allowed only with confirmation |
 
+Modes do not choose the tool catalog by themselves. `write_enabled` only opens
+the gate for write tools that are already exposed by a tool profile or explicit
+tool config.
+
 Set the mode with:
 
 ```powershell
@@ -51,8 +55,12 @@ Use this only for a private endpoint protected by a strong bearer token:
 
 ```powershell
 $env:GOOGLE_ADS_MCP_MODE = "write_enabled"
+$env:GOOGLE_ADS_MCP_TOOL_PROFILE = "agency_write"
 python -m google_ads_mcp
 ```
+
+Use `advanced_mutate` instead of `agency_write` only when you deliberately want
+to expose `generic_google_ads_mutate`.
 
 Real writes still require all three request values:
 

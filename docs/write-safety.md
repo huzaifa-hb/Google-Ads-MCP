@@ -3,6 +3,10 @@
 The server starts in `safe_read_only` mode by default. In that mode, mutating
 tools and generic service bridge tools are not exposed.
 
+Mode is a permission gate, not a loader. A write-capable server still needs a
+write-capable tool profile or explicit tool config before agents can see write
+tools.
+
 Supported modes:
 
 - `safe_read_only`: read/reporting/docs/metadata tools only.
@@ -12,6 +16,10 @@ Supported modes:
   explicit confirmation.
 - `admin_debug`: generic bridge tools can be exposed by config; real writes
   still require explicit confirmation.
+
+For normal agency work, expose `agency_write` together with `write_enabled`.
+For raw GoogleAdsService.Mutate operations, explicitly choose `advanced_mutate`.
+Neither profile exposes `google_ads_call_service`.
 
 All mutating tools default to `validate_only=true`.
 

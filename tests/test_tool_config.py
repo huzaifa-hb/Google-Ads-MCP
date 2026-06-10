@@ -268,6 +268,45 @@ namespaces:
         self.assertIn("campaigns_pause_campaign", registry.registered_names)
         self.assertNotIn("generic_google_ads_call_service", registry.registered_names)
 
+    def test_agency_write_profile_exposes_direct_agency_writes_only(self) -> None:
+        registry = build_tool_registry({"mode": "write_enabled", "tool_profile": "agency_write"})
+
+        expected = {
+            "campaigns_create_search_campaign",
+            "campaigns_update_campaign",
+            "campaigns_pause_campaign",
+            "ads_pause_ad",
+            "budgets_update_budget",
+            "keywords_add_keywords",
+            "keywords_update_keyword_bid",
+            "keywords_add_negative_keywords_campaign",
+            "bulk_bulk_pause_campaigns",
+            "extensions_create_sitelink",
+            "labels_create_label",
+        }
+        for name in expected:
+            with self.subTest(name=name):
+                self.assertIn(name, registry.registered_names)
+
+        self.assertNotIn("generic_google_ads_mutate", registry.registered_names)
+        self.assertNotIn("generic_google_ads_call_service", registry.registered_names)
+        self.assertNotIn("campaigns_set_geo_targeting", registry.registered_names)
+        self.assertNotIn("ads_create_call_ad", registry.registered_names)
+        self.assertNotIn("campaigns_create_video_campaign", registry.registered_names)
+        self.assertGreater(
+            sum(exposure.read_write == "write" for exposure in registry.exposures),
+            0,
+        )
+
+    def test_advanced_mutate_profile_adds_raw_mutate_but_not_call_service(self) -> None:
+        registry = build_tool_registry(
+            {"mode": "write_enabled", "tool_profile": "advanced_mutate"}
+        )
+
+        self.assertIn("campaigns_pause_campaign", registry.registered_names)
+        self.assertIn("generic_google_ads_mutate", registry.registered_names)
+        self.assertNotIn("generic_google_ads_call_service", registry.registered_names)
+
     def test_admin_debug_can_expose_generic_bridge(self) -> None:
         registry = build_tool_registry(
             {
