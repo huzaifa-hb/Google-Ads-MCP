@@ -889,6 +889,40 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         result = await dispatcher.dispatch("get_geo_performance", customer_id="1234567890")
         self.assertEqual(result["rows"][0]["geographic_view"]["country_name"], "United States")
 
+    async def test_geo_performance_uses_geographic_view_compatible_metrics(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch("get_geo_performance", customer_id="1234567890")
+
+        expected_metrics = {
+            "metrics.impressions",
+            "metrics.clicks",
+            "metrics.cost_micros",
+            "metrics.conversions",
+            "metrics.conversions_value",
+            "metrics.ctr",
+            "metrics.average_cpc",
+            "metrics.cost_per_conversion",
+        }
+        incompatible_metrics = {
+            "metrics.engagements",
+            "metrics.search_impression_share",
+            "metrics.search_budget_lost_impression_share",
+            "metrics.search_rank_lost_impression_share",
+            "metrics.search_top_impression_share",
+            "metrics.search_absolute_top_impression_share",
+            "metrics.average_cost",
+            "metrics.conversions_from_interactions_rate",
+            "metrics.all_conversions",
+            "metrics.all_conversions_value",
+            "metrics.video_trueview_views",
+            "metrics.video_trueview_view_rate",
+        }
+        for metric in expected_metrics:
+            self.assertIn(metric, result["query"])
+        for metric in incompatible_metrics:
+            self.assertNotIn(metric, result["query"])
+
     async def test_rsa_requires_final_urls(self) -> None:
         dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
         with self.assertRaises(ValidationError):

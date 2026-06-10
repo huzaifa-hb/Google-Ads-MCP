@@ -759,6 +759,17 @@ VIDEO_REPORT_METRICS = (
 
 VALUE_REPORT_METRICS = BASIC_REPORT_METRICS + ("metrics.conversions_value",)
 
+GEO_REPORT_METRICS = (
+    "metrics.impressions",
+    "metrics.clicks",
+    "metrics.cost_micros",
+    "metrics.conversions",
+    "metrics.conversions_value",
+    "metrics.ctr",
+    "metrics.average_cpc",
+    "metrics.cost_per_conversion",
+)
+
 REPORT_METRICS_BY_TOOL = {
     "get_change_history_report": (),
     "get_call_details_report": (),
@@ -768,6 +779,7 @@ REPORT_METRICS_BY_TOOL = {
     "get_search_terms_report": VALUE_REPORT_METRICS,
     "get_ad_schedule_report": BASIC_REPORT_METRICS,
     "get_hour_of_day_performance": BASIC_REPORT_METRICS,
+    "get_geo_performance": GEO_REPORT_METRICS,
     "get_asset_performance_report": VALUE_REPORT_METRICS,
     "get_asset_performance": VALUE_REPORT_METRICS,
     "get_video_performance_report": VIDEO_REPORT_METRICS,
