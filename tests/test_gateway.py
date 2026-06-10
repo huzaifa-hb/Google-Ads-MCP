@@ -496,7 +496,7 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         gateway = GoogleAdsGateway(mode="safe_read_only")
 
         self.assertFalse(gateway._is_transient(Exception("accurate validation error")))
-        self.assertTrue(gateway._is_transient(Exception("RATE_EXCEEDED")))
+        self.assertTrue(gateway._is_transient(Exception("RESOURCE_EXHAUSTED")))
 
     async def test_search_stream_caps_rows_and_marks_truncated(self) -> None:
         gateway = ParsingGateway(client=StreamClient(StreamService()), mode="safe_read_only")
@@ -564,6 +564,16 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, "ok")
         self.assertEqual(calls, 3)
+
+    def test_transient_detection_requires_uppercase_status_tokens(self) -> None:
+        gateway = GoogleAdsGateway(settings=make_settings())
+
+        self.assertTrue(gateway._is_transient(Exception("UNAVAILABLE")))  # noqa: SLF001
+        self.assertTrue(gateway._is_transient(Exception("INTERNAL")))  # noqa: SLF001
+        self.assertFalse(
+            gateway._is_transient(Exception("field unavailable in version"))  # noqa: SLF001
+        )
+        self.assertFalse(gateway._is_transient(Exception("internal parsing error")))  # noqa: SLF001
 
     def test_list_services_returns_warning_when_package_inspection_fails(self) -> None:
         gateway = GoogleAdsGateway(settings=make_settings(api_version="v999"))

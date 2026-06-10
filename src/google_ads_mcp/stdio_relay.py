@@ -13,6 +13,9 @@ import urllib.error
 import urllib.request
 
 
+STDIO_RELAY_REMOVAL_DATE = "2026-09-30"
+
+
 def _extract_json_response(body: bytes, content_type: str) -> str:
     text = body.decode("utf-8")
     if "text/event-stream" not in content_type:
@@ -34,6 +37,11 @@ def _json_rpc_error(code: int, message: str, *, request_id: object | None) -> st
 
 
 def main() -> None:
+    print(
+        "google-ads-mcp-stdio-relay is deprecated and will be removed on "
+        f"{STDIO_RELAY_REMOVAL_DATE}; use the npm `google-ads-mcp relay` command instead.",
+        file=sys.stderr,
+    )
     mcp_url = os.environ.get("MCP_URL")
     token = os.environ.get("MCP_BEARER_TOKEN")
     if not mcp_url or not token:

@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from .gaql import (
+    DEFAULT_DATE_RANGE,
     GAQL_FIELD_RE,
     TIME_SEGMENTS,
     date_where_clause,

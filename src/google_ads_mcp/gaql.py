@@ -7,15 +7,13 @@ from difflib import get_close_matches
 import re
 from typing import Any, Iterable
 
+from .errors import QUOTA_OR_RATE_RE
 from .safety import ValidationError, validate_date
 
 
 GAQL_FIELD_RE = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$")
 GAQL_RESOURCE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-QUOTA_OR_RATE_RE = re.compile(
-    r"\b(resource[_ ]exhausted|rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
-    flags=re.IGNORECASE,
-)
+DEFAULT_DATE_RANGE = "LAST_30_DAYS"
 SIGNED_INTEGER_RE = re.compile(r"^[+-]?\d+$")
 SIGNED_NUMBER_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
 ALLOWED_FILTER_OPERATORS = {"=", "!=", ">", ">=", "<", "<=", "LIKE", "IN", "NOT IN"}
@@ -103,7 +101,7 @@ def date_where_clause(
             return f"{field} BETWEEN '{start} 00:00:00' AND '{end} 23:59:59'"
         return f"{field} BETWEEN '{start}' AND '{end}'"
 
-    selected = (date_range or "LAST_30_DAYS").upper()
+    selected = (date_range or DEFAULT_DATE_RANGE).upper()
     if selected == "ALL_TIME":
         return ""
     if selected not in PRESET_DATE_RANGES:

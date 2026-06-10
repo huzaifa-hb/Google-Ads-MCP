@@ -2,9 +2,27 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .safety import ValidationError, redact_sensitive
+
+
+QUOTA_OR_RATE_RE = re.compile(
+    r"\b(resource[_ ]exhausted|rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
+    flags=re.IGNORECASE,
+)
+TRANSIENT_STATUS_RE = re.compile(
+    r"\b(?:RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|INTERNAL)\b"
+)
+
+
+def is_quota_or_rate_error(message: str) -> bool:
+    return bool(QUOTA_OR_RATE_RE.search(message or ""))
+
+
+def is_transient_google_ads_error(exc: Exception | str) -> bool:
+    return bool(TRANSIENT_STATUS_RE.search(str(exc)))
 
 
 def format_validation_error(exc: ValidationError) -> dict[str, Any]:
@@ -98,13 +116,7 @@ def _suggested_fix(message: str, errors: list[dict[str, Any]] | None = None) -> 
         return "Validate fields with metadata_validate_gaql_fields before retrying."
     if "field_not_selectable" in text or "field_not_filterable" in text:
         return "Check live metadata for selectable and filterable fields."
-    if (
-        "quota" in text
-        or "resource_exhausted" in text
-        or "rate_exceeded" in text
-        or "rate limit" in text
-        or "rate-limit" in text
-    ):
+    if is_quota_or_rate_error(text):
         return "Reduce request volume, use pagination, and retry later."
     if "permission" in text or "authorization" in text:
         return "Check the OAuth user, developer-token access level, and login customer."

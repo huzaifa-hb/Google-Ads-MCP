@@ -474,54 +474,13 @@ def _load_yaml_file(path: Path) -> dict[str, Any]:
 def _load_yaml_text(text: str) -> dict[str, Any]:
     try:
         import yaml
-    except ImportError:
-        parsed = _parse_simple_yaml(text)
+    except ImportError as exc:  # pragma: no cover - dependency is required by pyproject.
+        raise ConfigError("PyYAML is required to load tools_config.yaml.") from exc
     else:
         parsed = yaml.safe_load(text) or {}
     if not isinstance(parsed, dict):
         raise ConfigError("tools_config.yaml must contain a mapping at the top level.")
     return parsed
-
-
-def _parse_simple_yaml(text: str) -> dict[str, Any]:
-    root: dict[str, Any] = {}
-    stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
-    for raw_line in text.splitlines():
-        line = raw_line.split("#", 1)[0].rstrip()
-        if not line.strip():
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        stripped = line.strip()
-        if ":" not in stripped:
-            raise ConfigError("PyYAML is not installed and fallback parser only supports mappings.")
-        key, raw_value = stripped.split(":", 1)
-        key = key.strip()
-        value_text = raw_value.strip()
-        while stack and indent <= stack[-1][0]:
-            stack.pop()
-        if not stack:
-            raise ConfigError("Invalid indentation in tools_config.yaml.")
-        parent = stack[-1][1]
-        if not value_text:
-            child: dict[str, Any] = {}
-            parent[key] = child
-            stack.append((indent, child))
-        else:
-            parent[key] = _parse_scalar(value_text)
-    return root
-
-
-def _parse_scalar(value: str) -> Any:
-    lowered = value.lower()
-    if lowered in {"true", "yes"}:
-        return True
-    if lowered in {"false", "no"}:
-        return False
-    if (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
-        return value[1:-1]
-    return value
 
 
 def _legacy_config() -> dict[str, Any]:

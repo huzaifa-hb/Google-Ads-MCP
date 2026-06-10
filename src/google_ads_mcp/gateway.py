@@ -17,13 +17,17 @@ import logging
 from pathlib import Path
 import pkgutil
 import random
-import re
 import time
 from typing import Any
 
 from .config import GOOGLE_ADS_OAUTH_SCOPE, Settings, get_settings
-from .errors import format_google_ads_exception
+from .errors import (
+    format_google_ads_exception,
+    is_quota_or_rate_error,
+    is_transient_google_ads_error,
+)
 from .gaql import (
+    DEFAULT_DATE_RANGE,
     GAQL_FIELD_RE,
     Pagination,
     apply_default_parameters,
@@ -44,24 +48,6 @@ from .safety import ValidationError, guard_google_ads_write, normalize_customer_
 
 
 LOGGER = logging.getLogger(__name__)
-
-TRANSIENT_ERROR_MARKERS = (
-    "RESOURCE_EXHAUSTED",
-    "UNAVAILABLE",
-    "DEADLINE_EXCEEDED",
-    "INTERNAL",
-    "RATE_EXCEEDED",
-    "QUOTA_EXCEEDED",
-)
-TRANSIENT_ERROR_RE = re.compile(
-    r"\b(resource[_ ]exhausted|unavailable|deadline[_ ]exceeded|internal|"
-    r"rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
-    flags=re.IGNORECASE,
-)
-QUOTA_OR_RATE_RE = re.compile(
-    r"\b(resource[_ ]exhausted|rate[_ -]?exceeded|rate[_ -]?limit|quota)\b",
-    flags=re.IGNORECASE,
-)
 
 MUTATING_METHOD_PREFIXES = (
     "mutate_",
@@ -622,7 +608,7 @@ class GoogleAdsGateway:
         fields: list[str] | str | None = None,
         metrics: list[str] | str | None = None,
         segments: list[str] | str | None = None,
-        date_range: str | None = "LAST_7_DAYS",
+        date_range: str | None = DEFAULT_DATE_RANGE,
         start_date: str | None = None,
         end_date: str | None = None,
         filters: dict[str, Any] | None = None,
@@ -1011,16 +997,12 @@ class GoogleAdsGateway:
                 await asyncio.sleep(delay)
 
     def _is_transient(self, exc: Exception) -> bool:
-        text = str(exc)
-        upper = text.upper()
-        return any(marker in upper for marker in TRANSIENT_ERROR_MARKERS) or bool(
-            TRANSIENT_ERROR_RE.search(text)
-        )
+        return is_transient_google_ads_error(exc)
 
     def _format_exception(self, exc: Exception) -> RuntimeError:
         formatted = format_google_ads_exception(exc)
         message = str(exc)
-        if QUOTA_OR_RATE_RE.search(message):
+        if is_quota_or_rate_error(message):
             message = (
                 "Google Ads quota or rate limit was reached. Reduce request volume, use "
                 "pagination or batching, and check the developer-token access level. Raw detail: "

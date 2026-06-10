@@ -4,7 +4,7 @@ import json
 import unittest
 
 import _bootstrap  # noqa: F401
-from google_ads_mcp.stdio_relay import _json_rpc_error
+from google_ads_mcp.stdio_relay import STDIO_RELAY_REMOVAL_DATE, _json_rpc_error
 
 
 class StdioRelayTests(unittest.TestCase):
@@ -20,6 +20,9 @@ class StdioRelayTests(unittest.TestCase):
         payload = json.loads(_json_rpc_error(-32700, "bad json", request_id=None))
 
         self.assertIsNone(payload["id"])
+
+    def test_stdio_relay_has_removal_date(self) -> None:
+        self.assertEqual(STDIO_RELAY_REMOVAL_DATE, "2026-09-30")
 
 
 if __name__ == "__main__":

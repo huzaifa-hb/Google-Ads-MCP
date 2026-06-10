@@ -17,6 +17,7 @@ from .capability_matrix import capability_matrix_payload
 from .config import GOOGLE_ADS_OAUTH_SCOPE, ConfigError, get_settings, value_looks_missing
 from .errors import format_tool_error
 from .friendly import FriendlyDispatcher
+from .gaql import DEFAULT_DATE_RANGE
 from .gateway import GoogleAdsGateway
 from .resources import (
     capability_matrix_resource,
@@ -225,7 +226,7 @@ def build_mcp() -> Any:
         fields: list[str] | None = None,
         metrics: list[str] | None = None,
         segments: list[str] | None = None,
-        date_range: str | None = "LAST_7_DAYS",
+        date_range: str | None = DEFAULT_DATE_RANGE,
         start_date: str | None = None,
         end_date: str | None = None,
         filters: dict[str, Any] | None = None,
@@ -268,7 +269,6 @@ def build_mcp() -> Any:
             "question": question,
             "category": category,
             "matched_entries": [entry.to_dict() for entry in entries],
-            "total_entries": count,
             "total_kb_entries": count,
             "hint": (
                 "Always include the primary resource field in SELECT to avoid "
