@@ -122,5 +122,9 @@ def _suggested_fix(message: str, errors: list[dict[str, Any]] | None = None) -> 
     if is_quota_or_rate_error(text):
         return "Reduce request volume, use pagination, and retry later."
     if "permission" in text or "authorization" in text:
-        return "Check the OAuth user, developer-token access level, and login customer."
+        return (
+            "Check the OAuth user and developer-token access level. If this is a child "
+            "account under an MCC, pass login_customer_id=<manager id> or set "
+            "GOOGLE_ADS_LOGIN_CUSTOMER_ID."
+        )
     return "Review the request and retry with validation-only mode first for writes."

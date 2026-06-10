@@ -396,6 +396,24 @@ class AuthConfigTests(unittest.TestCase):
         self.assertNotIn("secret-refresh-token", str(store.results))
         self.assertEqual(asyncio.run(store.pop("nonce"))["refresh_token"], "secret-refresh-token")
 
+    def test_memory_bootstrap_cipher_does_not_stretch_random_key(self) -> None:
+        with patch("google_ads_mcp.server.hashlib.pbkdf2_hmac") as pbkdf2_hmac:
+            store = _MemoryBootstrapResultStore()
+
+        pbkdf2_hmac.assert_not_called()
+        asyncio.run(
+            store.put(
+                "nonce",
+                {
+                    "status": "ready",
+                    "refresh_token": "secret-refresh-token",
+                    "expires_at": 9999999999,
+                },
+                ttl_seconds=600,
+            )
+        )
+        self.assertEqual(asyncio.run(store.pop("nonce"))["refresh_token"], "secret-refresh-token")
+
     def test_key_value_bootstrap_result_store_pops_and_deletes(self) -> None:
         key_value = FakeKeyValueStore()
         store = _KeyValueBootstrapResultStore(key_value)

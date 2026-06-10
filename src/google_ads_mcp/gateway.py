@@ -48,7 +48,9 @@ from .safety import ValidationError, guard_google_ads_write, normalize_customer_
 
 LOGGER = logging.getLogger(__name__)
 ResourceMetadataCache = OrderedDict[tuple[str, str], tuple[float, dict[str, Any]]]
+LoginScopedGatewayCache = OrderedDict[tuple[str, str | None], "GoogleAdsGateway"]
 _SHARED_RESOURCE_METADATA_CACHE: ResourceMetadataCache = OrderedDict()
+LOGIN_SCOPED_GATEWAY_CACHE_MAX_ENTRIES = 8
 
 MUTATING_METHOD_PREFIXES = (
     "mutate_",
@@ -99,6 +101,8 @@ class GoogleAdsGateway:
         access_token: str | None = None,
         metadata_cache: ResourceMetadataCache | None = None,
         login_customer_id: str | int | None = None,
+        login_scoped_cache: LoginScopedGatewayCache | None = None,
+        login_scoped_cache_max_entries: int = LOGIN_SCOPED_GATEWAY_CACHE_MAX_ENTRIES,
     ) -> None:
         self.settings = settings or get_settings()
         self._client = client
@@ -111,6 +115,10 @@ class GoogleAdsGateway:
         self._resource_metadata_cache = (
             metadata_cache if metadata_cache is not None else _SHARED_RESOURCE_METADATA_CACHE
         )
+        self._login_scoped_gateway_cache = (
+            login_scoped_cache if login_scoped_cache is not None else OrderedDict()
+        )
+        self._login_scoped_gateway_cache_max_entries = max(1, login_scoped_cache_max_entries)
         self._metadata_snapshot: dict[str, Any] | None = None
 
     def with_login_customer_id(self, login_customer_id: str | int | None) -> "GoogleAdsGateway":
@@ -124,14 +132,25 @@ class GoogleAdsGateway:
         )
         if normalized == (self.login_customer_id or default_login_customer_id):
             return self
-        return GoogleAdsGateway(
+        cache_key = (normalized, self.access_token)
+        cached = self._login_scoped_gateway_cache.get(cache_key)
+        if cached is not None:
+            self._login_scoped_gateway_cache.move_to_end(cache_key)
+            return cached
+        gateway = GoogleAdsGateway(
             settings=self.settings,
             mode=self.mode,
             audit_sink=self.audit_sink,
             access_token=self.access_token,
             metadata_cache=self._resource_metadata_cache,
             login_customer_id=normalized,
+            login_scoped_cache=self._login_scoped_gateway_cache,
+            login_scoped_cache_max_entries=self._login_scoped_gateway_cache_max_entries,
         )
+        self._login_scoped_gateway_cache[cache_key] = gateway
+        while len(self._login_scoped_gateway_cache) > self._login_scoped_gateway_cache_max_entries:
+            self._login_scoped_gateway_cache.popitem(last=False)
+        return gateway
 
     @property
     def client(self) -> Any:

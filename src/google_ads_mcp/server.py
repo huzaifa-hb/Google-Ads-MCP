@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
 from functools import wraps
 import hashlib
 import hmac
@@ -37,7 +38,6 @@ OAUTH_TOKEN_FIRESTORE_PREFIX = "google-ads-mcp-oauth"
 OAUTH_TOKEN_FIRESTORE_SALT = "google-ads-mcp-firestore-token-storage-v1"
 BOOTSTRAP_RESULT_FIRESTORE_PREFIX = "google-ads-mcp-bootstrap"
 BOOTSTRAP_RESULT_FIRESTORE_SALT = "google-ads-mcp-firestore-bootstrap-results-v1"
-BOOTSTRAP_RESULT_MEMORY_SALT = "google-ads-mcp-memory-bootstrap-results-v1"
 
 
 def build_mcp() -> Any:
@@ -54,11 +54,15 @@ def build_mcp() -> Any:
     auth = _build_auth(settings)
     mcp = FastMCP("Google Ads Full API MCP", auth=auth)
     audit_sink = build_jsonl_audit_sink(settings.audit_log_path)
+    login_scoped_gateway_cache: OrderedDict[tuple[str, str | None], GoogleAdsGateway] = (
+        OrderedDict()
+    )
     shared_gateway = (
         GoogleAdsGateway(
             settings=settings,
             mode=registry.mode,
             audit_sink=audit_sink,
+            login_scoped_cache=login_scoped_gateway_cache,
         )
         if settings.google_ads_auth_mode == "shared_refresh_token"
         else None
@@ -71,6 +75,7 @@ def build_mcp() -> Any:
                 mode=registry.mode,
                 audit_sink=audit_sink,
                 access_token=_google_ads_access_token_value(get_access_token()),
+                login_scoped_cache=login_scoped_gateway_cache,
             )
         else:
             if shared_gateway is None:
@@ -557,15 +562,7 @@ class _BootstrapResultCipher:
             from cryptography.fernet import Fernet, InvalidToken
         except ImportError as exc:  # pragma: no cover - dependency is declared.
             raise ConfigError("cryptography is required to encrypt bootstrap results.") from exc
-        source_material = secrets.token_urlsafe(32)
-        key = hashlib.pbkdf2_hmac(
-            "sha256",
-            source_material.encode("utf-8"),
-            BOOTSTRAP_RESULT_MEMORY_SALT.encode("utf-8"),
-            390_000,
-            dklen=32,
-        )
-        self._fernet = Fernet(base64.urlsafe_b64encode(key))
+        self._fernet = Fernet(Fernet.generate_key())
         self._invalid_token = InvalidToken
 
     def encrypt(self, result: dict[str, Any]) -> str:

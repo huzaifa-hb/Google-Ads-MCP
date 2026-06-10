@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from types import SimpleNamespace
 import unittest
 
@@ -232,6 +233,57 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         client = dynamic_gateway._load_client_from_access_token(RecordingGoogleAdsClient)  # noqa: SLF001
 
         self.assertEqual(client.kwargs["login_customer_id"], "2223334444")
+
+    def test_login_scoped_gateway_cache_reuses_same_access_token_and_login(self) -> None:
+        cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        first_root = GoogleAdsGateway(
+            settings=settings,
+            access_token="token-a",
+            login_scoped_cache=cache,
+        )
+        first = first_root.with_login_customer_id("222-333-4444")
+        first._client = object()  # noqa: SLF001
+
+        second_root = GoogleAdsGateway(
+            settings=settings,
+            access_token="token-a",
+            login_scoped_cache=cache,
+        )
+        second = second_root.with_login_customer_id("2223334444")
+
+        self.assertIs(second, first)
+        self.assertIsNotNone(second._client)  # noqa: SLF001
+
+    def test_login_scoped_gateway_cache_separates_access_tokens(self) -> None:
+        cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        first = GoogleAdsGateway(
+            settings=settings,
+            access_token="token-a",
+            login_scoped_cache=cache,
+        ).with_login_customer_id("2223334444")
+        second = GoogleAdsGateway(
+            settings=settings,
+            access_token="token-b",
+            login_scoped_cache=cache,
+        ).with_login_customer_id("2223334444")
+
+        self.assertIsNot(second, first)
+
+    def test_login_scoped_gateway_cache_is_bounded(self) -> None:
+        cache = OrderedDict()
+        gateway = GoogleAdsGateway(
+            settings=make_settings(),
+            login_scoped_cache=cache,
+            login_scoped_cache_max_entries=8,
+        )
+
+        for index in range(9):
+            gateway.with_login_customer_id(f"100000000{index}")
+
+        self.assertEqual(len(cache), 8)
+        self.assertNotIn(("1000000000", None), cache)
 
     async def test_mutating_method_cannot_be_marked_read_only(self) -> None:
         gateway = GoogleAdsGateway()

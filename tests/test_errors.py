@@ -64,6 +64,12 @@ class ErrorFormattingTests(unittest.TestCase):
         self.assertIn("/readyz", result["suggested_fix"])
         self.assertNotIn("validation-only mode", result["suggested_fix"])
 
+    def test_permission_denied_error_points_to_login_customer_id(self) -> None:
+        result = format_tool_error(RuntimeError("USER_PERMISSION_DENIED: permission denied"))
+
+        self.assertIn("login_customer_id", result["suggested_fix"])
+        self.assertIn("GOOGLE_ADS_LOGIN_CUSTOMER_ID", result["suggested_fix"])
+
 
 class ToolResponseWrapperTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrapper_returns_structured_validation_error(self) -> None:

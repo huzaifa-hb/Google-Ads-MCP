@@ -123,6 +123,17 @@ Real writes require all of this:
 Do not put this server online with authentication disabled. Do not share `.env`,
 refresh tokens, developer tokens, OAuth secrets, or bearer tokens.
 
+## Migrating To 0.3.0
+
+This release adds per-request MCC routing:
+
+- `GOOGLE_ADS_LOGIN_CUSTOMER_ID` is now only a default MCC login context.
+- When querying a child account under any MCC the OAuth user can access, pass
+  `login_customer_id` on the tool call. Example: use the child as `customer_id`
+  and the manager account as `login_customer_id`.
+- Repeated calls for the same MCC login context reuse a cached Google Ads
+  gateway, avoiding repeated client/channel warmup during parallel report pulls.
+
 ## Migrating To 0.2.0
 
 This release tightens a few public contracts:

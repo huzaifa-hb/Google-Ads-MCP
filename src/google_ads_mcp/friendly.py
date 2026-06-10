@@ -66,29 +66,9 @@ class FriendlyDispatcher:
         partial_failure: bool = False,
     ) -> dict[str, Any]:
         if login_customer_id and hasattr(self.gateway, "with_login_customer_id"):
-            original_gateway = self.gateway
+            # MCP creates a fresh dispatcher per request, so rebinding here only affects
+            # this tool call while keeping the lower-level helper methods unchanged.
             self.gateway = self.gateway.with_login_customer_id(login_customer_id)
-            try:
-                return await self.dispatch(
-                    tool_name,
-                    customer_id=customer_id,
-                    payload=payload,
-                    filters=filters,
-                    date_range=date_range,
-                    start_date=start_date,
-                    end_date=end_date,
-                    time_segment=time_segment,
-                    max_rows=max_rows,
-                    max_accounts=max_accounts,
-                    page_size=page_size,
-                    page_token=page_token,
-                    validate_only=validate_only,
-                    execute=execute,
-                    confirmation_phrase=confirmation_phrase,
-                    partial_failure=partial_failure,
-                )
-            finally:
-                self.gateway = original_gateway
 
         spec = FRIENDLY_TOOL_BY_NAME[tool_name]
         payload = payload or {}
