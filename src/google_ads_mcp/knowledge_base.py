@@ -219,7 +219,7 @@ ENTRIES: tuple[KBEntry, ...] = (
         notes=(
             "For larger reports, raise max_rows or provide your own GAQL LIMIT; "
             "do not rely on page_size as a page length.",
-            "When an injected limit is reached, the response marks has_more as unknown_when_limit_reached.",
+            "When an injected limit is reached, the response sets has_more to null and limit_reached to true.",
         ),
     ),
     KBEntry(

@@ -392,7 +392,8 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["pagination"]["google_ads_fixed_page_size"], 10_000)
         self.assertTrue(result["pagination"]["limit_injected"])
         self.assertEqual(result["pagination"]["effective_limit"], 2)
-        self.assertEqual(result["pagination"]["has_more"], "unknown_when_limit_reached")
+        self.assertIsNone(result["pagination"]["has_more"])
+        self.assertTrue(result["pagination"]["limit_reached"])
         self.assertIsNotNone(service.last_request)
         self.assertIsNone(service.last_request.page_size)  # type: ignore[union-attr]
         self.assertIn("LIMIT 2", service.last_request.query)  # type: ignore[union-attr]

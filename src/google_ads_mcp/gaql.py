@@ -312,11 +312,11 @@ def summarize_page(
     reached_injected_limit = bool(
         limit_injected and effective_limit is not None and len(rows) >= effective_limit
     )
-    has_more: bool | str = "unknown_when_limit_reached" if reached_injected_limit else bool(page_token)
     return {
         "row_count": len(rows),
         "fetched_count": fetched_count if fetched_count is not None else len(rows),
-        "has_more": has_more,
+        "has_more": None if reached_injected_limit else bool(page_token),
+        "limit_reached": reached_injected_limit,
         "next_page_token": None if reached_injected_limit else page_token,
         "requested_max_rows": requested_max_rows,
         "requested_page_size": requested_max_rows,
