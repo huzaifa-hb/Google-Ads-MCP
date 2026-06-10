@@ -122,6 +122,25 @@ Real writes require all of this:
 Do not put this server online with authentication disabled. Do not share `.env`,
 refresh tokens, developer tokens, OAuth secrets, or bearer tokens.
 
+## Migrating To 0.2.0
+
+This release tightens a few public contracts:
+
+- Use `max_rows` for read-tool row caps. `page_size` still works as a deprecated
+  alias, but it no longer means rows per page.
+- If the server injects a GAQL `LIMIT`, treat that as a total row cap. Responses
+  include `limit_injected`, `effective_limit`, and `has_more` metadata when the
+  cap may have truncated the result.
+- Hosted `oauth_proxy` plus `per_user_oauth` now requires an email/domain
+  allowlist, or the explicit opt-in
+  `GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS=true`.
+- Admin OAuth bootstrap routes accept the bootstrap secret only through the
+  `x-google-ads-bootstrap-token` header. Query-string bootstrap tokens are no
+  longer accepted.
+- The schema/catalog follow-up defaults to a leaner tool profile. Set
+  `GOOGLE_ADS_MCP_TOOL_PROFILE=standard` there if you want the broad read-tool
+  catalog exposed by earlier versions.
+
 ## Cloud Setup
 
 Local setup is best for first use. Cloud Run is better when you want a stable

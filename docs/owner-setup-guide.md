@@ -251,6 +251,7 @@ GOOGLE_ADS_CLIENT_SECRET=...
 GOOGLE_ADS_REFRESH_TOKEN=...
 GOOGLE_ADS_LOGIN_CUSTOMER_ID=
 GOOGLE_ADS_API_VERSION=v24
+GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS=false
 ALLOW_UNAUTHENTICATED_MCP=false
 ```
 
@@ -379,6 +380,17 @@ Defaults:
 The service uses public ingress because most external AI clients cannot mint
 Google IAM tokens. The app still requires `Authorization: Bearer
 <MCP_BEARER_TOKEN>`.
+
+For hosted OAuth-front-door deployments, pass `-McpAllowedEmails` or
+`-McpAllowedDomains` so only expected Google users can connect. If you are using
+`-GoogleAdsAuthMode per_user_oauth` and deliberately want any Google OAuth user
+allowed through the MCP front door, pass `-McpAllowAllGoogleUsers`; this sets
+`GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS=true`.
+
+Use `-McpTokenStorage firestore` when a per-user OAuth Cloud Run service can run
+on more than one instance. Local bootstrap result storage is in process memory
+only, so it is appropriate for local or single-instance use, not multi-instance
+Cloud Run.
 
 Cloud Run may scale to zero after idle time. The first request after idle can
 take 5 to 15 seconds while a new instance starts; later requests are normally

@@ -197,7 +197,7 @@ Common fields: metrics.impressions, clicks, cost_micros, average_cpc, average_co
 
 **Question:** How does GAQL pagination work?
 
-Google Ads search supports page_token for API paging. Search responses use Google's fixed 10,000-row page size, and setting request.page_size is rejected by the API. This MCP uses next_page_token/page_token to fetch later pages. Use GAQL LIMIT only when you want to cap the total result set. GAQL has no OFFSET clause, and this MCP rejects OFFSET before sending the query to Google Ads.
+Google Ads search supports page_token for API paging. Search responses use Google's fixed 10,000-row page size, and setting request.page_size is rejected by the API. This MCP uses max_rows as a total row cap and injects a GAQL LIMIT when your query does not already have one. The older page_size parameter is only a deprecated alias for max_rows; it is not rows per API page. Use page_token only when you deliberately avoid MCP-injected limits, or when your own GAQL LIMIT is at least Google's fixed 10,000-row API page size. GAQL has no OFFSET clause, and this MCP rejects OFFSET before sending the query to Google Ads.
 
 | Example | Primary Field | GAQL |
 |---|---|---|
@@ -205,7 +205,8 @@ Google Ads search supports page_token for API paging. Search responses use Googl
 
 **Notes**
 
-- For large reports, use page_token rather than trying to emulate OFFSET.
+- For larger reports, raise max_rows or provide your own GAQL LIMIT; do not rely on page_size as a page length.
+- When an injected limit is reached, the response marks has_more as unknown_when_limit_reached.
 
 ## Reporting
 
