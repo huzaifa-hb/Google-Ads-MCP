@@ -575,6 +575,15 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(gateway._is_transient(Exception("internal parsing error")))  # noqa: SLF001
 
+    def test_transient_detection_keeps_quota_and_rate_limit_phrases(self) -> None:
+        gateway = GoogleAdsGateway(settings=make_settings())
+
+        self.assertTrue(
+            gateway._is_transient(Exception("Quota exceeded for quota metric"))  # noqa: SLF001
+        )
+        self.assertTrue(gateway._is_transient(Exception("rate limit hit")))  # noqa: SLF001
+        self.assertFalse(gateway._is_transient(Exception("accurate validation error")))  # noqa: SLF001
+
     def test_list_services_returns_warning_when_package_inspection_fails(self) -> None:
         gateway = GoogleAdsGateway(settings=make_settings(api_version="v999"))
 

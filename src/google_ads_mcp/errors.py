@@ -22,7 +22,8 @@ def is_quota_or_rate_error(message: str) -> bool:
 
 
 def is_transient_google_ads_error(exc: Exception | str) -> bool:
-    return bool(TRANSIENT_STATUS_RE.search(str(exc)))
+    message = str(exc)
+    return bool(TRANSIENT_STATUS_RE.search(message) or is_quota_or_rate_error(message))
 
 
 def format_validation_error(exc: ValidationError) -> dict[str, Any]:
