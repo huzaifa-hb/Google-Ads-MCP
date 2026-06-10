@@ -8,6 +8,13 @@ from google_ads_mcp.gateway import GoogleAdsGateway
 from google_ads_mcp.safety import CONFIRMATION_PHRASE, ValidationError
 from test_tool_config import make_settings
 
+try:
+    from google.ads.googleads.v24.services.types.recommendation_service import (
+        ApplyRecommendationRequest,
+    )
+except ImportError:  # pragma: no cover - dependency is part of project env
+    ApplyRecommendationRequest = None  # type: ignore[assignment]
+
 
 class RecordingService:
     def __init__(self) -> None:
@@ -161,12 +168,8 @@ class FakeClient:
 class RealTypeClient(FakeClient):
     def get_type(self, type_name: str) -> object:
         if type_name == "ApplyRecommendationRequest":
-            try:
-                from google.ads.googleads.v24.services.types.recommendation_service import (
-                    ApplyRecommendationRequest,
-                )
-            except ImportError as exc:  # pragma: no cover - dependency is part of project env
-                raise unittest.SkipTest("google-ads package is not installed") from exc
+            if ApplyRecommendationRequest is None:
+                raise AssertionError("ApplyRecommendationRequest test type was not imported.")
             return ApplyRecommendationRequest()
         return super().get_type(type_name)
 
@@ -252,6 +255,10 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(service.last_request)
         self.assertFalse(service.last_request["validate_only"])  # type: ignore[index]
 
+    @unittest.skipUnless(
+        ApplyRecommendationRequest is not None,
+        "google-ads package is not installed",
+    )
     async def test_validation_only_service_write_requires_request_validate_field(self) -> None:
         service = RecordingService()
         gateway = GoogleAdsGateway(client=RealTypeClient(service), mode="validation_only")
@@ -269,6 +276,10 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(service.last_request)
 
+    @unittest.skipUnless(
+        ApplyRecommendationRequest is not None,
+        "google-ads package is not installed",
+    )
     async def test_confirmed_service_write_without_validate_field_does_not_inject_it(self) -> None:
         service = RecordingService()
         gateway = GoogleAdsGateway(client=RealTypeClient(service), mode="write_enabled")
