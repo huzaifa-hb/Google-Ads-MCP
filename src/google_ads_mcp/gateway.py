@@ -157,7 +157,7 @@ class GoogleAdsGateway:
         if cached is not None:
             self._login_scoped_gateway_cache.move_to_end(cache_key)
             return cached
-        gateway = GoogleAdsGateway(
+        gateway = type(self)(
             settings=self.settings,
             mode=self.mode,
             audit_sink=self.audit_sink,
@@ -240,7 +240,8 @@ class GoogleAdsGateway:
             result = await self.list_accessible_customers()
         except Exception as exc:
             LOGGER.debug("Unable to list accessible customers for login context resolution: %s", exc)
-            self._login_context_cache_set("accessible_customers", "all", ())
+            if not self._is_transient(exc):
+                self._login_context_cache_set("accessible_customers", "all", ())
             return ()
         customer_ids = tuple(result.get("customer_ids") or ())
         self._login_context_cache_set("accessible_customers", "all", customer_ids)
@@ -254,16 +255,27 @@ class GoogleAdsGateway:
         if customer_id in accessible_customer_ids:
             self._login_context_cache_set("child_manager", customer_id, "")
             return None
-        for manager_id in accessible_customer_ids:
-            if manager_id == customer_id:
-                continue
-            if await self._manager_can_access_customer(manager_id, customer_id):
+        candidate_ids = tuple(
+            manager_id for manager_id in accessible_customer_ids if manager_id != customer_id
+        )
+        probe_results = await asyncio.gather(
+            *(
+                self._manager_can_access_customer(manager_id, customer_id)
+                for manager_id in candidate_ids
+            )
+        )
+        saw_transient_probe = False
+        for manager_id, result in zip(candidate_ids, probe_results, strict=False):
+            if result is True:
                 self._login_context_cache_set("child_manager", customer_id, manager_id)
                 return manager_id
-        self._login_context_cache_set("child_manager", customer_id, "")
+            if result is None:
+                saw_transient_probe = True
+        if not saw_transient_probe:
+            self._login_context_cache_set("child_manager", customer_id, "")
         return None
 
-    async def _manager_can_access_customer(self, manager_id: str, customer_id: str) -> bool:
+    async def _manager_can_access_customer(self, manager_id: str, customer_id: str) -> bool | None:
         manager_gateway = self.with_login_customer_id(manager_id)
         query = (
             "SELECT customer_client.id, customer_client.manager, customer_client.level, "
@@ -286,6 +298,8 @@ class GoogleAdsGateway:
                 customer_id,
                 exc,
             )
+            if self._is_transient(exc):
+                return None
             return False
         for row in result.get("rows", []):
             if not isinstance(row, dict) or not isinstance(row.get("customer_client"), dict):
@@ -306,6 +320,12 @@ class GoogleAdsGateway:
         payload["login_customer_id_used"] = context.login_customer_id
         payload["login_customer_id_source"] = context.source
         return payload
+
+    def _payload_customer_id(self, payload: dict[str, Any]) -> str | None:
+        customer_id = payload.get("customer_id") or payload.get("customerId")
+        if customer_id is None:
+            return None
+        return normalize_customer_id(customer_id)
 
     @property
     def client(self) -> Any:
@@ -583,9 +603,32 @@ class GoogleAdsGateway:
         execute: bool = False,
         confirmation_phrase: str | None = None,
         tool_name: str = "google_ads_call_service",
+        _resolve_login_customer_id: bool = True,
     ) -> dict[str, Any]:
         payload = dict(payload or {})
-        login_context = self._current_login_customer_context()
+        target_customer_id = self._payload_customer_id(payload)
+        login_context = (
+            await self._login_customer_context_for_target(
+                target_customer_id,
+                auto_resolve=_resolve_login_customer_id,
+            )
+            if target_customer_id
+            else self._current_login_customer_context()
+        )
+        if login_context.gateway is not self:
+            result = await login_context.gateway.call_service(
+                service_name=service_name,
+                method_name=method_name,
+                payload=payload,
+                request_type=request_type,
+                is_write=is_write,
+                validate_only=validate_only,
+                execute=execute,
+                confirmation_phrase=confirmation_phrase,
+                tool_name=tool_name,
+                _resolve_login_customer_id=False,
+            )
+            return self._with_login_customer_metadata(result, login_context)
         method_looks_mutating = method_name.startswith(MUTATING_METHOD_PREFIXES)
         effective_is_write = bool(is_write) or method_looks_mutating
         read_allowed = (service_name, method_name) in READ_ONLY_SERVICE_METHODS

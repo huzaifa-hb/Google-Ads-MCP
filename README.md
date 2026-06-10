@@ -135,6 +135,13 @@ This release removes the need for one hardcoded Cloud Run MCC:
 - Tool responses include `login_customer_id_used` and
   `login_customer_id_source` so routing is visible without exposing secrets.
 
+## Patch Notes For 0.4.1
+
+- Service-mode tools and `google_ads_call_service` now auto-resolve MCC context
+  when the request payload includes `customer_id`.
+- Transient manager-probe failures no longer cache a negative MCC lookup.
+- Login-scoped gateway clones preserve test subclasses.
+
 ## Migrating To 0.3.0
 
 This release adds per-request MCC routing:

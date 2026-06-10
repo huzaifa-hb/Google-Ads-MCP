@@ -109,7 +109,9 @@ class AutoLoginSearchService:
         self.owned_customers = owned_customers or set()
         self.discovery_queries = 0
         self.report_queries = 0
+        self.service_calls = 0
         self.last_request: SearchRequest | None = None
+        self.last_service_request: dict[str, object] | None = None
 
     def search(self, request: SearchRequest) -> StaticSearchPager:
         self.last_request = request
@@ -142,6 +144,27 @@ class AutoLoginSearchService:
                 }
             ]
         )
+
+    def list_invoices(self, request: dict[str, object]) -> dict[str, object]:
+        self.service_calls += 1
+        self.last_service_request = request
+        return {
+            "manager": self.manager_id,
+            "request": request,
+        }
+
+
+class TransientThenOwnedSearchService(AutoLoginSearchService):
+    def __init__(self, manager_id: str, owned_customers: set[str]) -> None:
+        super().__init__(manager_id, owned_customers)
+        self.fail_next_discovery = True
+
+    def search(self, request: SearchRequest) -> StaticSearchPager:
+        if "FROM customer_client" in request.query and self.fail_next_discovery:
+            self.discovery_queries += 1
+            self.fail_next_discovery = False
+            raise RuntimeError("INTERNAL")
+        return super().search(request)
 
 
 class AutoLoginCustomerService:
@@ -370,6 +393,17 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(cache), 8)
         self.assertNotIn(("1000000000", None), cache)
+
+    def test_with_login_customer_id_preserves_gateway_subclass(self) -> None:
+        gateway = ParsingGateway(
+            settings=make_settings(),
+            client=AutoLoginClient(),
+            login_scoped_cache=OrderedDict(),
+        )
+
+        dynamic_gateway = gateway.with_login_customer_id("2223334444")
+
+        self.assertIsInstance(dynamic_gateway, ParsingGateway)
 
     async def test_search_auto_resolves_child_to_accessible_manager(self) -> None:
         login_scoped_cache = OrderedDict()
@@ -600,6 +634,85 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result_a["login_customer_id_used"], "1111111111")
         self.assertEqual(result_b["login_customer_id_used"], "2222222222")
+
+    async def test_call_service_auto_resolves_child_to_accessible_manager(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        manager = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                search_service=AutoLoginSearchService(
+                    "1111111111",
+                    {"3333333333"},
+                )
+            ),
+            login_customer_id="1111111111",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("1111111111", manager._cache_principal_key())] = manager  # noqa: SLF001
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(accessible_customer_ids=["1111111111"]),
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        result = await gateway.call_service(
+            service_name="InvoiceService",
+            method_name="list_invoices",
+            request_type="ListInvoicesRequest",
+            payload={"customer_id": "3333333333", "billing_setup": "customers/3333333333/billingSetups/1"},
+            is_write=False,
+        )
+
+        self.assertEqual(result["login_customer_id_used"], "1111111111")
+        self.assertEqual(result["login_customer_id_source"], "auto")
+        self.assertEqual(manager.client.search_service.service_calls, 1)
+        self.assertEqual(manager.client.search_service.last_service_request["customer_id"], "3333333333")
+
+    async def test_transient_manager_probe_does_not_negative_cache_resolution(self) -> None:
+        login_scoped_cache = OrderedDict()
+        login_context_cache = OrderedDict()
+        settings = make_settings(google_ads_auth_mode="per_user_oauth")
+        transient_manager_service = TransientThenOwnedSearchService(
+            "1111111111",
+            {"3333333333"},
+        )
+        manager = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(search_service=transient_manager_service),
+            login_customer_id="1111111111",
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+        login_scoped_cache[("1111111111", manager._cache_principal_key())] = manager  # noqa: SLF001
+        root_service = AutoLoginSearchService(None)
+        gateway = ParsingGateway(
+            settings=settings,
+            client=AutoLoginClient(
+                accessible_customer_ids=["1111111111"],
+                search_service=root_service,
+            ),
+            login_scoped_cache=login_scoped_cache,
+            login_context_cache=login_context_cache,
+        )
+
+        first = await gateway.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+        second = await gateway.search(
+            customer_id="3333333333",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=1,
+        )
+
+        self.assertEqual(first["login_customer_id_source"], "none")
+        self.assertEqual(second["login_customer_id_source"], "auto")
+        self.assertEqual(second["login_customer_id_used"], "1111111111")
 
     async def test_mutating_method_cannot_be_marked_read_only(self) -> None:
         gateway = GoogleAdsGateway()
