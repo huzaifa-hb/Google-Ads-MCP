@@ -400,6 +400,34 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn(("2000000000", "child-page-2"), gateway.calls)
 
+    async def test_get_mcc_hierarchy_truncates_at_max_accounts(self) -> None:
+        gateway = BranchingGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "get_mcc_hierarchy",
+            customer_id="1000000000",
+            max_accounts=1,
+        )
+
+        self.assertEqual(result["row_count"], 1)
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["effective_max_accounts"], 1)
+        self.assertEqual(result["truncation_reason"], "max_accounts")
+
+    async def test_get_mcc_hierarchy_treats_page_size_as_deprecated_alias(self) -> None:
+        gateway = BranchingGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "get_mcc_hierarchy",
+            customer_id="1000000000",
+            page_size=1,
+        )
+
+        self.assertEqual(result["row_count"], 1)
+        self.assertTrue(result["pagination_deprecated"])
+
     async def test_list_invoices_defaults_to_current_year(self) -> None:
         gateway = FakeGateway()
         dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]

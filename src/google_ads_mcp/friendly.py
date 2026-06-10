@@ -53,6 +53,7 @@ class FriendlyDispatcher:
         end_date: str | None = None,
         time_segment: str | None = None,
         max_rows: int | None = 1000,
+        max_accounts: int | None = None,
         page_size: int | None = None,
         page_token: str | None = None,
         validate_only: bool = True,
@@ -81,6 +82,7 @@ class FriendlyDispatcher:
                 payload=payload,
                 filters=filters,
                 max_rows=max_rows,
+                max_accounts=max_accounts,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -161,6 +163,7 @@ class FriendlyDispatcher:
         payload: dict[str, Any],
         filters: dict[str, Any],
         max_rows: int | None,
+        max_accounts: int | None,
         page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
@@ -169,7 +172,8 @@ class FriendlyDispatcher:
             return await self._mcc_hierarchy(
                 root_customer_id=cid,
                 payload=payload,
-                page_size=page_size or max_rows or 1000,
+                max_accounts=max_accounts,
+                page_size=page_size,
                 page_token=page_token,
             )
         if spec.name == "list_customers" and not payload.get("include_managers"):
@@ -575,14 +579,26 @@ class FriendlyDispatcher:
         *,
         root_customer_id: str,
         payload: dict[str, Any],
-        page_size: int,
+        max_accounts: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         max_depth = int(payload.get("max_depth", 10))
+        effective_max_accounts = max_accounts if max_accounts is not None else page_size
+        if effective_max_accounts is not None:
+            effective_max_accounts = int(effective_max_accounts)
+            if effective_max_accounts < 1:
+                raise ValidationError("max_accounts must be at least 1.")
+        pagination_deprecated = page_size is not None and max_accounts is None
+        truncated = False
         seen: set[str] = set()
         rows: list[dict[str, Any]] = []
 
+        def cap_reached() -> bool:
+            return effective_max_accounts is not None and len(rows) >= effective_max_accounts
+
         async def visit(customer_id: str, depth: int) -> dict[str, Any]:
+            nonlocal truncated
             seen.add(customer_id)
             node: dict[str, Any] = {"id": customer_id, "manager": True, "children": []}
             query = (
@@ -597,11 +613,14 @@ class FriendlyDispatcher:
                 result = await self.gateway.search(
                     customer_id=customer_id,
                     query=query,
-                    page_size=page_size,
+                    max_rows=None,
                     page_token=current_page_token,
                     primary_field="customer_client.id",
                 )
                 for row in result.get("rows", []):
+                    if cap_reached():
+                        truncated = True
+                        break
                     client = row.get("customer_client", {})
                     child_id = str(client.get("id", "")).replace("-", "")
                     if not child_id or child_id == customer_id:
@@ -625,7 +644,12 @@ class FriendlyDispatcher:
                         "resource_name": client.get("client_customer"),
                         "children": [],
                     }
-                    if client.get("manager") and child_id not in seen and depth < max_depth:
+                    if (
+                        client.get("manager")
+                        and child_id not in seen
+                        and depth < max_depth
+                        and not cap_reached()
+                    ):
                         child = await visit(child_id, depth + 1)
                         child.setdefault("id", child_id)
                         child.setdefault("name", client.get("descriptive_name"))
@@ -633,8 +657,11 @@ class FriendlyDispatcher:
                         child.setdefault("status", client.get("status"))
                         child.setdefault("resource_name", client.get("client_customer"))
                     node["children"].append(child)
+                    if cap_reached():
+                        truncated = True
+                        break
                 next_page_token = result.get("pagination", {}).get("next_page_token")
-                if not next_page_token or next_page_token == current_page_token:
+                if truncated or not next_page_token or next_page_token == current_page_token:
                     break
                 current_page_token = next_page_token
             return node
@@ -645,6 +672,10 @@ class FriendlyDispatcher:
             "rows": rows,
             "tree": tree,
             "row_count": len(rows),
+            "truncated": truncated,
+            "effective_max_accounts": effective_max_accounts,
+            "truncation_reason": "max_accounts" if truncated else None,
+            "pagination_deprecated": pagination_deprecated,
             "note": "Hierarchy is built recursively by querying each manager account as parent context.",
         }
 
