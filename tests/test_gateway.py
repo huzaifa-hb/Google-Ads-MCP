@@ -72,6 +72,16 @@ class SearchClient:
         return SearchRequest()
 
 
+class FieldQueryGateway(GoogleAdsGateway):
+    def __init__(self) -> None:
+        super().__init__(mode="safe_read_only")
+        self.field_query = ""
+
+    async def _search_google_ads_fields(self, query: str):  # noqa: ANN201, SLF001
+        self.field_query = query
+        return []
+
+
 class StreamService:
     def search_stream(self, request: SearchRequest) -> list[SimpleNamespace]:  # noqa: ARG002
         return [
@@ -483,6 +493,14 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["service_count"], 0)
         self.assertIn("warning", result)
+
+    async def test_describe_resource_matches_only_resource_field_prefix(self) -> None:
+        gateway = FieldQueryGateway()
+
+        await gateway.describe_resource("campaign")
+
+        self.assertIn("WHERE name LIKE 'campaign.%'", gateway.field_query)
+        self.assertNotIn("WHERE name LIKE 'campaign%'", gateway.field_query)
 
     def test_message_to_dict_logs_conversion_fallback(self) -> None:
         gateway = GoogleAdsGateway()

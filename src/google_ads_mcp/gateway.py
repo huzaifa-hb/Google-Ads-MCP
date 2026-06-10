@@ -443,7 +443,7 @@ class GoogleAdsGateway:
         resource = normalize_resource_name(resource_name)
         query = (
             "SELECT name, category, data_type, type_url, selectable, filterable, sortable "
-            f"WHERE name LIKE '{resource}%'"
+            f"WHERE name LIKE '{resource}.%'"
         )
         fields = await self._search_google_ads_fields(query)
         return {"resource": resource, "field_count": len(fields), "fields": fields}
