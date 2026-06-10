@@ -137,9 +137,9 @@ This release tightens a few public contracts:
 - Admin OAuth bootstrap routes accept the bootstrap secret only through the
   `x-google-ads-bootstrap-token` header. Query-string bootstrap tokens are no
   longer accepted.
-- The schema/catalog follow-up defaults to a leaner tool profile. Set
-  `GOOGLE_ADS_MCP_TOOL_PROFILE=standard` there if you want the broad read-tool
-  catalog exposed by earlier versions.
+- The default tool profile is now leaner. Set
+  `GOOGLE_ADS_MCP_TOOL_PROFILE=standard` if you want the broad read-tool catalog
+  exposed by earlier versions.
 
 ## Cloud Setup
 

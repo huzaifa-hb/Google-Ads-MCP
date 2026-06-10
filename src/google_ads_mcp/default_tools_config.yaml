@@ -1,4 +1,5 @@
 mode: safe_read_only
+tool_profile: lean
 
 legacy_aliases:
   enabled: false
@@ -29,19 +30,19 @@ namespaces:
     enabled: true
     prefix: keywords
   assets:
-    enabled: true
+    enabled: false
     prefix: assets
   audiences:
-    enabled: true
+    enabled: false
     prefix: audiences
   conversions:
-    enabled: true
+    enabled: false
     prefix: conversions
   recommendations:
-    enabled: true
+    enabled: false
     prefix: recommendations
   budgets:
-    enabled: false
+    enabled: true
     prefix: budgets
   extensions:
     enabled: false

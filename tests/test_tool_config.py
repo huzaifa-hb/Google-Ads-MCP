@@ -30,6 +30,7 @@ def make_settings(**overrides: object) -> Settings:
         "allow_unauthenticated_mcp": False,
         "mcp_mode": None,
         "tools_config_path": None,
+        "mcp_tool_profile": None,
         "allow_legacy_write_defaults": False,
         "enable_generic_service_bridge": False,
         "mcp_oauth_client_id": None,
@@ -58,6 +59,7 @@ class ToolConfigTests(unittest.TestCase):
             registry = load_tool_registry(make_settings(), cwd=Path(temp_dir))
 
         self.assertEqual(registry.mode, "safe_read_only")
+        self.assertEqual(registry.tool_profile, "lean")
         self.assertIn("get_tool_catalog", registry.registered_names)
         self.assertIn("get_capability_matrix", registry.registered_names)
         self.assertIn("get_server_status", registry.registered_names)
@@ -68,6 +70,35 @@ class ToolConfigTests(unittest.TestCase):
         self.assertIn("reporting_get_campaign_metrics", registry.registered_names)
         self.assertNotIn("google_ads_mutate", registry.registered_names)
         self.assertNotIn("generic_google_ads_call_service", registry.registered_names)
+
+    def test_tool_profiles_have_pinned_safe_read_counts(self) -> None:
+        cases = {
+            "lean": 73,
+            "standard": 81,
+            "full": 93,
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for profile, expected_count in cases.items():
+                with self.subTest(profile=profile):
+                    registry = load_tool_registry(
+                        make_settings(mcp_tool_profile=profile),
+                        cwd=Path(temp_dir),
+                    )
+
+                    self.assertEqual(registry.tool_profile, profile)
+                    self.assertEqual(len(registry.exposures), expected_count)
+
+    def test_standard_profile_restores_broad_safe_read_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            lean = load_tool_registry(make_settings(), cwd=Path(temp_dir))
+            standard = load_tool_registry(
+                make_settings(mcp_tool_profile="standard"),
+                cwd=Path(temp_dir),
+            )
+
+        self.assertNotIn("assets_list_assets", lean.registered_names)
+        self.assertIn("assets_list_assets", standard.registered_names)
+        self.assertIn("conversions_list_conversion_actions", standard.registered_names)
 
     def test_env_config_path_overrides_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

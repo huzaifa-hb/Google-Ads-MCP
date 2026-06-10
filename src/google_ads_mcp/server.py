@@ -146,6 +146,7 @@ def build_mcp() -> Any:
 
         return {
             "mode": registry.mode,
+            "tool_profile": registry.tool_profile,
             "tools_config_source": registry.config_source,
             "legacy_aliases_enabled": registry.legacy_aliases_enabled,
             "tool_count": len(registry.exposures),
@@ -905,6 +906,7 @@ def _server_status_payload(settings: Any, registry: ToolRegistry) -> dict[str, A
         "auth": "disabled-local-dev" if settings.allow_unauthenticated_mcp else settings.auth_mode,
         "google_ads_auth_mode": settings.google_ads_auth_mode,
         "mode": registry.mode,
+        "tool_profile": registry.tool_profile,
         "google_ads_configured": readiness["google_ads_configured"],
         "tools_config_source": registry.config_source,
         "exposed_tool_count": len(registry.exposures),

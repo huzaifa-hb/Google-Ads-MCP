@@ -95,6 +95,7 @@ class Settings:
     allow_unauthenticated_mcp: bool
     mcp_mode: str | None
     tools_config_path: str | None
+    mcp_tool_profile: str | None
     allow_legacy_write_defaults: bool
     enable_generic_service_bridge: bool
     mcp_oauth_client_id: str | None
@@ -155,6 +156,7 @@ class Settings:
             allow_unauthenticated_mcp=allow_unauthenticated in {"1", "true", "yes"},
             mcp_mode=_env("GOOGLE_ADS_MCP_MODE"),
             tools_config_path=_env("GOOGLE_ADS_MCP_TOOLS_CONFIG"),
+            mcp_tool_profile=_env("GOOGLE_ADS_MCP_TOOL_PROFILE"),
             allow_legacy_write_defaults=allow_legacy_write_defaults in {"1", "true", "yes"},
             enable_generic_service_bridge=enable_generic_service_bridge in {"1", "true", "yes"},
             mcp_oauth_client_id=_env("GOOGLE_ADS_MCP_OAUTH_CLIENT_ID"),

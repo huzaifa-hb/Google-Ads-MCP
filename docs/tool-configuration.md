@@ -8,11 +8,19 @@ in this order:
 3. bundled default config
 
 `GOOGLE_ADS_MCP_MODE` overrides the file's `mode`.
+`GOOGLE_ADS_MCP_TOOL_PROFILE` can switch breadth without editing the file:
+
+- `lean`: default PPC read tools plus metadata, planning, account, reporting,
+  campaign, ad group, ad, keyword, and budget basics.
+- `standard`: the broader read catalog from earlier releases.
+- `full`: every read namespace, with write exposure still controlled by
+  `GOOGLE_ADS_MCP_MODE`.
 
 ## Default Shape
 
 ```yaml
 mode: safe_read_only
+tool_profile: lean
 
 legacy_aliases:
   enabled: false

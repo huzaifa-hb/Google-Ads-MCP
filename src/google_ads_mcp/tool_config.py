@@ -55,6 +55,7 @@ class ToolExposure:
 class ToolRegistry:
     mode: str
     config_source: str
+    tool_profile: str
     legacy_aliases_enabled: bool
     namespaces: dict[str, NamespaceConfig]
     exposures: tuple[ToolExposure, ...]
@@ -193,11 +194,11 @@ DEFAULT_NAMESPACES: dict[str, NamespaceConfig] = {
     "ad_groups": NamespaceConfig(enabled=True, prefix="adgroups"),
     "ads": NamespaceConfig(enabled=True, prefix="ads"),
     "keywords": NamespaceConfig(enabled=True, prefix="keywords"),
-    "assets": NamespaceConfig(enabled=True, prefix="assets"),
-    "audiences": NamespaceConfig(enabled=True, prefix="audiences"),
-    "conversions": NamespaceConfig(enabled=True, prefix="conversions"),
-    "recommendations": NamespaceConfig(enabled=True, prefix="recommendations"),
-    "budgets": NamespaceConfig(enabled=False, prefix="budgets"),
+    "assets": NamespaceConfig(enabled=False, prefix="assets"),
+    "audiences": NamespaceConfig(enabled=False, prefix="audiences"),
+    "conversions": NamespaceConfig(enabled=False, prefix="conversions"),
+    "recommendations": NamespaceConfig(enabled=False, prefix="recommendations"),
+    "budgets": NamespaceConfig(enabled=True, prefix="budgets"),
     "extensions": NamespaceConfig(enabled=False, prefix="extensions"),
     "bidding": NamespaceConfig(enabled=False, prefix="bidding"),
     "targeting": NamespaceConfig(enabled=False, prefix="targeting"),
@@ -208,10 +209,48 @@ DEFAULT_NAMESPACES: dict[str, NamespaceConfig] = {
     "bulk": NamespaceConfig(enabled=False, prefix="bulk"),
     "generic": NamespaceConfig(enabled=False, prefix="generic"),
 }
+LEAN_PROFILE_NAMESPACES = {
+    "metadata",
+    "planning",
+    "account",
+    "reporting",
+    "campaigns",
+    "ad_groups",
+    "ads",
+    "keywords",
+    "budgets",
+}
+STANDARD_PROFILE_NAMESPACES = {
+    "metadata",
+    "planning",
+    "account",
+    "reporting",
+    "campaigns",
+    "ad_groups",
+    "ads",
+    "keywords",
+    "assets",
+    "audiences",
+    "conversions",
+    "recommendations",
+}
+FULL_PROFILE_NAMESPACES = set(DEFAULT_NAMESPACES)
+TOOL_PROFILE_NAMESPACES = {
+    "lean": LEAN_PROFILE_NAMESPACES,
+    "standard": STANDARD_PROFILE_NAMESPACES,
+    "full": FULL_PROFILE_NAMESPACES,
+}
 
 
 def load_tool_registry(settings: Settings, cwd: Path | None = None) -> ToolRegistry:
     raw_config, source, explicit_config = _load_raw_config(settings, cwd or Path.cwd())
+    if settings.mcp_tool_profile:
+        raw_config = {
+            **raw_config,
+            "tool_profile": settings.mcp_tool_profile,
+            "_tool_profile_explicit": True,
+        }
+        source = f"{source}+profile:{settings.mcp_tool_profile}"
     if settings.mcp_mode:
         raw_config = {**raw_config, "mode": settings.mcp_mode}
     elif settings.allow_legacy_write_defaults and not explicit_config:
@@ -230,7 +269,12 @@ def build_tool_registry(raw_config: dict[str, Any], *, source: str = "memory") -
         allowed = ", ".join(sorted(MCP_MODES))
         raise ConfigError(f"Invalid Google Ads MCP mode '{mode}'. Allowed: {allowed}.")
 
-    namespaces = _namespace_config(raw_config.get("namespaces", {}))
+    tool_profile = _normalize_tool_profile(raw_config.get("tool_profile"))
+    namespace_defaults = _profile_namespace_defaults(tool_profile)
+    raw_namespaces = raw_config.get("namespaces", {})
+    if raw_config.get("_tool_profile_explicit"):
+        raw_namespaces = _namespace_prefix_overrides(raw_namespaces)
+    namespaces = _namespace_config(raw_namespaces, defaults=namespace_defaults)
     tool_overrides = _tool_overrides(raw_config.get("tools", {}))
     legacy_aliases_enabled = _legacy_aliases_enabled(raw_config.get("legacy_aliases", {}))
     known_tools = set(CORE_TOOL_DEFS) | set(FRIENDLY_TOOL_BY_NAME)
@@ -285,6 +329,7 @@ def build_tool_registry(raw_config: dict[str, Any], *, source: str = "memory") -
     return ToolRegistry(
         mode=mode,
         config_source=source,
+        tool_profile=tool_profile,
         legacy_aliases_enabled=legacy_aliases_enabled,
         namespaces=namespaces,
         exposures=tuple(exposures),
@@ -396,12 +441,46 @@ def _friendly_namespace(
     return "metadata"
 
 
-def _namespace_config(raw_namespaces: Any) -> dict[str, NamespaceConfig]:
+def _normalize_tool_profile(raw_profile: Any) -> str:
+    profile = str(raw_profile or "custom").strip().lower()
+    if profile == "custom":
+        return profile
+    if profile not in TOOL_PROFILE_NAMESPACES:
+        allowed = ", ".join(sorted(TOOL_PROFILE_NAMESPACES))
+        raise ConfigError(f"Invalid GOOGLE_ADS_MCP_TOOL_PROFILE '{profile}'. Allowed: {allowed}.")
+    return profile
+
+
+def _profile_namespace_defaults(profile: str) -> dict[str, NamespaceConfig]:
+    if profile == "custom":
+        return DEFAULT_NAMESPACES
+    enabled_namespaces = TOOL_PROFILE_NAMESPACES[profile]
+    return {
+        name: NamespaceConfig(enabled=name in enabled_namespaces, prefix=config.prefix)
+        for name, config in DEFAULT_NAMESPACES.items()
+    }
+
+
+def _namespace_prefix_overrides(raw_namespaces: Any) -> Any:
+    if not isinstance(raw_namespaces, dict):
+        return raw_namespaces
+    overrides: dict[str, dict[str, Any]] = {}
+    for name, raw_config in raw_namespaces.items():
+        if isinstance(raw_config, dict) and "prefix" in raw_config:
+            overrides[name] = {"prefix": raw_config["prefix"]}
+    return overrides
+
+
+def _namespace_config(
+    raw_namespaces: Any,
+    *,
+    defaults: dict[str, NamespaceConfig],
+) -> dict[str, NamespaceConfig]:
     if raw_namespaces is None:
         raw_namespaces = {}
     if not isinstance(raw_namespaces, dict):
         raise ConfigError("tools_config.yaml namespaces must be a mapping.")
-    namespaces = dict(DEFAULT_NAMESPACES)
+    namespaces = dict(defaults)
     for name, raw_config in raw_namespaces.items():
         if not isinstance(name, str) or name not in DEFAULT_NAMESPACES:
             raise ConfigError(f"Unknown tools_config namespace '{name}'.")
