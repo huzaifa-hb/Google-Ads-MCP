@@ -63,6 +63,9 @@ export async function mcpPost(options: {
       text: redactText(text),
       json
     };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Request to ${redactText(options.url)} failed: ${message}`);
   } finally {
     clearTimeout(timer);
   }

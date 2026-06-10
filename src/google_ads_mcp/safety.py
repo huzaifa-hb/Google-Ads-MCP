@@ -209,7 +209,7 @@ def _audit_result(decision: WriteDecision) -> str:
         return "denied"
     if decision.validate_only:
         return "validated"
-    return "executed"
+    return "authorized"
 
 
 def validate_date(value: str, field_name: str) -> str:

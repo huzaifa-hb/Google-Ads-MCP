@@ -17,6 +17,21 @@ test("local-direct profile uses env port and bearer token", async () => {
   }
 });
 
+test("local-direct profile honors MCP_URL when provided", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "gads-profile-"));
+  try {
+    await writeFile(
+      path.join(dir, ".env"),
+      "PORT=9999\nMCP_URL=https://example.test/mcp\nMCP_BEARER_TOKEN=abc\n",
+      "utf8"
+    );
+    const profile = await loadProfile(dir, { profile: "local-direct" });
+    assert.equal(profile.url, "https://example.test/mcp");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("brokered-readonly profile is reserved", async () => {
   await assert.rejects(
     () => loadProfile(process.cwd(), { profile: "brokered-readonly" }),

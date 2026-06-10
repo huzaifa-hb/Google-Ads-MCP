@@ -72,7 +72,7 @@ Every write attempt logs a JSON audit event with:
 - tool name
 - operation type and count
 - validate-only and execute flags
-- result: `denied`, `validated`, or `executed`
+- result: `denied`, `validated`, or `authorized`
 - hashed customer ID
 
 Audit events do not include raw payloads, secrets, audience upload data, invoice

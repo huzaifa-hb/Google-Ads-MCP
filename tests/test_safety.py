@@ -97,7 +97,7 @@ class SafetyTests(unittest.TestCase):
             audit_sink=events.append,
         )
         self.assertFalse(decision.validate_only)
-        self.assertEqual(events[0]["result"], "executed")
+        self.assertEqual(events[0]["result"], "authorized")
 
     def test_write_guard_denies_execute_with_validate_only_true(self) -> None:
         events = []

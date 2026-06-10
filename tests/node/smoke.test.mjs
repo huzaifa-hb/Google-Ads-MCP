@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   assertJsonRpcOk,
+  runSmoke,
   registeredNameForCanonical,
   toolPayloadFromResponse
 } from "../../dist/node-cli/smoke.js";
@@ -49,4 +50,25 @@ test("smoke extracts FastMCP text JSON payloads", () => {
   assert.deepEqual(toolPayloadFromResponse(response), {
     tools: [{ canonical_name: "x", name: "metadata_x" }]
   });
+});
+
+test("smoke connection failure includes attempted URL", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("fetch failed");
+  };
+  try {
+    await assert.rejects(
+      () =>
+        runSmoke({
+          name: "local-direct",
+          url: "http://localhost:19999/mcp",
+          tokenEnv: "MCP_BEARER_TOKEN",
+          token: "token"
+        }),
+      /http:\/\/localhost:19999\/mcp/
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

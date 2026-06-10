@@ -27,7 +27,11 @@ export async function loadProfile(rootDir: string, options: {
   if (options.profile === "local-direct") {
     return {
       name: "local-direct",
-      url: options.url || `http://localhost:${process.env.PORT || env.PORT || "8080"}/mcp`,
+      url:
+        options.url ||
+        process.env.MCP_URL ||
+        env.MCP_URL ||
+        `http://localhost:${process.env.PORT || env.PORT || "8080"}/mcp`,
       tokenEnv,
       token
     };

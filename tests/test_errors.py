@@ -55,6 +55,15 @@ class ErrorFormattingTests(unittest.TestCase):
 
         self.assertNotIn("Reduce request volume", result["suggested_fix"])
 
+    def test_missing_config_error_points_to_setup_and_readiness(self) -> None:
+        result = format_tool_error(
+            RuntimeError("Missing required Google Ads environment values: GOOGLE_ADS_REFRESH_TOKEN")
+        )
+
+        self.assertIn("setup", result["suggested_fix"].lower())
+        self.assertIn("/readyz", result["suggested_fix"])
+        self.assertNotIn("validation-only mode", result["suggested_fix"])
+
 
 class ToolResponseWrapperTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrapper_returns_structured_validation_error(self) -> None:

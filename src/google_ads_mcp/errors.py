@@ -111,6 +111,8 @@ def _message_to_plain(value: Any) -> str:
 
 def _suggested_fix(message: str, errors: list[dict[str, Any]] | None = None) -> str:
     text = " ".join([message] + [str(error.get("code", "")) for error in errors or []]).lower()
+    if "missing required google ads environment values" in text:
+        return "Run google-ads-mcp setup or check /readyz to see which required environment values are missing."
     if "expected_referenced_field_in_select_clause" in text:
         return "Add the primary field for the GAQL resource to SELECT."
     if "invalid_field" in text or "unrecognized field" in text:
