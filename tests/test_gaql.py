@@ -22,6 +22,19 @@ class GaqlTests(unittest.TestCase):
         clause = date_where_clause(start_date="2026-01-01", end_date="2026-01-31")
         self.assertEqual(clause, "segments.date BETWEEN '2026-01-01' AND '2026-01-31'")
 
+    def test_custom_date_range_expands_datetime_fields_to_full_days(self) -> None:
+        clause = date_where_clause(
+            start_date="2026-01-01",
+            end_date="2026-01-31",
+            field="change_event.change_date_time",
+        )
+
+        self.assertEqual(
+            clause,
+            "change_event.change_date_time BETWEEN "
+            "'2026-01-01 00:00:00' AND '2026-01-31 23:59:59'",
+        )
+
     def test_preset_date_range(self) -> None:
         self.assertEqual(date_where_clause(date_range="LAST_7_DAYS"), "segments.date DURING LAST_7_DAYS")
 

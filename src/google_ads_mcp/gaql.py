@@ -99,6 +99,8 @@ def date_where_clause(
             raise ValidationError("Both start_date and end_date are required for a custom range.")
         start = validate_date(start_date, "start_date")
         end = validate_date(end_date, "end_date")
+        if field.endswith("_date_time"):
+            return f"{field} BETWEEN '{start} 00:00:00' AND '{end} 23:59:59'"
         return f"{field} BETWEEN '{start}' AND '{end}'"
 
     selected = (date_range or "LAST_30_DAYS").upper()
