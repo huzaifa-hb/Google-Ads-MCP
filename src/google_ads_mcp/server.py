@@ -275,7 +275,8 @@ def build_mcp() -> Any:
     async def google_ads_search(
         customer_id: str,
         query: str,
-        page_size: int = 1000,
+        max_rows: int | None = 1000,
+        page_size: int | None = None,
         page_token: str | None = None,
         primary_field: str | None = None,
     ) -> dict[str, Any]:
@@ -284,6 +285,7 @@ def build_mcp() -> Any:
         return await gateway_for_request().search(
             customer_id=customer_id,
             query=query,
+            max_rows=max_rows,
             page_size=page_size,
             page_token=page_token,
             primary_field=primary_field,
@@ -763,7 +765,8 @@ def _register_friendly_tool(
         start_date: str | None = None,
         end_date: str | None = None,
         time_segment: str | None = None,
-        page_size: int = 1000,
+        max_rows: int | None = 1000,
+        page_size: int | None = None,
         page_token: str | None = None,
         validate_only: bool = True,
         execute: bool = False,
@@ -780,6 +783,7 @@ def _register_friendly_tool(
                 start_date=start_date,
                 end_date=end_date,
                 time_segment=time_segment,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
                 validate_only=validate_only,

@@ -7,6 +7,7 @@ from google_ads_mcp.gaql import (
     Pagination,
     apply_default_parameters,
     apply_pagination,
+    apply_pagination_plan,
     date_where_clause,
     ensure_no_offset_clause,
     ensure_primary_field,
@@ -68,29 +69,91 @@ class GaqlTests(unittest.TestCase):
     def test_pagination_preserves_query_with_parameters(self) -> None:
         query = apply_pagination(
             "SELECT campaign.id FROM campaign PARAMETERS include_drafts = true",
-            Pagination(page_size=2, page_token="next-token"),
+            Pagination(max_rows=2),
         )
 
         self.assertEqual(
             query,
-            "SELECT campaign.id FROM campaign PARAMETERS include_drafts = true",
+            "SELECT campaign.id FROM campaign LIMIT 2 PARAMETERS include_drafts = true",
         )
 
     def test_pagination_preserves_existing_limit(self) -> None:
         query = apply_pagination(
             "SELECT campaign.id FROM campaign LIMIT 5",
-            Pagination(page_size=2),
+            Pagination(max_rows=2),
         )
 
         self.assertEqual(query, "SELECT campaign.id FROM campaign LIMIT 5")
 
-    def test_pagination_does_not_add_gaql_limit(self) -> None:
+    def test_pagination_does_not_add_gaql_limit_when_max_rows_is_none(self) -> None:
         query = apply_pagination(
+            "SELECT campaign.id FROM campaign",
+            Pagination(max_rows=None),
+        )
+
+        self.assertEqual(query, "SELECT campaign.id FROM campaign")
+
+    def test_pagination_injects_limit_from_max_rows(self) -> None:
+        plan = apply_pagination_plan(
+            "SELECT campaign.id FROM campaign",
+            Pagination(max_rows=2),
+        )
+
+        self.assertEqual(plan.query, "SELECT campaign.id FROM campaign LIMIT 2")
+        self.assertTrue(plan.limit_injected)
+        self.assertEqual(plan.effective_limit, 2)
+        self.assertFalse(plan.page_size_deprecated)
+
+    def test_pagination_treats_page_size_as_deprecated_alias(self) -> None:
+        plan = apply_pagination_plan(
             "SELECT campaign.id FROM campaign",
             Pagination(page_size=2),
         )
 
-        self.assertEqual(query, "SELECT campaign.id FROM campaign")
+        self.assertEqual(plan.query, "SELECT campaign.id FROM campaign LIMIT 2")
+        self.assertTrue(plan.limit_injected)
+        self.assertEqual(plan.effective_limit, 2)
+        self.assertTrue(plan.page_size_deprecated)
+
+    def test_pagination_rejects_page_token_with_injected_limit(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "page_token"):
+            apply_pagination_plan(
+                "SELECT campaign.id FROM campaign",
+                Pagination(max_rows=2, page_token="next-token"),
+            )
+
+    def test_pagination_allows_page_token_without_injected_limit(self) -> None:
+        plan = apply_pagination_plan(
+            "SELECT campaign.id FROM campaign",
+            Pagination(max_rows=None, page_token="next-token"),
+        )
+
+        self.assertEqual(plan.query, "SELECT campaign.id FROM campaign")
+        self.assertFalse(plan.limit_injected)
+
+    def test_pagination_allows_page_token_with_large_user_limit(self) -> None:
+        plan = apply_pagination_plan(
+            "SELECT campaign.id FROM campaign LIMIT 10000",
+            Pagination(max_rows=2, page_token="next-token"),
+        )
+
+        self.assertEqual(plan.query, "SELECT campaign.id FROM campaign LIMIT 10000")
+        self.assertFalse(plan.limit_injected)
+        self.assertEqual(plan.effective_limit, 10000)
+
+    def test_change_event_requires_finite_limit(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "change_event"):
+            apply_pagination_plan(
+                "SELECT change_event.resource_name FROM change_event",
+                Pagination(max_rows=None),
+            )
+
+    def test_change_event_rejects_limit_over_api_cap(self) -> None:
+        with self.assertRaisesRegex(ValidationError, "10,000"):
+            apply_pagination_plan(
+                "SELECT change_event.resource_name FROM change_event LIMIT 10001",
+                Pagination(max_rows=None),
+            )
 
     def test_pagination_shape_is_page_token_only(self) -> None:
         pagination = Pagination(page_size=2, page_token="next-token")

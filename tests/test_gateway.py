@@ -323,7 +323,59 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["customer_ids"], ["1234567890", "2223334444"])
         self.assertEqual(service.last_request, {})
 
-    async def test_search_reads_only_first_pager_page(self) -> None:
+    async def test_search_injects_max_rows_limit_and_marks_possible_truncation(self) -> None:
+        service = SearchService()
+        gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
+
+        result = await gateway.search(
+            customer_id="1234567890",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=2,
+        )
+
+        self.assertEqual(result["rows"], SearchPager.results)
+        self.assertEqual(result["pagination"]["next_page_token"], None)
+        self.assertEqual(result["pagination"]["requested_max_rows"], 2)
+        self.assertEqual(result["pagination"]["google_ads_fixed_page_size"], 10_000)
+        self.assertTrue(result["pagination"]["limit_injected"])
+        self.assertEqual(result["pagination"]["effective_limit"], 2)
+        self.assertEqual(result["pagination"]["has_more"], "unknown_when_limit_reached")
+        self.assertIsNotNone(service.last_request)
+        self.assertIsNone(service.last_request.page_size)  # type: ignore[union-attr]
+        self.assertIn("LIMIT 2", service.last_request.query)  # type: ignore[union-attr]
+
+    async def test_search_preserves_large_user_limit_with_page_token(self) -> None:
+        service = SearchService()
+        gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
+
+        result = await gateway.search(
+            customer_id="1234567890",
+            query="SELECT campaign.id FROM campaign LIMIT 10000",
+            max_rows=2,
+            page_token="existing-token",
+        )
+
+        self.assertFalse(result["pagination"]["limit_injected"])
+        self.assertEqual(result["pagination"]["effective_limit"], 10000)
+        self.assertEqual(result["pagination"]["next_page_token"], "next-token")
+        self.assertEqual(service.last_request.page_token, "existing-token")  # type: ignore[union-attr]
+        self.assertEqual(service.last_request.query, "SELECT campaign.id FROM campaign LIMIT 10000 PARAMETERS omit_unselected_resource_names = true")  # type: ignore[union-attr]
+
+    async def test_search_rejects_page_token_with_injected_limit(self) -> None:
+        service = SearchService()
+        gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
+
+        with self.assertRaisesRegex(ValidationError, "page_token"):
+            await gateway.search(
+                customer_id="1234567890",
+                query="SELECT campaign.id FROM campaign",
+                max_rows=2,
+                page_token="existing-token",
+            )
+
+        self.assertIsNone(service.last_request)
+
+    async def test_search_page_size_alias_sets_deprecated_metadata(self) -> None:
         service = SearchService()
         gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
 
@@ -331,17 +383,10 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
             customer_id="1234567890",
             query="SELECT campaign.id FROM campaign",
             page_size=2,
-            page_token="existing-token",
         )
 
-        self.assertEqual(result["rows"], SearchPager.results)
-        self.assertEqual(result["pagination"]["next_page_token"], "next-token")
-        self.assertEqual(result["pagination"]["requested_page_size"], 2)
-        self.assertEqual(result["pagination"]["google_ads_fixed_page_size"], 10_000)
-        self.assertIsNotNone(service.last_request)
-        self.assertEqual(service.last_request.page_token, "existing-token")  # type: ignore[union-attr]
-        self.assertIsNone(service.last_request.page_size)  # type: ignore[union-attr]
-        self.assertNotIn("LIMIT", service.last_request.query)  # type: ignore[union-attr]
+        self.assertTrue(result["pagination"]["pagination_deprecated"])
+        self.assertEqual(result["pagination"]["requested_max_rows"], 2)
 
     async def test_search_rejects_offset_before_service_call(self) -> None:
         service = SearchService()

@@ -52,7 +52,8 @@ class FriendlyDispatcher:
         start_date: str | None = None,
         end_date: str | None = None,
         time_segment: str | None = None,
-        page_size: int = 1000,
+        max_rows: int | None = 1000,
+        page_size: int | None = None,
         page_token: str | None = None,
         validate_only: bool = True,
         execute: bool = False,
@@ -69,6 +70,7 @@ class FriendlyDispatcher:
             return await self._raw_gaql(
                 customer_id=customer_id,
                 payload=payload,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -78,6 +80,7 @@ class FriendlyDispatcher:
                 customer_id=customer_id,
                 payload=payload,
                 filters=filters,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -91,6 +94,7 @@ class FriendlyDispatcher:
                 start_date=start_date,
                 end_date=end_date,
                 time_segment=time_segment,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -100,6 +104,7 @@ class FriendlyDispatcher:
                 customer_id=customer_id,
                 payload=payload,
                 filters=filters,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
                 validate_only=validate_only,
@@ -131,7 +136,8 @@ class FriendlyDispatcher:
         *,
         customer_id: str | int | None,
         payload: dict[str, Any],
-        page_size: int,
+        max_rows: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
@@ -141,6 +147,7 @@ class FriendlyDispatcher:
         return await self.gateway.search(
             customer_id=cid,
             query=query,
+            max_rows=max_rows,
             page_size=page_size,
             page_token=page_token,
             primary_field=payload.get("primary_field"),
@@ -153,7 +160,8 @@ class FriendlyDispatcher:
         customer_id: str | int | None,
         payload: dict[str, Any],
         filters: dict[str, Any],
-        page_size: int,
+        max_rows: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
@@ -161,7 +169,7 @@ class FriendlyDispatcher:
             return await self._mcc_hierarchy(
                 root_customer_id=cid,
                 payload=payload,
-                page_size=page_size,
+                page_size=page_size or max_rows or 1000,
                 page_token=page_token,
             )
         if spec.name == "list_customers" and not payload.get("include_managers"):
@@ -170,6 +178,7 @@ class FriendlyDispatcher:
         result = await self.gateway.search(
             customer_id=cid,
             query=query,
+            max_rows=max_rows,
             page_size=page_size,
             page_token=page_token,
             primary_field=spec.primary_field,
@@ -187,7 +196,8 @@ class FriendlyDispatcher:
         start_date: str | None,
         end_date: str | None,
         time_segment: str | None,
-        page_size: int,
+        max_rows: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
@@ -221,6 +231,7 @@ class FriendlyDispatcher:
         result = await self.gateway.search(
             customer_id=cid,
             query=query,
+            max_rows=max_rows,
             page_size=page_size,
             page_token=page_token,
             primary_field=spec.primary_field,
@@ -270,7 +281,8 @@ class FriendlyDispatcher:
         customer_id: str | int | None,
         payload: dict[str, Any],
         filters: dict[str, Any],
-        page_size: int,
+        max_rows: int | None,
+        page_size: int | None,
         page_token: str | None,
         validate_only: bool,
         execute: bool,
@@ -284,6 +296,7 @@ class FriendlyDispatcher:
             return await self.gateway.search(
                 customer_id=cid,
                 query=query,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -388,6 +401,7 @@ class FriendlyDispatcher:
             }
 
         cid = self._require_customer_id(customer_id, payload)
+        payload_max_rows, payload_page_size = self._payload_row_cap(payload)
         if name == "list_linked_accounts":
             return await self.gateway.search(
                 customer_id=cid,
@@ -395,7 +409,8 @@ class FriendlyDispatcher:
                     "SELECT product_link.resource_name, product_link.type, product_link.status "
                     "FROM product_link"
                 ),
-                page_size=int(payload.get("page_size", 1000)),
+                max_rows=payload_max_rows,
+                page_size=payload_page_size,
                 primary_field="product_link.resource_name",
             )
         if name == "get_account_budget":
@@ -407,7 +422,8 @@ class FriendlyDispatcher:
                     "account_budget.approved_start_date_time, account_budget.approved_end_date_time "
                     "FROM account_budget"
                 ),
-                page_size=int(payload.get("page_size", 1000)),
+                max_rows=payload_max_rows,
+                page_size=payload_page_size,
                 primary_field="account_budget.resource_name",
             )
         if name == "get_billing_setup":
@@ -419,7 +435,8 @@ class FriendlyDispatcher:
                     "billing_setup.payments_account_info.payments_account_name "
                     "FROM billing_setup"
                 ),
-                page_size=int(payload.get("page_size", 1000)),
+                max_rows=payload_max_rows,
+                page_size=payload_page_size,
                 primary_field="billing_setup.resource_name",
             )
         if name == "list_invoices":
@@ -496,6 +513,14 @@ class FriendlyDispatcher:
         if payload.get("page_size"):
             request["page_size"] = int(payload["page_size"])
         return request
+
+    def _payload_row_cap(self, payload: dict[str, Any]) -> tuple[int | None, int | None]:
+        max_rows = payload.get("max_rows", 1000)
+        page_size = payload.get("page_size")
+        return (
+            None if max_rows is None else int(max_rows),
+            None if page_size is None else int(page_size),
+        )
 
     def _unsupported(self, spec: FriendlyToolSpec) -> dict[str, Any]:
         return {

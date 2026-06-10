@@ -27,7 +27,7 @@ from .gaql import (
     GAQL_FIELD_RE,
     Pagination,
     apply_default_parameters,
-    apply_pagination,
+    apply_pagination_plan,
     date_where_clause,
     ensure_no_offset_clause,
     ensure_primary_field,
@@ -186,15 +186,17 @@ class GoogleAdsGateway:
         *,
         customer_id: str,
         query: str,
-        page_size: int = 1000,
+        max_rows: int | None = None,
+        page_size: int | None = None,
         page_token: str | None = None,
         primary_field: str | None = None,
     ) -> dict[str, Any]:
         cid = normalize_customer_id(customer_id)
         if primary_field:
             ensure_primary_field(query, primary_field)
-        pagination = Pagination(page_size=page_size, page_token=page_token)
-        query = apply_pagination(query, pagination)
+        pagination = Pagination(max_rows=max_rows, page_size=page_size, page_token=page_token)
+        pagination_plan = apply_pagination_plan(query, pagination)
+        query = pagination_plan.query
         query = apply_default_parameters(query)
 
         def call() -> Any:
@@ -216,9 +218,12 @@ class GoogleAdsGateway:
             "rows": raw_rows,
             "pagination": summarize_page(
                 raw_rows,
-                page_size,
+                pagination_plan.effective_limit,
                 next_token,
                 fetched_count=len(raw_rows),
+                effective_limit=pagination_plan.effective_limit,
+                limit_injected=pagination_plan.limit_injected,
+                page_size_deprecated=pagination_plan.page_size_deprecated,
             ),
         }
 
