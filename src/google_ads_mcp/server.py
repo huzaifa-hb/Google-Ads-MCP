@@ -30,6 +30,7 @@ from .resources import (
 )
 from .safety import build_jsonl_audit_sink
 from .tool_config import ToolExposure, ToolRegistry, load_tool_registry
+from .tool_schemas import parameters_schema_for_exposure
 
 OAUTH_TOKEN_FIRESTORE_PREFIX = "google-ads-mcp-oauth"
 OAUTH_TOKEN_FIRESTORE_SALT = "google-ads-mcp-firestore-token-storage-v1"
@@ -866,7 +867,7 @@ def _register_friendly_tool(
 
     friendly_tool.__name__ = exposure.registered_name
     friendly_tool.__doc__ = exposure.description
-    mcp.tool(name=exposure.registered_name)(friendly_tool)
+    _register_function_tool(mcp, friendly_tool, exposure)
 
 
 def _register_core_tool(
@@ -879,7 +880,19 @@ def _register_core_tool(
         registered = _tool_response(func)
         registered.__name__ = exposure.registered_name
         registered.__doc__ = exposure.description
-        mcp.tool(name=exposure.registered_name)(registered)
+        _register_function_tool(mcp, registered, exposure)
+
+
+def _register_function_tool(mcp: Any, func: Any, exposure: ToolExposure) -> None:
+    from fastmcp.tools.function_tool import FunctionTool
+
+    tool = FunctionTool.from_function(
+        func,
+        name=exposure.registered_name,
+        description=exposure.description,
+    )
+    tool.parameters = parameters_schema_for_exposure(exposure)
+    mcp.add_tool(tool)
 
 
 def _tool_response(func: Any) -> Any:
