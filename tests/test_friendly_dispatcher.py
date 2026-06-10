@@ -660,7 +660,7 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         result = await dispatcher.dispatch("get_change_history_report", customer_id="1234567890")
 
         self.assertIn("FROM change_event", result["query"])
-        self.assertIn("change_event.change_date_time DURING LAST_30_DAYS", result["query"])
+        self.assertIn("change_event.change_date_time DURING LAST_14_DAYS", result["query"])
         self.assertIn("LIMIT 1000", result["query"])
         self.assertNotIn("metrics.", result["query"])
 

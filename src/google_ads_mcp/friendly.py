@@ -35,6 +35,10 @@ from .tool_implementation import (
 )
 
 
+DEFAULT_REPORT_DATE_RANGE = "LAST_30_DAYS"
+CHANGE_EVENT_DEFAULT_DATE_RANGE = "LAST_14_DAYS"
+
+
 class FriendlyDispatcher:
     """Route named friendly tools to generic Google Ads API primitives."""
 
@@ -48,7 +52,7 @@ class FriendlyDispatcher:
         customer_id: str | int | None = None,
         payload: dict[str, Any] | None = None,
         filters: dict[str, Any] | None = None,
-        date_range: str | None = "LAST_30_DAYS",
+        date_range: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
         time_segment: str | None = None,
@@ -218,10 +222,16 @@ class FriendlyDispatcher:
             fields.append("segments.date")
 
         clauses = self._filter_clauses(filters)
-        if spec.resource == "change_event":
-            self._validate_change_event_range(date_range, start_date, end_date)
-        date_clause = date_where_clause(
+        effective_date_range = self._effective_report_date_range(
+            spec,
             date_range=date_range,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if spec.resource == "change_event":
+            self._validate_change_event_range(effective_date_range, start_date, end_date)
+        date_clause = date_where_clause(
+            date_range=effective_date_range,
             start_date=start_date,
             end_date=end_date,
             field=self._report_date_field(spec.resource),
@@ -1596,9 +1606,25 @@ class FriendlyDispatcher:
                 raise ValidationError("change_event custom ranges must start within the last 30 days.")
             return
         allowed = {"TODAY", "YESTERDAY", "LAST_7_DAYS", "LAST_14_DAYS", "LAST_30_DAYS"}
-        selected = (date_range or "LAST_30_DAYS").upper()
+        selected = (date_range or CHANGE_EVENT_DEFAULT_DATE_RANGE).upper()
         if selected not in allowed:
             raise ValidationError("change_event supports only up to LAST_30_DAYS.")
+
+    def _effective_report_date_range(
+        self,
+        spec: FriendlyToolSpec,
+        *,
+        date_range: str | None,
+        start_date: str | None,
+        end_date: str | None,
+    ) -> str | None:
+        if start_date or end_date:
+            return date_range
+        if date_range:
+            return date_range
+        if spec.resource == "change_event":
+            return CHANGE_EVENT_DEFAULT_DATE_RANGE
+        return DEFAULT_REPORT_DATE_RANGE
 
     def _report_date_field(self, resource: str | None) -> str:
         if resource == "change_event":

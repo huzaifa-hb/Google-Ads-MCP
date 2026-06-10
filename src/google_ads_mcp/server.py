@@ -829,7 +829,7 @@ def _register_friendly_tool(
         customer_id: str = "",
         payload: dict[str, Any] | None = None,
         filters: dict[str, Any] | None = None,
-        date_range: str | None = "LAST_30_DAYS",
+        date_range: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
         time_segment: str | None = None,

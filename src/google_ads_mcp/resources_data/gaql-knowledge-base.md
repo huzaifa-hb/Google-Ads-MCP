@@ -41,7 +41,7 @@ Use change_event. It has a hard 30-day maximum lookback regardless of date filte
 | Example | Primary Field | GAQL |
 |---|---|---|
 | Recent changes | `change_event.resource_name` | `SELECT change_event.resource_name, change_event.change_date_time, change_event.user_email, change_event.change_resource_name, change_event.change_resource_type, change_event.resource_change_operation FROM change_event WHERE change_event.change_date_time DURING LAST_14_DAYS LIMIT 500` |
-| Campaign changes | `change_event.resource_name` | `SELECT change_event.resource_name, change_event.change_date_time, change_event.change_resource_name, change_event.resource_change_operation FROM change_event WHERE change_event.change_resource_type = CAMPAIGN AND change_event.change_date_time DURING LAST_30_DAYS LIMIT 500` |
+| Campaign changes | `change_event.resource_name` | `SELECT change_event.resource_name, change_event.change_date_time, change_event.change_resource_name, change_event.resource_change_operation FROM change_event WHERE change_event.change_resource_type = CAMPAIGN AND change_event.change_date_time DURING LAST_14_DAYS LIMIT 500` |
 
 **Notes**
 
