@@ -33,6 +33,7 @@ secret exists in Secret Manager.
 
 Optional runtime environment values:
 
+- `GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS`
 - `GOOGLE_ADS_AUDIT_LOG_PATH`
 - `GOOGLE_ADS_METADATA_CACHE_TTL_SECONDS`
 - `GOOGLE_ADS_METADATA_CACHE_MAX_ENTRIES`
@@ -85,6 +86,17 @@ Override safety settings deliberately:
 ```
 
 Only use `-EnableGenericServiceBridge` for private `admin_debug` deployments.
+
+For `oauth_proxy` deployments, configure `-McpAllowedEmails` or
+`-McpAllowedDomains`. If you are using `-GoogleAdsAuthMode per_user_oauth` and
+intentionally want any Google OAuth user allowed through the MCP front door, pass
+`-McpAllowAllGoogleUsers`; the script then sets
+`GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS=true`.
+
+When `-McpTokenStorage firestore` is enabled, OAuth tokens and Google Ads
+bootstrap results are stored through encrypted Firestore key-value wrappers.
+Bootstrap refresh-token results are deleted on first read. Local bootstrap
+storage is in memory only and should be treated as single-instance only.
 
 ## Post-Deploy Checks
 

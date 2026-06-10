@@ -8,6 +8,26 @@ from google_ads_mcp.gateway import GoogleAdsGateway
 from google_ads_mcp.safety import CONFIRMATION_PHRASE, ValidationError
 from test_tool_config import make_settings
 
+try:
+    from google.ads.googleads.v24.services.types.recommendation_service import (
+        ApplyRecommendationRequest,
+    )
+except ImportError:  # pragma: no cover - dependency is part of project env
+    ApplyRecommendationRequest = None  # type: ignore[assignment]
+
+try:
+    from google.ads.googleads.v24.services.services.google_ads_service.pagers import (
+        SearchPager as RealSearchPager,
+    )
+    from google.ads.googleads.v24.services.types.google_ads_service import (
+        SearchGoogleAdsRequest,
+        SearchGoogleAdsResponse,
+    )
+except ImportError:  # pragma: no cover - dependency is part of project env
+    RealSearchPager = None  # type: ignore[assignment]
+    SearchGoogleAdsRequest = None  # type: ignore[assignment]
+    SearchGoogleAdsResponse = None  # type: ignore[assignment]
+
 
 class RecordingService:
     def __init__(self) -> None:
@@ -72,6 +92,16 @@ class SearchClient:
         return SearchRequest()
 
 
+class FieldQueryGateway(GoogleAdsGateway):
+    def __init__(self) -> None:
+        super().__init__(mode="safe_read_only")
+        self.field_query = ""
+
+    async def _search_google_ads_fields(self, query: str):  # noqa: ANN201, SLF001
+        self.field_query = query
+        return []
+
+
 class StreamService:
     def search_stream(self, request: SearchRequest) -> list[SimpleNamespace]:  # noqa: ARG002
         return [
@@ -80,11 +110,30 @@ class StreamService:
         ]
 
 
+class FailingStream:
+    def __iter__(self):
+        raise RuntimeError("INTERNAL")
+
+
+class IterationFailingStreamService:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def search_stream(self, request: SearchRequest):  # noqa: ANN201, ARG002
+        self.calls += 1
+        if self.calls == 1:
+            return FailingStream()
+        return [SimpleNamespace(results=[{"row": "ok"}])]
+
+
 class StreamClient:
-    def __init__(self, service: StreamService) -> None:
+    def __init__(self, service: StreamService | IterationFailingStreamService) -> None:
         self.service = service
 
-    def get_service(self, service_name: str) -> StreamService:  # noqa: ARG002
+    def get_service(  # noqa: ARG002
+        self,
+        service_name: str,
+    ) -> StreamService | IterationFailingStreamService:
         return self.service
 
     def get_type(self, type_name: str) -> SearchRequest:  # noqa: ARG002
@@ -132,12 +181,8 @@ class FakeClient:
 class RealTypeClient(FakeClient):
     def get_type(self, type_name: str) -> object:
         if type_name == "ApplyRecommendationRequest":
-            try:
-                from google.ads.googleads.v24.services.types.recommendation_service import (
-                    ApplyRecommendationRequest,
-                )
-            except ImportError as exc:  # pragma: no cover - dependency is part of project env
-                raise unittest.SkipTest("google-ads package is not installed") from exc
+            if ApplyRecommendationRequest is None:
+                raise AssertionError("ApplyRecommendationRequest test type was not imported.")
             return ApplyRecommendationRequest()
         return super().get_type(type_name)
 
@@ -223,6 +268,10 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(service.last_request)
         self.assertFalse(service.last_request["validate_only"])  # type: ignore[index]
 
+    @unittest.skipUnless(
+        ApplyRecommendationRequest is not None,
+        "google-ads package is not installed",
+    )
     async def test_validation_only_service_write_requires_request_validate_field(self) -> None:
         service = RecordingService()
         gateway = GoogleAdsGateway(client=RealTypeClient(service), mode="validation_only")
@@ -240,6 +289,10 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(service.last_request)
 
+    @unittest.skipUnless(
+        ApplyRecommendationRequest is not None,
+        "google-ads package is not installed",
+    )
     async def test_confirmed_service_write_without_validate_field_does_not_inject_it(self) -> None:
         service = RecordingService()
         gateway = GoogleAdsGateway(client=RealTypeClient(service), mode="write_enabled")
@@ -323,7 +376,78 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["customer_ids"], ["1234567890", "2223334444"])
         self.assertEqual(service.last_request, {})
 
-    async def test_search_reads_only_first_pager_page(self) -> None:
+    async def test_search_injects_max_rows_limit_and_marks_possible_truncation(self) -> None:
+        service = SearchService()
+        gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
+
+        result = await gateway.search(
+            customer_id="1234567890",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=2,
+        )
+
+        self.assertEqual(result["rows"], SearchPager.results)
+        self.assertEqual(result["pagination"]["next_page_token"], None)
+        self.assertEqual(result["pagination"]["requested_max_rows"], 2)
+        self.assertEqual(result["pagination"]["google_ads_fixed_page_size"], 10_000)
+        self.assertTrue(result["pagination"]["limit_injected"])
+        self.assertEqual(result["pagination"]["effective_limit"], 2)
+        self.assertIsNone(result["pagination"]["has_more"])
+        self.assertTrue(result["pagination"]["limit_reached"])
+        self.assertIsNotNone(service.last_request)
+        self.assertIsNone(service.last_request.page_size)  # type: ignore[union-attr]
+        self.assertIn("LIMIT 2", service.last_request.query)  # type: ignore[union-attr]
+
+    async def test_search_preserves_large_user_limit_with_page_token(self) -> None:
+        service = SearchService()
+        gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
+
+        result = await gateway.search(
+            customer_id="1234567890",
+            query="SELECT campaign.id FROM campaign LIMIT 10000",
+            max_rows=2,
+            page_token="existing-token",
+        )
+
+        self.assertFalse(result["pagination"]["limit_injected"])
+        self.assertEqual(result["pagination"]["effective_limit"], 10000)
+        self.assertEqual(result["pagination"]["next_page_token"], "next-token")
+        self.assertEqual(service.last_request.page_token, "existing-token")  # type: ignore[union-attr]
+        self.assertEqual(service.last_request.query, "SELECT campaign.id FROM campaign LIMIT 10000 PARAMETERS omit_unselected_resource_names = true")  # type: ignore[union-attr]
+
+    @unittest.skipUnless(
+        RealSearchPager is not None
+        and SearchGoogleAdsRequest is not None
+        and SearchGoogleAdsResponse is not None,
+        "google-ads package is not installed",
+    )
+    def test_real_search_pager_delegates_results_and_next_page_token(self) -> None:
+        response = SearchGoogleAdsResponse()
+        response.next_page_token = "next-token"
+        pager = RealSearchPager(
+            lambda request, **kwargs: response,
+            SearchGoogleAdsRequest(),
+            response,
+        )
+
+        self.assertEqual(list(pager.results), list(response.results))
+        self.assertEqual(pager.next_page_token, "next-token")
+
+    async def test_search_rejects_page_token_with_injected_limit(self) -> None:
+        service = SearchService()
+        gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
+
+        with self.assertRaisesRegex(ValidationError, "page_token"):
+            await gateway.search(
+                customer_id="1234567890",
+                query="SELECT campaign.id FROM campaign",
+                max_rows=2,
+                page_token="existing-token",
+            )
+
+        self.assertIsNone(service.last_request)
+
+    async def test_search_page_size_alias_sets_deprecated_metadata(self) -> None:
         service = SearchService()
         gateway = ParsingGateway(client=SearchClient(service), mode="safe_read_only")
 
@@ -331,17 +455,10 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
             customer_id="1234567890",
             query="SELECT campaign.id FROM campaign",
             page_size=2,
-            page_token="existing-token",
         )
 
-        self.assertEqual(result["rows"], SearchPager.results)
-        self.assertEqual(result["pagination"]["next_page_token"], "next-token")
-        self.assertEqual(result["pagination"]["requested_page_size"], 2)
-        self.assertEqual(result["pagination"]["google_ads_fixed_page_size"], 10_000)
-        self.assertIsNotNone(service.last_request)
-        self.assertEqual(service.last_request.page_token, "existing-token")  # type: ignore[union-attr]
-        self.assertIsNone(service.last_request.page_size)  # type: ignore[union-attr]
-        self.assertNotIn("LIMIT", service.last_request.query)  # type: ignore[union-attr]
+        self.assertTrue(result["pagination"]["pagination_deprecated"])
+        self.assertEqual(result["pagination"]["requested_max_rows"], 2)
 
     async def test_search_rejects_offset_before_service_call(self) -> None:
         service = SearchService()
@@ -394,6 +511,24 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["truncated"])
         self.assertEqual(result["max_rows"], 2)
 
+    async def test_search_stream_retries_iterator_time_transient_errors(self) -> None:
+        service = IterationFailingStreamService()
+        settings = make_settings(max_retries=1, retry_base_seconds=0.0)
+        gateway = ParsingGateway(
+            client=StreamClient(service),
+            mode="safe_read_only",
+            settings=settings,
+        )
+
+        result = await gateway.search_stream(
+            customer_id="1234567890",
+            query="SELECT campaign.id FROM campaign",
+            max_rows=10,
+        )
+
+        self.assertEqual(service.calls, 2)
+        self.assertEqual(result["rows"], [{"row": "ok"}])
+
     async def test_search_stream_rejects_invalid_max_rows(self) -> None:
         gateway = ParsingGateway(client=StreamClient(StreamService()), mode="safe_read_only")
 
@@ -438,6 +573,14 @@ class GatewayWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["service_count"], 0)
         self.assertIn("warning", result)
+
+    async def test_describe_resource_matches_only_resource_field_prefix(self) -> None:
+        gateway = FieldQueryGateway()
+
+        await gateway.describe_resource("campaign")
+
+        self.assertIn("WHERE name LIKE 'campaign.%'", gateway.field_query)
+        self.assertNotIn("WHERE name LIKE 'campaign%'", gateway.field_query)
 
     def test_message_to_dict_logs_conversion_fallback(self) -> None:
         gateway = GoogleAdsGateway()

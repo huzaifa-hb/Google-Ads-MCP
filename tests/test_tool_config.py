@@ -37,6 +37,7 @@ def make_settings(**overrides: object) -> Settings:
         "mcp_base_url": None,
         "mcp_allowed_emails": (),
         "mcp_allowed_domains": (),
+        "mcp_allow_all_google_users": False,
         "mcp_token_storage": "local",
         "mcp_firestore_database": None,
         "google_ads_oauth_bootstrap_token": None,

@@ -198,13 +198,16 @@ ENTRIES: tuple[KBEntry, ...] = (
         id="pagination-patterns",
         category="pagination",
         question="How does GAQL pagination work?",
-        keywords=("pagination", "page_size", "page_token", "limit", "next"),
+        keywords=("pagination", "max_rows", "page_size", "page_token", "limit", "next"),
         answer=(
             "Google Ads search supports page_token for API paging. Search responses use Google's "
             "fixed 10,000-row page size, and setting request.page_size is rejected by the API. "
-            "This MCP uses next_page_token/page_token to fetch later pages. Use GAQL LIMIT only "
-            "when you want to cap the total result set. GAQL has no OFFSET clause, and this MCP "
-            "rejects OFFSET before sending the query to Google Ads."
+            "This MCP uses max_rows as a total row cap and injects a GAQL LIMIT when your query "
+            "does not already have one. The older page_size parameter is only a deprecated alias "
+            "for max_rows; it is not rows per API page. Use page_token only when you deliberately "
+            "avoid MCP-injected limits, or when your own GAQL LIMIT is at least Google's fixed "
+            "10,000-row API page size. GAQL has no OFFSET clause, and this MCP rejects OFFSET "
+            "before sending the query to Google Ads."
         ),
         queries=(
             q(
@@ -213,7 +216,11 @@ ENTRIES: tuple[KBEntry, ...] = (
                 "campaign.id",
             ),
         ),
-        notes=("For large reports, use page_token rather than trying to emulate OFFSET.",),
+        notes=(
+            "For larger reports, raise max_rows or provide your own GAQL LIMIT; "
+            "do not rely on page_size as a page length.",
+            "When an injected limit is reached, the response sets has_more to null and limit_reached to true.",
+        ),
     ),
     KBEntry(
         id="available-resources",
@@ -513,7 +520,7 @@ ENTRIES: tuple[KBEntry, ...] = (
         answer="Use change_event. It has a hard 30-day maximum lookback regardless of date filter.",
         queries=(
             q("Recent changes", "SELECT change_event.resource_name, change_event.change_date_time, change_event.user_email, change_event.change_resource_name, change_event.change_resource_type, change_event.resource_change_operation FROM change_event WHERE change_event.change_date_time DURING LAST_14_DAYS LIMIT 500", "change_event.resource_name"),
-            q("Campaign changes", "SELECT change_event.resource_name, change_event.change_date_time, change_event.change_resource_name, change_event.resource_change_operation FROM change_event WHERE change_event.change_resource_type = CAMPAIGN AND change_event.change_date_time DURING LAST_30_DAYS LIMIT 500", "change_event.resource_name"),
+            q("Campaign changes", "SELECT change_event.resource_name, change_event.change_date_time, change_event.change_resource_name, change_event.resource_change_operation FROM change_event WHERE change_event.change_resource_type = CAMPAIGN AND change_event.change_date_time DURING LAST_14_DAYS LIMIT 500", "change_event.resource_name"),
         ),
         notes=("Do not use ALL_TIME. Keep LIMIT around 100-500.",),
         see_also=("common-errors",),

@@ -20,6 +20,7 @@ param(
     [int]$MaxInstances = 1,
     [string]$Memory = "512Mi",
     [string]$Cpu = "1",
+    [switch]$McpAllowAllGoogleUsers,
     [switch]$EnableGenericServiceBridge
 )
 
@@ -33,11 +34,11 @@ if ($McpAuthMode -eq "oauth_proxy" -and -not $McpOAuthClientId) {
 }
 if (
     $McpAuthMode -eq "oauth_proxy" `
-    -and $GoogleAdsAuthMode -ne "per_user_oauth" `
     -and -not $McpAllowedEmails `
-    -and -not $McpAllowedDomains
+    -and -not $McpAllowedDomains `
+    -and -not ($GoogleAdsAuthMode -eq "per_user_oauth" -and $McpAllowAllGoogleUsers.IsPresent)
 ) {
-    throw "-McpAllowedEmails or -McpAllowedDomains is required when -McpAuthMode oauth_proxy unless -GoogleAdsAuthMode per_user_oauth is used."
+    throw "-McpAllowedEmails or -McpAllowedDomains is required when -McpAuthMode oauth_proxy unless -GoogleAdsAuthMode per_user_oauth and -McpAllowAllGoogleUsers are both set."
 }
 if ($GoogleAdsAuthMode -notin @("shared_refresh_token", "per_user_oauth")) {
     throw "-GoogleAdsAuthMode must be shared_refresh_token or per_user_oauth."
@@ -192,6 +193,9 @@ if ($McpAuthMode -eq "oauth_proxy") {
     }
     if ($McpAllowedDomains) {
         $envMappings += "GOOGLE_ADS_MCP_ALLOWED_DOMAINS=$McpAllowedDomains"
+    }
+    if ($McpAllowAllGoogleUsers.IsPresent) {
+        $envMappings += "GOOGLE_ADS_MCP_ALLOW_ALL_GOOGLE_USERS=true"
     }
     if ($McpFirestoreDatabase) {
         $envMappings += "GOOGLE_ADS_MCP_FIRESTORE_DATABASE=$McpFirestoreDatabase"

@@ -23,8 +23,14 @@ def _extract_json_response(body: bytes, content_type: str) -> str:
     return text
 
 
-def _json_rpc_error(code: int, message: str) -> str:
-    return json.dumps({"jsonrpc": "2.0", "error": {"code": code, "message": message}})
+def _json_rpc_error(code: int, message: str, *, request_id: object | None) -> str:
+    return json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {"code": code, "message": message},
+        }
+    )
 
 
 def main() -> None:
@@ -42,11 +48,12 @@ def main() -> None:
         if not line.strip():
             continue
         try:
-            json.loads(line)
+            request_payload = json.loads(line)
         except json.JSONDecodeError as exc:
-            print(json.dumps({"jsonrpc": "2.0", "error": {"code": -32700, "message": str(exc)}}))
+            print(_json_rpc_error(-32700, str(exc), request_id=None))
             sys.stdout.flush()
             continue
+        request_id = request_payload.get("id") if isinstance(request_payload, dict) else None
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -72,9 +79,10 @@ def main() -> None:
             payload = _json_rpc_error(
                 exc.code,
                 exc.read().decode("utf-8", errors="replace"),
+                request_id=request_id,
             )
         except (urllib.error.URLError, OSError) as exc:
-            payload = _json_rpc_error(-32000, str(exc))
+            payload = _json_rpc_error(-32000, str(exc), request_id=request_id)
         print(payload)
         sys.stdout.flush()
 

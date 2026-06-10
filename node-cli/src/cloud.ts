@@ -44,6 +44,7 @@ export type DeployOptions = {
   mcpOAuthClientId?: string;
   mcpAllowedEmails?: string;
   mcpAllowedDomains?: string;
+  mcpAllowAllGoogleUsers?: boolean;
   mcpTokenStorage?: string;
   mcpFirestoreDatabase?: string;
   minInstances?: string;
@@ -179,6 +180,9 @@ export function buildDeployCommand(rootDir: string, options: DeployOptions): Gcl
   if (options.mcpAllowedDomains) {
     args.push("-McpAllowedDomains", options.mcpAllowedDomains);
   }
+  if (options.mcpAllowAllGoogleUsers) {
+    args.push("-McpAllowAllGoogleUsers");
+  }
   if (options.mcpTokenStorage) {
     args.push("-McpTokenStorage", options.mcpTokenStorage);
   }
@@ -212,6 +216,7 @@ export async function deployCloudRun(rootDir: string, options: {
   mcpOAuthClientId?: string;
   mcpAllowedEmails?: string;
   mcpAllowedDomains?: string;
+  mcpAllowAllGoogleUsers?: boolean;
   mcpTokenStorage?: string;
   mcpFirestoreDatabase?: string;
   minInstances?: string;
@@ -234,14 +239,14 @@ export async function deployCloudRun(rootDir: string, options: {
     if (!options.mcpOAuthClientId) {
       throw new Error("--mcp-oauth-client-id is required with --auth-mode oauth_proxy.");
     }
-    if (
-      googleAdsAuthMode !== "per_user_oauth" &&
-      !options.mcpAllowedEmails &&
-      !options.mcpAllowedDomains
-    ) {
-      throw new Error(
-        "--allowed-emails or --allowed-domains is required with --auth-mode oauth_proxy unless --google-ads-auth-mode per_user_oauth is used."
-      );
+    if (!options.mcpAllowedEmails && !options.mcpAllowedDomains) {
+      const explicitPerUserAllowAll =
+        googleAdsAuthMode === "per_user_oauth" && options.mcpAllowAllGoogleUsers;
+      if (!explicitPerUserAllowAll) {
+        throw new Error(
+          "--allowed-emails or --allowed-domains is required with --auth-mode oauth_proxy unless --google-ads-auth-mode per_user_oauth and --allow-all-google-users are both set."
+        );
+      }
     }
   }
   const command = buildDeployCommand(rootDir, {
@@ -256,6 +261,7 @@ export async function deployCloudRun(rootDir: string, options: {
     mcpOAuthClientId: options.mcpOAuthClientId,
     mcpAllowedEmails: options.mcpAllowedEmails,
     mcpAllowedDomains: options.mcpAllowedDomains,
+    mcpAllowAllGoogleUsers: options.mcpAllowAllGoogleUsers,
     mcpTokenStorage: options.mcpTokenStorage,
     mcpFirestoreDatabase: options.mcpFirestoreDatabase,
     minInstances: options.minInstances,

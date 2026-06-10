@@ -35,6 +35,10 @@ from .tool_implementation import (
 )
 
 
+DEFAULT_REPORT_DATE_RANGE = "LAST_30_DAYS"
+CHANGE_EVENT_DEFAULT_DATE_RANGE = "LAST_14_DAYS"
+
+
 class FriendlyDispatcher:
     """Route named friendly tools to generic Google Ads API primitives."""
 
@@ -48,11 +52,13 @@ class FriendlyDispatcher:
         customer_id: str | int | None = None,
         payload: dict[str, Any] | None = None,
         filters: dict[str, Any] | None = None,
-        date_range: str | None = "LAST_30_DAYS",
+        date_range: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
         time_segment: str | None = None,
-        page_size: int = 1000,
+        max_rows: int | None = 1000,
+        max_accounts: int | None = None,
+        page_size: int | None = None,
         page_token: str | None = None,
         validate_only: bool = True,
         execute: bool = False,
@@ -69,6 +75,7 @@ class FriendlyDispatcher:
             return await self._raw_gaql(
                 customer_id=customer_id,
                 payload=payload,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -78,6 +85,8 @@ class FriendlyDispatcher:
                 customer_id=customer_id,
                 payload=payload,
                 filters=filters,
+                max_rows=max_rows,
+                max_accounts=max_accounts,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -91,6 +100,7 @@ class FriendlyDispatcher:
                 start_date=start_date,
                 end_date=end_date,
                 time_segment=time_segment,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -100,6 +110,7 @@ class FriendlyDispatcher:
                 customer_id=customer_id,
                 payload=payload,
                 filters=filters,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
                 validate_only=validate_only,
@@ -131,7 +142,8 @@ class FriendlyDispatcher:
         *,
         customer_id: str | int | None,
         payload: dict[str, Any],
-        page_size: int,
+        max_rows: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
@@ -141,6 +153,7 @@ class FriendlyDispatcher:
         return await self.gateway.search(
             customer_id=cid,
             query=query,
+            max_rows=max_rows,
             page_size=page_size,
             page_token=page_token,
             primary_field=payload.get("primary_field"),
@@ -153,7 +166,9 @@ class FriendlyDispatcher:
         customer_id: str | int | None,
         payload: dict[str, Any],
         filters: dict[str, Any],
-        page_size: int,
+        max_rows: int | None,
+        max_accounts: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
@@ -161,6 +176,7 @@ class FriendlyDispatcher:
             return await self._mcc_hierarchy(
                 root_customer_id=cid,
                 payload=payload,
+                max_accounts=max_accounts,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -170,6 +186,7 @@ class FriendlyDispatcher:
         result = await self.gateway.search(
             customer_id=cid,
             query=query,
+            max_rows=max_rows,
             page_size=page_size,
             page_token=page_token,
             primary_field=spec.primary_field,
@@ -187,7 +204,8 @@ class FriendlyDispatcher:
         start_date: str | None,
         end_date: str | None,
         time_segment: str | None,
-        page_size: int,
+        max_rows: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         cid = self._require_customer_id(customer_id, payload)
@@ -204,10 +222,16 @@ class FriendlyDispatcher:
             fields.append("segments.date")
 
         clauses = self._filter_clauses(filters)
-        if spec.resource == "change_event":
-            self._validate_change_event_range(date_range, start_date, end_date)
-        date_clause = date_where_clause(
+        effective_date_range = self._effective_report_date_range(
+            spec,
             date_range=date_range,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if spec.resource == "change_event":
+            self._validate_change_event_range(effective_date_range, start_date, end_date)
+        date_clause = date_where_clause(
+            date_range=effective_date_range,
             start_date=start_date,
             end_date=end_date,
             field=self._report_date_field(spec.resource),
@@ -221,6 +245,7 @@ class FriendlyDispatcher:
         result = await self.gateway.search(
             customer_id=cid,
             query=query,
+            max_rows=max_rows,
             page_size=page_size,
             page_token=page_token,
             primary_field=spec.primary_field,
@@ -270,7 +295,8 @@ class FriendlyDispatcher:
         customer_id: str | int | None,
         payload: dict[str, Any],
         filters: dict[str, Any],
-        page_size: int,
+        max_rows: int | None,
+        page_size: int | None,
         page_token: str | None,
         validate_only: bool,
         execute: bool,
@@ -284,6 +310,7 @@ class FriendlyDispatcher:
             return await self.gateway.search(
                 customer_id=cid,
                 query=query,
+                max_rows=max_rows,
                 page_size=page_size,
                 page_token=page_token,
             )
@@ -388,6 +415,7 @@ class FriendlyDispatcher:
             }
 
         cid = self._require_customer_id(customer_id, payload)
+        payload_max_rows, payload_page_size = self._payload_row_cap(payload)
         if name == "list_linked_accounts":
             return await self.gateway.search(
                 customer_id=cid,
@@ -395,7 +423,8 @@ class FriendlyDispatcher:
                     "SELECT product_link.resource_name, product_link.type, product_link.status "
                     "FROM product_link"
                 ),
-                page_size=int(payload.get("page_size", 1000)),
+                max_rows=payload_max_rows,
+                page_size=payload_page_size,
                 primary_field="product_link.resource_name",
             )
         if name == "get_account_budget":
@@ -407,7 +436,8 @@ class FriendlyDispatcher:
                     "account_budget.approved_start_date_time, account_budget.approved_end_date_time "
                     "FROM account_budget"
                 ),
-                page_size=int(payload.get("page_size", 1000)),
+                max_rows=payload_max_rows,
+                page_size=payload_page_size,
                 primary_field="account_budget.resource_name",
             )
         if name == "get_billing_setup":
@@ -419,7 +449,8 @@ class FriendlyDispatcher:
                     "billing_setup.payments_account_info.payments_account_name "
                     "FROM billing_setup"
                 ),
-                page_size=int(payload.get("page_size", 1000)),
+                max_rows=payload_max_rows,
+                page_size=payload_page_size,
                 primary_field="billing_setup.resource_name",
             )
         if name == "list_invoices":
@@ -497,6 +528,14 @@ class FriendlyDispatcher:
             request["page_size"] = int(payload["page_size"])
         return request
 
+    def _payload_row_cap(self, payload: dict[str, Any]) -> tuple[int | None, int | None]:
+        max_rows = payload.get("max_rows", 1000)
+        page_size = payload.get("page_size")
+        return (
+            None if max_rows is None else int(max_rows),
+            None if page_size is None else int(page_size),
+        )
+
     def _unsupported(self, spec: FriendlyToolSpec) -> dict[str, Any]:
         return {
             "error": "unsupported_capability",
@@ -550,14 +589,26 @@ class FriendlyDispatcher:
         *,
         root_customer_id: str,
         payload: dict[str, Any],
-        page_size: int,
+        max_accounts: int | None,
+        page_size: int | None,
         page_token: str | None,
     ) -> dict[str, Any]:
         max_depth = int(payload.get("max_depth", 10))
+        effective_max_accounts = max_accounts if max_accounts is not None else page_size
+        if effective_max_accounts is not None:
+            effective_max_accounts = int(effective_max_accounts)
+            if effective_max_accounts < 1:
+                raise ValidationError("max_accounts must be at least 1.")
+        pagination_deprecated = page_size is not None and max_accounts is None
+        truncated = False
         seen: set[str] = set()
         rows: list[dict[str, Any]] = []
 
+        def cap_reached() -> bool:
+            return effective_max_accounts is not None and len(rows) >= effective_max_accounts
+
         async def visit(customer_id: str, depth: int) -> dict[str, Any]:
+            nonlocal truncated
             seen.add(customer_id)
             node: dict[str, Any] = {"id": customer_id, "manager": True, "children": []}
             query = (
@@ -572,11 +623,14 @@ class FriendlyDispatcher:
                 result = await self.gateway.search(
                     customer_id=customer_id,
                     query=query,
-                    page_size=page_size,
+                    max_rows=None,
                     page_token=current_page_token,
                     primary_field="customer_client.id",
                 )
                 for row in result.get("rows", []):
+                    if cap_reached():
+                        truncated = True
+                        break
                     client = row.get("customer_client", {})
                     child_id = str(client.get("id", "")).replace("-", "")
                     if not child_id or child_id == customer_id:
@@ -600,7 +654,12 @@ class FriendlyDispatcher:
                         "resource_name": client.get("client_customer"),
                         "children": [],
                     }
-                    if client.get("manager") and child_id not in seen and depth < max_depth:
+                    if (
+                        client.get("manager")
+                        and child_id not in seen
+                        and depth < max_depth
+                        and not cap_reached()
+                    ):
                         child = await visit(child_id, depth + 1)
                         child.setdefault("id", child_id)
                         child.setdefault("name", client.get("descriptive_name"))
@@ -608,8 +667,11 @@ class FriendlyDispatcher:
                         child.setdefault("status", client.get("status"))
                         child.setdefault("resource_name", client.get("client_customer"))
                     node["children"].append(child)
+                    if cap_reached():
+                        truncated = True
+                        break
                 next_page_token = result.get("pagination", {}).get("next_page_token")
-                if not next_page_token or next_page_token == current_page_token:
+                if truncated or not next_page_token or next_page_token == current_page_token:
                     break
                 current_page_token = next_page_token
             return node
@@ -620,6 +682,10 @@ class FriendlyDispatcher:
             "rows": rows,
             "tree": tree,
             "row_count": len(rows),
+            "truncated": truncated,
+            "effective_max_accounts": effective_max_accounts,
+            "truncation_reason": "max_accounts" if truncated else None,
+            "pagination_deprecated": pagination_deprecated,
             "note": "Hierarchy is built recursively by querying each manager account as parent context.",
         }
 
@@ -1540,9 +1606,25 @@ class FriendlyDispatcher:
                 raise ValidationError("change_event custom ranges must start within the last 30 days.")
             return
         allowed = {"TODAY", "YESTERDAY", "LAST_7_DAYS", "LAST_14_DAYS", "LAST_30_DAYS"}
-        selected = (date_range or "LAST_30_DAYS").upper()
+        selected = (date_range or CHANGE_EVENT_DEFAULT_DATE_RANGE).upper()
         if selected not in allowed:
             raise ValidationError("change_event supports only up to LAST_30_DAYS.")
+
+    def _effective_report_date_range(
+        self,
+        spec: FriendlyToolSpec,
+        *,
+        date_range: str | None,
+        start_date: str | None,
+        end_date: str | None,
+    ) -> str | None:
+        if start_date or end_date:
+            return date_range
+        if date_range:
+            return date_range
+        if spec.resource == "change_event":
+            return CHANGE_EVENT_DEFAULT_DATE_RANGE
+        return DEFAULT_REPORT_DATE_RANGE
 
     def _report_date_field(self, resource: str | None) -> str:
         if resource == "change_event":

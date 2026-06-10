@@ -6,6 +6,7 @@ import unittest
 import _bootstrap  # noqa: F401
 from google_ads_mcp.capability_matrix import build_full_capability_matrix
 from google_ads_mcp.friendly import FriendlyDispatcher
+from google_ads_mcp.gaql import Pagination, apply_pagination
 from google_ads_mcp.safety import ValidationError
 from google_ads_mcp.tool_catalog import FRIENDLY_TOOL_SPECS
 try:
@@ -24,6 +25,14 @@ class FakeGateway:
 
     async def search(self, **kwargs):
         self.last_search = kwargs
+        query = apply_pagination(
+            kwargs["query"],
+            Pagination(
+                max_rows=kwargs.get("max_rows"),
+                page_size=kwargs.get("page_size"),
+                page_token=kwargs.get("page_token"),
+            ),
+        )
         if "customer_client" in kwargs["query"]:
             return {
                 "rows": [
@@ -37,9 +46,9 @@ class FakeGateway:
                         }
                     }
                 ],
-                "query": kwargs["query"],
+                "query": query,
             }
-        return {"rows": [], "query": kwargs["query"]}
+        return {"rows": [], "query": query}
 
     async def mutate(self, **kwargs):
         self.last_mutate = kwargs
@@ -391,6 +400,34 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn(("2000000000", "child-page-2"), gateway.calls)
 
+    async def test_get_mcc_hierarchy_truncates_at_max_accounts(self) -> None:
+        gateway = BranchingGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "get_mcc_hierarchy",
+            customer_id="1000000000",
+            max_accounts=1,
+        )
+
+        self.assertEqual(result["row_count"], 1)
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["effective_max_accounts"], 1)
+        self.assertEqual(result["truncation_reason"], "max_accounts")
+
+    async def test_get_mcc_hierarchy_treats_page_size_as_deprecated_alias(self) -> None:
+        gateway = BranchingGateway()
+        dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "get_mcc_hierarchy",
+            customer_id="1000000000",
+            page_size=1,
+        )
+
+        self.assertEqual(result["row_count"], 1)
+        self.assertTrue(result["pagination_deprecated"])
+
     async def test_list_invoices_defaults_to_current_year(self) -> None:
         gateway = FakeGateway()
         dispatcher = FriendlyDispatcher(gateway=gateway)  # type: ignore[arg-type]
@@ -623,8 +660,20 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         result = await dispatcher.dispatch("get_change_history_report", customer_id="1234567890")
 
         self.assertIn("FROM change_event", result["query"])
-        self.assertIn("change_event.change_date_time DURING LAST_30_DAYS", result["query"])
+        self.assertIn("change_event.change_date_time DURING LAST_14_DAYS", result["query"])
+        self.assertIn("LIMIT 1000", result["query"])
         self.assertNotIn("metrics.", result["query"])
+
+    async def test_change_history_uses_max_rows_as_limit(self) -> None:
+        dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
+
+        result = await dispatcher.dispatch(
+            "get_change_history_report",
+            customer_id="1234567890",
+            max_rows=5,
+        )
+
+        self.assertIn("LIMIT 5", result["query"])
 
     async def test_change_history_rejects_custom_ranges_outside_lookback(self) -> None:
         dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]
