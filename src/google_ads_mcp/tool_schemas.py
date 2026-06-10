@@ -9,14 +9,19 @@ from .gaql import DEFAULT_DATE_RANGE
 from .tool_implementation import (
     AD_GROUP_STATUS_TOOLS,
     AD_STATUS_TOOLS,
+    APPLY_LABEL_TOOLS,
+    ASSET_MUTATION_TOOLS,
     BUDGET_CREATE_TOOLS,
     BUDGET_UPDATE_TOOLS,
     CAMPAIGN_BULK_STATUS_TOOLS,
     CAMPAIGN_CREATE_TOOLS,
     CAMPAIGN_STATUS_TOOLS,
+    DIRECT_NEGATIVE_KEYWORD_TOOLS,
     DIRECT_MUTATION_TOOLS,
+    KEYWORD_BID_TOOLS,
     KEYWORD_CREATE_TOOLS,
     KEYWORD_STATUS_TOOLS,
+    REMOVE_LABEL_FROM_TOOLS,
 )
 
 
@@ -311,8 +316,62 @@ def _mutation_payload_schema(name: str) -> dict[str, Any]:
         return _object_schema({"campaign_id": _string("Campaign id.")}, ["campaign_id"])
     if name in CAMPAIGN_BULK_STATUS_TOOLS:
         return _object_schema({"ids": _string_array("Campaign ids.")}, ["ids"])
+    if name == "update_campaign":
+        return _object_schema(
+            {
+                "campaign_id": _string("Campaign id."),
+                "name": _string("New campaign name."),
+                "status": _enum("Campaign status.", ("ENABLED", "PAUSED", "REMOVED")),
+                "start_date": _string("Campaign start date in YYYY-MM-DD format."),
+                "end_date": _string("Campaign end date in YYYY-MM-DD format."),
+                "tracking_template": _string("Tracking URL template."),
+                "final_url_suffix": _string("Final URL suffix."),
+            },
+            ["campaign_id"],
+        )
+    if name == "update_network_settings":
+        return _object_schema(
+            {
+                "campaign_id": _string("Campaign id."),
+                "target_google_search": _boolean("Serve on Google Search.", default=True),
+                "target_search_network": _boolean("Serve on search partners.", default=False),
+                "target_content_network": _boolean("Serve on Display Network.", default=False),
+                "target_partner_search_network": _boolean(
+                    "Serve on Google partner search network.", default=False
+                ),
+            },
+            ["campaign_id"],
+        )
     if name in AD_GROUP_STATUS_TOOLS or name == "remove_ad_group":
         return _object_schema({"ad_group_id": _string("Ad group id.")}, ["ad_group_id"])
+    if name == "create_ad_group":
+        schema = _object_schema(
+            {
+                "campaign_id": _string("Campaign id."),
+                "campaign_resource_name": _string("Full campaign resource name."),
+                "name": _string("Ad group name."),
+                "status": _enum("Initial ad group status.", ("ENABLED", "PAUSED"), default="ENABLED"),
+                "type": _string("Ad group type. Defaults to SEARCH_STANDARD."),
+                "cpc_bid_micros": _integer("CPC bid in micros.", minimum=1),
+                "cpm_bid_micros": _integer("CPM bid in micros.", minimum=1),
+                "target_cpa_micros": _integer("Target CPA in micros.", minimum=1),
+            },
+            ["name"],
+        )
+        schema["anyOf"] = [{"required": ["campaign_id"]}, {"required": ["campaign_resource_name"]}]
+        return schema
+    if name == "update_ad_group":
+        return _object_schema(
+            {
+                "ad_group_id": _string("Ad group id."),
+                "name": _string("New ad group name."),
+                "status": _enum("Ad group status.", ("ENABLED", "PAUSED", "REMOVED")),
+                "cpc_bid_micros": _integer("CPC bid in micros.", minimum=1),
+                "cpm_bid_micros": _integer("CPM bid in micros.", minimum=1),
+                "target_cpa_micros": _integer("Target CPA in micros.", minimum=1),
+            },
+            ["ad_group_id"],
+        )
     if name in AD_STATUS_TOOLS or name == "remove_ad":
         return _object_schema(
             {
@@ -337,6 +396,8 @@ def _mutation_payload_schema(name: str) -> dict[str, Any]:
             },
             ["ad_group_id", "keywords"],
         )
+    if name in KEYWORD_BID_TOOLS:
+        return _keyword_bid_payload_schema()
     if name in BUDGET_CREATE_TOOLS:
         return _object_schema(
             {
@@ -357,6 +418,18 @@ def _mutation_payload_schema(name: str) -> dict[str, Any]:
             },
             ["budget_id"],
         )
+    if name == "remove_budget":
+        return _object_schema({"budget_id": _string("Campaign budget id.")}, ["budget_id"])
+    if name == "link_budget_to_campaign":
+        return _object_schema(
+            {
+                "campaign_id": _string("Campaign id that should use the budget."),
+                "budget_id": _string("Campaign budget id."),
+            },
+            ["campaign_id", "budget_id"],
+        )
+    if name in DIRECT_NEGATIVE_KEYWORD_TOOLS:
+        return _negative_keyword_mutation_payload_schema(name)
     if name == "batch_mutate":
         return _object_schema(
             {"operations": _array("GoogleAdsService MutateOperation objects.", {"type": "object"})},
@@ -373,12 +446,203 @@ def _mutation_payload_schema(name: str) -> dict[str, Any]:
             },
             ["name"],
         )
+    if name in ASSET_MUTATION_TOOLS:
+        return _asset_mutation_payload_schema(name)
+    if name in APPLY_LABEL_TOOLS or name in REMOVE_LABEL_FROM_TOOLS or name in {
+        "create_label",
+        "update_label",
+        "remove_label",
+    }:
+        return _label_mutation_payload_schema(name)
     if name in DIRECT_MUTATION_TOOLS:
         return _open_object("Payload for this direct Google Ads mutation helper.")
     return _object_schema(
         {"operations": _array("GoogleAdsService MutateOperation objects.", {"type": "object"})},
         ["operations"],
     )
+
+
+def _negative_keyword_mutation_payload_schema(name: str) -> dict[str, Any]:
+    if name == "add_negative_keywords_ad_group":
+        return _object_schema(
+            {
+                "ad_group_id": _string("Ad group id."),
+                "keywords": _keyword_items_schema(),
+            },
+            ["ad_group_id", "keywords"],
+        )
+    if name == "add_negative_keywords_campaign":
+        return _object_schema(
+            {
+                "campaign_id": _string("Campaign id."),
+                "keywords": _keyword_items_schema(),
+            },
+            ["campaign_id", "keywords"],
+        )
+    if name == "remove_negative_keywords_ad_group":
+        return _object_schema(
+            {
+                "ad_group_id": _string("Ad group id."),
+                "criterion_ids": _string_array("Negative keyword criterion ids."),
+            },
+            ["ad_group_id", "criterion_ids"],
+        )
+    if name == "remove_negative_keywords_campaign":
+        return _object_schema(
+            {
+                "campaign_id": _string("Campaign id."),
+                "criterion_ids": _string_array("Negative keyword criterion ids."),
+            },
+            ["campaign_id", "criterion_ids"],
+        )
+    if name == "create_shared_negative_keyword_list":
+        return _object_schema({"name": _string("Shared negative keyword list name.")}, ["name"])
+    if name == "add_keywords_to_shared_list":
+        return _object_schema(
+            {
+                "shared_set_id": _string("Shared set id."),
+                "keywords": _keyword_items_schema(),
+            },
+            ["shared_set_id", "keywords"],
+        )
+    if name == "remove_keywords_from_shared_list":
+        return _object_schema(
+            {"criterion_ids": _string_array("Shared criterion ids.")},
+            ["criterion_ids"],
+        )
+    if name == "apply_shared_list_to_campaign":
+        return _object_schema(
+            {
+                "campaign_id": _string("Campaign id."),
+                "shared_set_id": _string("Shared set id."),
+            },
+            ["campaign_id", "shared_set_id"],
+        )
+    if name == "remove_shared_list_from_campaign":
+        return _object_schema(
+            {"campaign_shared_set_id": _string("Campaign shared set id.")},
+            ["campaign_shared_set_id"],
+        )
+    if name == "bulk_add_negative_keywords":
+        return _object_schema(
+            {
+                "level": _enum(
+                    "Negative keyword level.",
+                    ("campaign", "ad_group"),
+                    default="campaign",
+                ),
+                "campaign_id": _string("Campaign id when level is campaign."),
+                "ad_group_id": _string("Ad group id when level is ad_group."),
+                "keywords": _keyword_items_schema(),
+            },
+            ["keywords"],
+        )
+    return _open_object("Payload for this negative keyword helper.")
+
+
+def _keyword_bid_payload_schema() -> dict[str, Any]:
+    return _object_schema(
+        {
+            "ad_group_id": _string("Ad group id."),
+            "criterion_ids": _string_array("Keyword criterion ids to update."),
+            "cpc_bid_micros": _integer("CPC bid in micros applied to criterion_ids.", minimum=1),
+            "keyword_bids": _array(
+                "Per-keyword bid updates.",
+                _object_schema(
+                    {
+                        "criterion_id": _string("Keyword criterion id."),
+                        "cpc_bid_micros": _integer("CPC bid in micros.", minimum=1),
+                    },
+                    ["criterion_id", "cpc_bid_micros"],
+                ),
+                min_items=1,
+            ),
+        },
+        ["ad_group_id"],
+    )
+
+
+def _asset_mutation_payload_schema(name: str) -> dict[str, Any]:
+    common = {"name": _string("Asset name.")}
+    if name == "create_sitelink":
+        return _object_schema(
+            {
+                **common,
+                "link_text": _string("Sitelink text."),
+                "description1": _string("First sitelink description."),
+                "description2": _string("Second sitelink description."),
+                "final_urls": _array("Final URLs for the sitelink.", {"type": "string"}),
+            },
+            ["link_text"],
+        )
+    if name == "create_callout":
+        return _object_schema({**common, "callout_text": _string("Callout text.")}, ["callout_text"])
+    if name == "create_text_asset":
+        return _object_schema({**common, "text": _string("Text asset content.")}, ["text"])
+    if name == "create_video_asset":
+        return _object_schema(
+            {**common, "youtube_video_id": _string("YouTube video id.")},
+            ["youtube_video_id"],
+        )
+    return _open_object("Payload for this asset helper.")
+
+
+def _label_mutation_payload_schema(name: str) -> dict[str, Any]:
+    if name == "create_label":
+        return _object_schema(
+            {
+                "name": _string("Label name."),
+                "background_color": _string("Text label background color hex value."),
+            },
+            ["name"],
+        )
+    if name == "update_label":
+        return _object_schema(
+            {
+                "label_id": _string("Label id."),
+                "name": _string("New label name."),
+                "background_color": _string("Text label background color hex value."),
+            },
+            ["label_id"],
+        )
+    if name == "remove_label":
+        return _object_schema({"label_id": _string("Label id.")}, ["label_id"])
+
+    properties = {"label_id": _string("Label id.")}
+    if "campaign" in name:
+        properties["campaign_ids"] = _string_array("Campaign ids.")
+        return _object_schema(properties, ["label_id", "campaign_ids"])
+    if "ad_group" in name:
+        properties["ad_group_ids"] = _string_array("Ad group ids.")
+        return _object_schema(properties, ["label_id", "ad_group_ids"])
+    if "keyword" in name:
+        properties.update(
+            {
+                "ad_group_id": _string("Ad group id."),
+                "criterion_ids": _string_array("Keyword criterion ids."),
+            }
+        )
+        return _object_schema(properties, ["label_id", "ad_group_id", "criterion_ids"])
+    if "ad" in name:
+        properties.update(
+            {
+                "resource_name": _string("Full ad group ad resource name."),
+                "ad_group_id": _string("Ad group id."),
+                "ad_id": _string("Ad id."),
+                "ads": _array(
+                    "Ad references to label or unlabel.",
+                    _object_schema(
+                        {
+                            "resource_name": _string("Full ad group ad resource name."),
+                            "ad_group_id": _string("Ad group id."),
+                            "ad_id": _string("Ad id."),
+                        }
+                    ),
+                ),
+            }
+        )
+        return _object_schema(properties, ["label_id"])
+    return _open_object("Payload for this label helper.")
 
 
 def _payload_is_required(name: str) -> bool:

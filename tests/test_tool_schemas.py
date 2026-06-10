@@ -4,15 +4,26 @@ import unittest
 
 import _bootstrap  # noqa: F401
 from google_ads_mcp.tool_config import ToolExposure, build_tool_registry
+from google_ads_mcp.tool_implementation import WRITE_BUILDER_TOOLS
 from google_ads_mcp.tool_schemas import parameters_schema_for_exposure
 
 
-def _exposure(registered_name: str) -> ToolExposure:
-    registry = build_tool_registry({"mode": "validation_only", "tool_profile": "lean"})
+def _exposure(
+    registered_name: str,
+    *,
+    profile: str = "lean",
+    mode: str = "validation_only",
+) -> ToolExposure:
+    registry = build_tool_registry({"mode": mode, "tool_profile": profile})
     for exposure in registry.exposures:
         if exposure.registered_name == registered_name:
             return exposure
     raise AssertionError(f"Missing exposure: {registered_name}")
+
+
+def _payload_schema(registered_name: str, *, profile: str = "full") -> dict[str, object]:
+    schema = parameters_schema_for_exposure(_exposure(registered_name, profile=profile))
+    return schema["properties"]["payload"]
 
 
 class ToolSchemaTests(unittest.TestCase):
@@ -73,6 +84,62 @@ class ToolSchemaTests(unittest.TestCase):
         self.assertEqual(payload["required"], ["billing_setup"])
         self.assertIn("issue_year", payload["properties"])
         self.assertIn("issue_month", payload["properties"])
+
+    def test_negative_keyword_write_schema_matches_dispatcher_contract(self) -> None:
+        payload = _payload_schema("keywords_add_negative_keywords_ad_group")
+
+        self.assertEqual(set(payload["required"]), {"ad_group_id", "keywords"})
+        self.assertIn("ad_group_id", payload["properties"])
+        self.assertIn("keywords", payload["properties"])
+        self.assertNotIn("operations", payload["properties"])
+
+    def test_label_write_schemas_match_dispatcher_contracts(self) -> None:
+        campaign_payload = _payload_schema("campaigns_apply_campaign_label")
+        keyword_payload = _payload_schema("keywords_apply_keyword_label")
+
+        self.assertEqual(set(campaign_payload["required"]), {"label_id", "campaign_ids"})
+        self.assertIn("label_id", campaign_payload["properties"])
+        self.assertIn("campaign_ids", campaign_payload["properties"])
+        self.assertEqual(
+            set(keyword_payload["required"]),
+            {"label_id", "ad_group_id", "criterion_ids"},
+        )
+        self.assertIn("criterion_ids", keyword_payload["properties"])
+
+    def test_keyword_bid_schema_matches_dispatcher_contract(self) -> None:
+        payload = _payload_schema("keywords_update_keyword_bid")
+
+        self.assertEqual(payload["required"], ["ad_group_id"])
+        self.assertIn("criterion_ids", payload["properties"])
+        self.assertIn("cpc_bid_micros", payload["properties"])
+        self.assertIn("keyword_bids", payload["properties"])
+
+    def test_budget_write_schemas_match_dispatcher_contracts(self) -> None:
+        remove_payload = _payload_schema("budgets_remove_budget")
+        link_payload = _payload_schema("budgets_link_budget_to_campaign")
+
+        self.assertEqual(remove_payload["required"], ["budget_id"])
+        self.assertEqual(set(link_payload["required"]), {"campaign_id", "budget_id"})
+        self.assertIn("campaign_id", link_payload["properties"])
+
+    def test_hand_built_write_tools_do_not_expose_generic_payload_schema(self) -> None:
+        registry = build_tool_registry({"mode": "validation_only", "tool_profile": "full"})
+        offenders = []
+
+        for exposure in registry.exposures:
+            spec = exposure.friendly_spec
+            if spec is None or spec.name not in WRITE_BUILDER_TOOLS:
+                continue
+            payload = parameters_schema_for_exposure(exposure)["properties"].get("payload")
+            if not isinstance(payload, dict):
+                offenders.append(f"{exposure.registered_name}: missing payload")
+                continue
+            if payload.get("additionalProperties") is True and payload.get("properties") == {}:
+                offenders.append(f"{exposure.registered_name}: open payload")
+            if payload.get("required") == ["operations"]:
+                offenders.append(f"{exposure.registered_name}: raw operations payload")
+
+        self.assertEqual(offenders, [])
 
 
 class ToolSchemaRoundTripTests(unittest.IsolatedAsyncioTestCase):
