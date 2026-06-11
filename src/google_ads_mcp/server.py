@@ -32,12 +32,37 @@ from .resources import (
 )
 from .safety import build_jsonl_audit_sink
 from .tool_config import ToolExposure, ToolRegistry, load_tool_registry
+from .tool_implementation import ADDITIVE_WRITE_TOOLS, NON_ADDITIVE_WRITE_TOOLS
 from .tool_schemas import parameters_schema_for_exposure
 
 OAUTH_TOKEN_FIRESTORE_PREFIX = "google-ads-mcp-oauth"
 OAUTH_TOKEN_FIRESTORE_SALT = "google-ads-mcp-firestore-token-storage-v1"
 BOOTSTRAP_RESULT_FIRESTORE_PREFIX = "google-ads-mcp-bootstrap"
 BOOTSTRAP_RESULT_FIRESTORE_SALT = "google-ads-mcp-firestore-bootstrap-results-v1"
+CLOSED_WORLD_TOOL_NAMES = frozenset(
+    {
+        "describe_google_ads_service",
+        "explain_gaql_error",
+        "get_capability_matrix",
+        "get_server_status",
+        "get_tool_catalog",
+        "list_google_ads_services",
+        "query_google_ads_docs",
+        "validate_google_ads_payload",
+    }
+)
+TITLE_WORD_OVERRIDES = {
+    "api": "API",
+    "cpc": "CPC",
+    "dsa": "DSA",
+    "gaql": "GAQL",
+    "id": "ID",
+    "mcc": "MCC",
+    "pdf": "PDF",
+    "pmax": "PMax",
+    "rsa": "RSA",
+    "url": "URL",
+}
 
 
 def build_mcp() -> Any:
@@ -944,9 +969,60 @@ def _register_function_tool(mcp: Any, func: Any, exposure: ToolExposure) -> None
         func,
         name=exposure.registered_name,
         description=exposure.description,
+        annotations=_tool_annotations_for_exposure(exposure),
     )
     tool.parameters = parameters_schema_for_exposure(exposure)
     mcp.add_tool(tool)
+
+
+def _tool_annotations_for_exposure(exposure: ToolExposure) -> Any:
+    from mcp.types import ToolAnnotations
+
+    read_only = exposure.read_write == "read"
+    destructive: bool | None = None
+    if exposure.read_write == "write":
+        destructive = _destructive_hint_for_write(exposure)
+    elif exposure.read_write == "generic":
+        destructive = True
+
+    return ToolAnnotations(
+        title=_tool_title(exposure),
+        readOnlyHint=read_only,
+        destructiveHint=destructive,
+        openWorldHint=_open_world_hint(exposure),
+    )
+
+
+def _destructive_hint_for_write(exposure: ToolExposure) -> bool:
+    if exposure.canonical_name in ADDITIVE_WRITE_TOOLS:
+        return False
+    if exposure.canonical_name in NON_ADDITIVE_WRITE_TOOLS:
+        return True
+    raise ConfigError(
+        f"Write tool '{exposure.canonical_name}' is missing an MCP write-effect "
+        "classification."
+    )
+
+
+def _open_world_hint(exposure: ToolExposure) -> bool:
+    return exposure.canonical_name not in CLOSED_WORLD_TOOL_NAMES
+
+
+def _tool_title(exposure: ToolExposure) -> str:
+    registered = exposure.registered_name
+    prefix = f"{exposure.prefix}_"
+    if registered.startswith(prefix):
+        title = _titleize_tool_name(registered.removeprefix(prefix))
+        namespace = _titleize_tool_name(exposure.namespace)
+        return f"{namespace}: {title}"
+    return _titleize_tool_name(registered)
+
+
+def _titleize_tool_name(name: str) -> str:
+    words = []
+    for word in name.split("_"):
+        words.append(TITLE_WORD_OVERRIDES.get(word, word.capitalize()))
+    return " ".join(words)
 
 
 def _tool_response(func: Any) -> Any:
