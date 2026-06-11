@@ -35,9 +35,10 @@ In validation_only mode, validate pausing campaign 1111111111 for customer
 ## Controlled Real Write
 
 ```text
-Only if the server is in write_enabled mode, pause campaign 1111111111 for
-customer 1234567890 with validate_only=false, execute=true, and
-confirmation_phrase=CONFIRM_GOOGLE_ADS_WRITE. Show the audit status afterward.
+Only if the server is in write_enabled mode and exposes a write-capable profile,
+pause campaign 1111111111 for customer 1234567890 with validate_only=false,
+execute=true, and confirmation_phrase=CONFIRM_GOOGLE_ADS_WRITE. Show the audit
+status afterward.
 ```
 
 ## Troubleshoot GAQL

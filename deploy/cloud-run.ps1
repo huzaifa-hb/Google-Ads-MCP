@@ -16,6 +16,7 @@ param(
     [string]$McpAllowedDomains = "",
     [string]$McpTokenStorage = "local",
     [string]$McpFirestoreDatabase = "",
+    [string]$ToolProfile = "",
     [int]$MinInstances = 0,
     [int]$MaxInstances = 1,
     [string]$Memory = "512Mi",
@@ -206,6 +207,9 @@ if ($GoogleAdsClientId -and $GoogleAdsAuthMode -eq "shared_refresh_token") {
 }
 if ($GoogleAdsLoginCustomerId) {
     $envMappings += "GOOGLE_ADS_LOGIN_CUSTOMER_ID=$GoogleAdsLoginCustomerId"
+}
+if ($ToolProfile) {
+    $envMappings += "GOOGLE_ADS_MCP_TOOL_PROFILE=$ToolProfile"
 }
 
 $secretMappings = @("GOOGLE_ADS_DEVELOPER_TOKEN=GOOGLE_ADS_DEVELOPER_TOKEN:latest")

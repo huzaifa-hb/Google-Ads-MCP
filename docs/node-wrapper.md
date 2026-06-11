@@ -78,6 +78,13 @@ npx @huzaifa-hb/google-ads-mcp cloud sync-secrets --project YOUR_GCP_PROJECT_ID
 npx @huzaifa-hb/google-ads-mcp cloud deploy --project YOUR_GCP_PROJECT_ID
 ```
 
+Cloud deploy stays read-only unless you explicitly choose write mode and a
+write-capable tool profile:
+
+```powershell
+npx @huzaifa-hb/google-ads-mcp cloud deploy --project YOUR_GCP_PROJECT_ID --mode write_enabled --tool-profile agency_write
+```
+
 ## Keep These Private
 
 Never share:

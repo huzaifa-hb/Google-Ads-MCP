@@ -25,7 +25,7 @@ Usage:
   google-ads-mcp config --client codex|claude-desktop|generic --transport remote|stdio
   google-ads-mcp smoke [--profile local-direct]
   google-ads-mcp cloud sync-secrets --project <id> [--auth-mode bearer|oauth_proxy]
-  google-ads-mcp cloud deploy --project <id> [--auth-mode bearer|oauth_proxy] [--allow-all-google-users]
+  google-ads-mcp cloud deploy --project <id> [--mode safe_read_only|write_enabled] [--tool-profile agency_write|advanced_mutate]
 `);
 }
 
@@ -138,6 +138,7 @@ async function main(): Promise<void> {
       mcpAllowAllGoogleUsers: flagBool(parsed.flags, "allow-all-google-users"),
       mcpTokenStorage: flagString(parsed.flags, "token-storage"),
       mcpFirestoreDatabase: flagString(parsed.flags, "firestore-database"),
+      toolProfile: flagString(parsed.flags, "tool-profile"),
       minInstances: flagString(parsed.flags, "min-instances"),
       maxInstances: flagString(parsed.flags, "max-instances"),
       memory: flagString(parsed.flags, "memory"),

@@ -35,4 +35,5 @@ Tradeoff:
 ## Recommended Default
 
 Start with `safe_read_only`, use `validation_only` for payload previews, and only
-use `write_enabled` on a private endpoint with the confirmation phrase gate.
+use `write_enabled` plus an explicit write-capable tool profile on a private
+endpoint with the confirmation phrase gate.

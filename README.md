@@ -116,6 +116,8 @@ analyze data, but it cannot change campaigns.
 Real writes require all of this:
 
 - You start the server in `write_enabled` mode.
+- You expose a write-capable profile such as `agency_write` or
+  `advanced_mutate`; `write_enabled` is a gate, not a tool loader.
 - The tool call says `validate_only=false`.
 - The tool call says `execute=true`.
 - The tool call includes `confirmation_phrase="CONFIRM_GOOGLE_ADS_WRITE"`.
@@ -190,6 +192,13 @@ The short version:
 ```powershell
 npx @huzaifa-hb/google-ads-mcp cloud sync-secrets --project YOUR_GCP_PROJECT_ID
 npx @huzaifa-hb/google-ads-mcp cloud deploy --project YOUR_GCP_PROJECT_ID
+```
+
+That deploy command stays read-only. To expose normal agency write tools, make
+the choice explicit:
+
+```powershell
+npx @huzaifa-hb/google-ads-mcp cloud deploy --project YOUR_GCP_PROJECT_ID --mode write_enabled --tool-profile agency_write
 ```
 
 The full walkthrough is in [docs/owner-setup-guide.md](docs/owner-setup-guide.md).

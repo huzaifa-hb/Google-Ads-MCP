@@ -480,6 +480,16 @@ class AuthConfigTests(unittest.TestCase):
         self.assertFalse(payload["allow_all_google_users"])
         self.assertNotIn("C:/private", str(payload))
 
+    def test_server_status_reports_active_write_tool_profile(self) -> None:
+        settings = make_settings(mcp_mode="write_enabled", mcp_tool_profile="agency_write")
+        registry = build_tool_registry({"mode": "write_enabled", "tool_profile": "agency_write"})
+
+        payload = _server_status_payload(settings, registry)
+
+        self.assertEqual(payload["mode"], "write_enabled")
+        self.assertEqual(payload["tool_profile"], "agency_write")
+        self.assertGreater(payload["exposed_tool_count"], 0)
+
     def test_server_status_reports_auto_login_customer_resolution(self) -> None:
         settings = make_settings(login_customer_id=None)
         registry = build_tool_registry({"mode": "safe_read_only"})

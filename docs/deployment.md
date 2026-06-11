@@ -69,6 +69,7 @@ deploy manually, grant the same role before deploying.
 - Health path: `/healthz`
 - Readiness path: `/readyz`
 - MCP mode: `safe_read_only`
+- MCP tool profile: bundled default, normally `lean`
 - MCP auth mode: `bearer`
 - Generic service bridge escape hatch: disabled
 
@@ -87,6 +88,20 @@ Override safety settings deliberately:
   -ProjectId YOUR_GCP_PROJECT_ID `
   -McpMode validation_only
 ```
+
+Write-capable deployments require both a write mode and a write-capable tool
+profile. `write_enabled` alone is not enough because it is only the write gate:
+
+```powershell
+.\deploy\cloud-run.ps1 `
+  -ProjectId YOUR_GCP_PROJECT_ID `
+  -McpMode write_enabled `
+  -ToolProfile agency_write
+```
+
+Use `-ToolProfile advanced_mutate` only when the operator wants the raw
+`generic_google_ads_mutate` escape hatch. The generic service bridge remains
+outside these profiles.
 
 Only use `-EnableGenericServiceBridge` for private `admin_debug` deployments.
 

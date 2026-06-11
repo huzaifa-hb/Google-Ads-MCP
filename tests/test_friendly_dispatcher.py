@@ -7,8 +7,10 @@ import _bootstrap  # noqa: F401
 from google_ads_mcp.capability_matrix import build_full_capability_matrix
 from google_ads_mcp.friendly import FriendlyDispatcher
 from google_ads_mcp.gaql import Pagination, apply_pagination
+from google_ads_mcp.gateway import GoogleAdsGateway
 from google_ads_mcp.safety import ValidationError
 from google_ads_mcp.tool_catalog import FRIENDLY_TOOL_SPECS
+from test_tool_config import make_settings
 try:
     from google.ads.googleads.v24.services.types.google_ads_service import MutateOperation
     from google.protobuf.json_format import ParseDict
@@ -57,6 +59,14 @@ class FakeGateway:
     async def call_service(self, **kwargs):
         self.last_service = kwargs
         return {"service_call": kwargs}
+
+
+class NoApiClient:
+    def get_service(self, service_name: str):  # noqa: ANN201
+        raise AssertionError(f"Google Ads service should not be called: {service_name}")
+
+    def get_type(self, type_name: str):  # noqa: ANN201
+        raise AssertionError(f"Google Ads type should not be requested: {type_name}")
 
 
 class LoginAwareGateway(FakeGateway):
@@ -792,6 +802,35 @@ class FriendlyDispatcherTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(result["operation_count"], 2)
+
+    async def test_write_enabled_dispatch_refuses_unconfirmed_real_write_before_api_call(
+        self,
+    ) -> None:
+        audit_events: list[dict[str, object]] = []
+        gateway = GoogleAdsGateway(
+            settings=make_settings(mcp_mode="write_enabled"),
+            client=NoApiClient(),
+            mode="write_enabled",
+            audit_sink=audit_events.append,
+        )
+        dispatcher = FriendlyDispatcher(gateway=gateway)
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "confirmation_phrase='CONFIRM_GOOGLE_ADS_WRITE'",
+        ):
+            await dispatcher.dispatch(
+                "pause_campaign",
+                customer_id="1234567890",
+                payload={"campaign_id": "111"},
+                validate_only=False,
+                execute=True,
+            )
+
+        self.assertEqual(len(audit_events), 1)
+        self.assertEqual(audit_events[0]["tool"], "pause_campaign")
+        self.assertEqual(audit_events[0]["result"], "denied")
+        self.assertEqual(audit_events[0]["mode"], "write_enabled")
 
     async def test_bulk_add_negative_keywords_routes_through_negative_keyword_helper(self) -> None:
         dispatcher = FriendlyDispatcher(gateway=FakeGateway())  # type: ignore[arg-type]

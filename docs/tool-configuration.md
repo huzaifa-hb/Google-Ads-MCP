@@ -15,8 +15,18 @@ in this order:
   and the high-frequency campaign, ad group, ad, keyword, search terms, device,
   geo, landing page, and change history reports.
 - `standard`: the broader read catalog from earlier releases.
+- `agency_write`: read tools plus hand-built media-buyer write helpers for
+  campaigns, budgets, ad groups, ads, keywords, negative keywords, assets,
+  labels, extensions, and bulk operations. It does not expose raw mutate or the
+  generic service bridge.
+- `advanced_mutate`: `agency_write` plus `generic_google_ads_mutate` for
+  explicit raw mutate workflows. It still does not expose
+  `generic_google_ads_call_service`.
 - `full`: every read namespace, with write exposure still controlled by
   `GOOGLE_ADS_MCP_MODE`.
+
+`GOOGLE_ADS_MCP_MODE=write_enabled` is only a gate. It permits configured write
+tools to commit after confirmation, but it does not load write tools by itself.
 
 ## Default Shape
 
@@ -93,6 +103,29 @@ tools:
 
 In this mode, `campaigns_pause_campaign` can validate a pause operation, but the
 server still forces `validate_only=true`.
+
+## Enable Agency Writes
+
+Cloud deployments stay read-only unless you choose both write mode and a
+write-capable profile:
+
+```powershell
+npx @huzaifa-hb/google-ads-mcp cloud deploy --project YOUR_GCP_PROJECT_ID --mode write_enabled --tool-profile agency_write
+```
+
+This exposes tools such as `campaigns_create_search_campaign`,
+`campaigns_update_campaign`, `campaigns_pause_campaign`, `ads_pause_ad`,
+`budgets_update_budget`, keyword write helpers, negative keyword helpers, and
+bulk campaign/bid helpers. Real writes still require `execute=true`,
+`validate_only=false`, and
+`confirmation_phrase="CONFIRM_GOOGLE_ADS_WRITE"`.
+
+Use `advanced_mutate` only when agents need to plan custom
+GoogleAdsService.Mutate operations:
+
+```powershell
+npx @huzaifa-hb/google-ads-mcp cloud deploy --project YOUR_GCP_PROJECT_ID --mode write_enabled --tool-profile advanced_mutate
+```
 
 ## Enable Legacy Aliases
 

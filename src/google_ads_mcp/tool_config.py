@@ -10,6 +10,7 @@ from typing import Any
 
 from .config import ConfigError, Settings
 from .tool_catalog import FRIENDLY_TOOL_BY_NAME, FRIENDLY_TOOL_SPECS, FriendlyToolSpec, SERVICE_TOOLS
+from .tool_implementation import WRITE_BUILDER_TOOLS
 
 
 MCP_MODES = {"safe_read_only", "validation_only", "write_enabled", "admin_debug"}
@@ -275,11 +276,26 @@ STANDARD_PROFILE_NAMESPACES = {
     "conversions",
     "recommendations",
 }
+AGENCY_WRITE_PROFILE_NAMESPACES = LEAN_PROFILE_NAMESPACES | {
+    "assets",
+    "bulk",
+    "extensions",
+    "labels",
+}
 FULL_PROFILE_NAMESPACES = set(DEFAULT_NAMESPACES)
 TOOL_PROFILE_NAMESPACES = {
     "lean": LEAN_PROFILE_NAMESPACES,
     "standard": STANDARD_PROFILE_NAMESPACES,
+    "agency_write": AGENCY_WRITE_PROFILE_NAMESPACES,
+    "advanced_mutate": AGENCY_WRITE_PROFILE_NAMESPACES,
     "full": FULL_PROFILE_NAMESPACES,
+}
+PROFILE_WRITE_ALLOWLISTS = {
+    "agency_write": WRITE_BUILDER_TOOLS,
+    "advanced_mutate": WRITE_BUILDER_TOOLS | {"google_ads_mutate"},
+}
+PROFILE_FORCED_TOOLS = {
+    "advanced_mutate": {"google_ads_mutate"},
 }
 
 
@@ -414,10 +430,14 @@ def _exposures_for_tool(
     alias_for: str | None = None,
 ) -> list[ToolExposure]:
     config_name = config_name or canonical_name
-    profile_requested = deprecated and tool_profile in {"standard", "full"}
+    profile_requested = (
+        (deprecated and tool_profile in {"standard", "full"})
+        or canonical_name in PROFILE_FORCED_TOOLS.get(tool_profile, set())
+    )
     if not _tool_is_enabled(
         config_name,
         namespace,
+        tool_mode,
         read_write,
         mode,
         namespaces,
@@ -457,6 +477,7 @@ def _exposures_for_tool(
 def _tool_is_enabled(
     canonical_name: str,
     namespace: str,
+    tool_mode: str,
     read_write: str,
     mode: str,
     namespaces: dict[str, NamespaceConfig],
@@ -469,6 +490,13 @@ def _tool_is_enabled(
     namespace_config = namespaces.get(namespace)
     if namespace_config is None:
         raise ConfigError(f"Tool '{canonical_name}' uses unknown namespace '{namespace}'.")
+    if not _profile_allows_tool(
+        tool_profile=tool_profile,
+        canonical_name=canonical_name,
+        tool_mode=tool_mode,
+        read_write=read_write,
+    ):
+        return False
     if canonical_name in tool_overrides and tool_overrides[canonical_name]:
         requested = True
     else:
@@ -492,6 +520,25 @@ def _tool_is_enabled(
         return read_write in {"read", "write"}
     if mode == "write_enabled":
         return read_write in {"read", "write"}
+    return True
+
+
+def _profile_allows_tool(
+    *,
+    tool_profile: str,
+    canonical_name: str,
+    tool_mode: str,
+    read_write: str,
+) -> bool:
+    allowed_writes = PROFILE_WRITE_ALLOWLISTS.get(tool_profile)
+    if allowed_writes is None:
+        return True
+    if tool_mode == "unsupported":
+        return False
+    if read_write == "write":
+        return canonical_name in allowed_writes
+    if read_write == "generic":
+        return False
     return True
 
 

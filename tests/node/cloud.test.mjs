@@ -37,6 +37,20 @@ test("deploy command delegates to the existing Cloud Run script", () => {
   assert.ok(command.args.includes("project-1"));
   assert.ok(command.args.includes("-McpMode"));
   assert.ok(command.args.includes("safe_read_only"));
+  assert.ok(!command.args.includes("-ToolProfile"));
+});
+
+test("deploy command passes tool profile only when explicitly requested", () => {
+  const command = buildDeployCommand("C:/repo", {
+    projectId: "project-1",
+    region: "us-central1",
+    mode: "write_enabled",
+    authMode: "bearer",
+    toolProfile: "agency_write"
+  });
+
+  assert.ok(command.args.includes("-ToolProfile"));
+  assert.ok(command.args.includes("agency_write"));
 });
 
 test("deploy command passes OAuth proxy base URL", () => {
