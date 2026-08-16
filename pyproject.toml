@@ -16,7 +16,7 @@ dependencies = [
     "google-auth>=2.29.0",
     "google-cloud-firestore>=2.20.0",
     "protobuf>=4.25.0",
-    "PyYAML>=6.0.2",
+    "PyYAML>=6.0.3",
     "python-dotenv>=1.0.1",
     "starlette>=0.37.0",
 ]
